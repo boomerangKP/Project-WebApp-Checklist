@@ -48,40 +48,49 @@ const getSlotName = (dateString) => {
   if (!dateString) return '-'
   const date = new Date(dateString)
   // ดึงเวลาออกมาเป็น HH:mm:ss เพื่อเอาไปเทียบ
-  const timeStr = date.toLocaleTimeString('en-GB', { hour12: false }) 
-  
+  const timeStr = date.toLocaleTimeString('en-GB', { hour12: false })
+
   // หาว่าเวลานี้ ตกอยู่ในช่องไหน
-  const match = timeSlots.value.find(slot => 
+  const match = timeSlots.value.find(slot =>
     timeStr >= slot.time_slots_start && timeStr < slot.time_slots_end
   )
-  
+
   return match ? match.time_slots_name : 'นอกเวลาทำการ'
 }
 
 // --- Logic Data & Filter ---
+// --- Logic Data & Filter ---
 const fetchTasks = async () => {
-  // ถ้าโหลดครั้งแรกให้หมุนติ้วๆ
   if (tasks.value.length === 0) loading.value = true
 
   try {
-    // 🔥 โหลดตารางเวลาให้เสร็จก่อน (ถ้ายังไม่มี)
+    // 1. โหลดตารางเวลา (ถ้ายังไม่มี)
     if (timeSlots.value.length === 0) await fetchTimeSlots()
 
+    // 🔥 2. สร้างวันที่ปัจจุบัน (Local Time)
+    const d = new Date()
+    const year = d.getFullYear()
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    const today = `${year}-${month}-${day}`
+
+    // 3. Query เฉพาะงานของวันนี้ (เพื่อให้ตรงกับ Dashboard)
     const { data, error } = await supabase.from('check_sessions').select(`
         check_sessions_id, check_sessions_date, check_sessions_time_start, check_sessions_status, created_at,
         employees ( employees_firstname, employees_lastname, employees_photo, role ),
         locations ( locations_name, locations_building, locations_floor )
-      `).order('created_at', { ascending: false })
+      `)
+      .eq('check_sessions_date', today) // 🔥 เพิ่มบรรทัดนี้: เอาเฉพาะงานวันนี้
+      .order('created_at', { ascending: false })
 
     if (error) throw error
 
-    // Transform Data
+    // 4. Transform Data
     tasks.value = data.map(item => {
-      // Map สถานะ
       let mappedStatus = 'waiting'
       const s = item.check_sessions_status
 
-      if (['approved', 'pass'].includes(s)) {
+      if (['approved', 'pass', 'fixed'].includes(s)) {
         mappedStatus = 'approved'
       } else if (['rejected', 'fail'].includes(s)) {
         mappedStatus = 'rejected'
@@ -97,12 +106,11 @@ const fetchTasks = async () => {
         location: item.locations?.locations_name || 'ไม่ระบุสถานที่',
         floor: item.locations ? `${item.locations.locations_building} ชั้น ${item.locations.locations_floor}` : '-',
         date: new Date(item.check_sessions_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }),
-        
-        // 🔥 แก้ตรงนี้: ใช้ฟังก์ชัน getSlotName แทนการตัด string เดิม
-        time: getSlotName(item.created_at), 
-        
+
+        time: getSlotName(item.created_at),
+
         status: mappedStatus,
-        originalStatus: s 
+        originalStatus: s
       }
     })
   } catch (err) {
@@ -119,7 +127,7 @@ const subscribeRealtime = () => {
     .on(
       'postgres_changes',
       {
-        event: '*', 
+        event: '*',
         schema: 'public',
         table: 'check_sessions',
       },
@@ -180,7 +188,7 @@ const isAllSelected = computed(() => paginatedTasks.value.length > 0 && paginate
 const waitingCount = computed(() => tasks.value.filter(t => t.status === 'waiting').length)
 
 // --- Logic Action ---
-const openTaskDetail = (id) => router.push({ path: `/admin/check/${id}` }) 
+const openTaskDetail = (id) => router.push({ path: `/admin/check/${id}` })
 
 const openBulkApproveModal = () => {
   modalConfig.value = {
@@ -216,7 +224,7 @@ watch([activeTab, itemsPerPage, searchQuery, selectedMaid], () => {
 onMounted(() => {
   fetchTimeSlots() // เรียกโหลดตารางเวลา
   fetchTasks()     // เรียกโหลดงาน
-  subscribeRealtime() 
+  subscribeRealtime()
 })
 
 onUnmounted(() => {

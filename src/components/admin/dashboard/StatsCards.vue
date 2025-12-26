@@ -30,7 +30,7 @@ const pendingRate = computed(() => {
       <div>
         <div class="flex items-center gap-2 mb-2">
           <div class="p-2 bg-blue-100 rounded-lg text-blue-600"><LayoutDashboard class="w-5 h-5" /></div>
-          <span class="text-sm font-medium text-gray-500">Total Tasks</span>
+          <span class="text-sm font-medium text-gray-500">งานทั้งหมด</span>
         </div>
         <div class="text-3xl font-bold text-gray-900">{{ stats.total }}</div>
         <div class="text-xs text-gray-400 mt-1">จุดตรวจทั้งหมด (เป้าหมาย)</div>
@@ -41,7 +41,7 @@ const pendingRate = computed(() => {
       <div>
          <div class="flex items-center gap-2 mb-2">
           <div class="p-2 bg-yellow-100 rounded-lg text-yellow-600"><Clock class="w-5 h-5" /></div>
-          <span class="text-sm font-medium text-gray-500">Pending Tasks</span>
+          <span class="text-sm font-medium text-gray-500">รอดำเนินการ</span>
         </div>
         <div class="text-3xl font-bold text-gray-900">{{ stats.pending }}</div>
          <div class="text-xs text-orange-500 mt-1">
@@ -54,7 +54,7 @@ const pendingRate = computed(() => {
       <div>
          <div class="flex items-center gap-2 mb-2">
           <div class="p-2 bg-green-100 rounded-lg text-green-600"><CheckCircle2 class="w-5 h-5" /></div>
-          <span class="text-sm font-medium text-gray-500">Completed Tasks</span>
+          <span class="text-sm font-medium text-gray-500">ตรวจสอบแล้ว</span>
         </div>
         <div class="text-3xl font-bold text-gray-900">{{ stats.completed }}</div>
         <div class="text-xs text-green-600 mt-1">
@@ -67,7 +67,7 @@ const pendingRate = computed(() => {
       <div>
          <div class="flex items-center gap-2 mb-2">
           <div class="p-2 bg-indigo-100 rounded-lg text-indigo-600"><Users class="w-5 h-5" /></div>
-          <span class="text-sm font-medium text-gray-500">Active Staff</span>
+          <span class="text-sm font-medium text-gray-500">คนปฏิบัติงาน</span>
         </div>
         <div class="text-3xl font-bold text-gray-900">{{ stats.activeStaff }}</div>
         <div class="text-xs text-indigo-600 mt-1">• คน (กำลังปฏิบัติงาน)</div>

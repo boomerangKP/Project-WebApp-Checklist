@@ -35,12 +35,29 @@ const router = createRouter({
           name: 'task-detail',
           component: () => import('../pages/admin/TaskDetail.vue')
         },
+        // 🔥🔥🔥 เพิ่มส่วนนี้ครับ (หน้ารายงาน) 🔥🔥🔥
+        {
+          path: 'report', // ตรงกับใน Sidebar เป๊ะ
+          name: 'admin-report',
+          component: () => import('../pages/admin/Reports.vue')
+        },
+        // 🔥🔥🔥 จบส่วนที่เพิ่ม 🔥🔥🔥
         {
           path: 'employees',
           name: 'admin-employees',
           component: () => import('../pages/admin/EmployeeList.vue')
         },
-        // ... (หน้าอื่นๆ ของ Admin)
+        // 🔥 เปลี่ยนจาก path: 'settings' เป็น 2 อันนี้แทน
+        {
+          path: 'locations',  // ตรงกับ Sidebar ที่ตั้งไว้
+          name: 'admin-locations',
+          component: () => import('../pages/admin/Locations.vue')
+        },
+        {
+          path: 'checklists', // ตรงกับ Sidebar ที่ตั้งไว้
+          name: 'admin-checklists',
+          component: () => import('../pages/admin/Checklists.vue')
+        }
       ]
     },
 
@@ -65,71 +82,60 @@ const router = createRouter({
           name: 'maid-history',
           component: () => import('../pages/maid/History.vue')
         },
-        
-        // 👇 Redirect กันเหนียว ถ้าเข้า /maid เฉยๆ
+        {
+          path: 'history/:id',
+          name: 'maid-history-detail',
+          component: () => import('../pages/maid/TaskHistoryDetail.vue')
+        },
         {
           path: '',
           redirect: { name: 'maid-home' }
-        }
+        },
+        // ใน children ของ path: '/admin'
+
       ]
     },
 
-    // --- 4. Root Redirect (สำคัญมาก!) ---
-    // 👇👇👇 เพิ่มส่วนนี้ครับ: ถ้าเข้า localhost:5173 เฉยๆ ให้ดีดไป Login
+    // --- 4. Root Redirect ---
     {
       path: '/',
       redirect: '/login'
     },
 
-    // --- 5. NotFound (หน้ากันตาย) ---
-    // 👇 ต้องอยู่ล่างสุดเสมอ!
+    // --- 5. NotFound ---
     {
       path: '/:pathMatch(.*)*',
       name: 'NotFound',
       component: () => import('../pages/NotFound.vue'),
       meta: { requiresAuth: false }
-    }
+    },
   ]
 })
 
 // --- 🔥 Logic ยามเฝ้าประตู (Navigation Guard) ---
 router.beforeEach(async (to, from, next) => {
-  // 👇 เรียกใช้ Store ภายใน function นี้เท่านั้น (เพื่อป้องกัน Error: no active Pinia)
   const userStore = useUserStore()
-
-  // 1. เช็ค Session ปัจจุบันจาก Supabase
   const { data: { session } } = await supabase.auth.getSession()
 
-  // -----------------------------------------------------------
-  // กรณี: ไม่มี Session (ยังไม่ได้ Login)
-  // -----------------------------------------------------------
+  // 1. ไม่มี Session -> ดีดไป Login
   if (!session) {
-    // ถ้าจะไปหน้าที่ต้องการ Login -> ดีดไป Login
-    if (to.meta.requiresAuth) {
-      return next('/login')
-    }
-    // ถ้าไปหน้า Login หรือ NotFound -> ปล่อยผ่าน
+    if (to.meta.requiresAuth) return next('/login')
     return next()
   }
 
-  // -----------------------------------------------------------
-  // กรณี: มี Session แล้ว (Login อยู่)
-  // -----------------------------------------------------------
-
-  // 2. เช็คว่ามีข้อมูล Profile ใน Store หรือยัง? (ถ้ากด Refresh หน้าเว็บ Store จะว่าง)
+  // 2. มี Session -> เช็ค Role ใน Store
   let role = userStore.profile?.role
 
   if (!role) {
-    // ถ้า Store ว่าง ให้วิ่งไปดึงจาก DB มาเก็บไว้เดี๋ยวนี้!
     try {
       const { data, error } = await supabase
         .from('employees')
-        .select('*') // ดึงหมดเลยจะได้เอาไปใช้ในหน้าอื่นๆ ด้วย
+        .select('*')
         .eq('email', session.user.email)
         .single()
 
       if (!error && data) {
-        userStore.setProfile(data) // เก็บลง Pinia
+        userStore.setProfile(data)
         role = data.role
       }
     } catch (err) {
@@ -137,23 +143,20 @@ router.beforeEach(async (to, from, next) => {
     }
   }
 
-  // 3. ป้องกันการกลับไปหน้า Login ซ้ำ (ถ้าล็อกอินแล้ว จะไปหน้า Login ทำไม?)
+  // 3. ป้องกันกลับไปหน้า Login ซ้ำ
   if (to.path === '/login') {
     if (role === 'admin') return next('/admin')
     if (role === 'maid') return next('/maid/home')
-    return next('/') // กันเหนียว
+    return next('/')
   }
 
-  // 4. ป้องกันการข้ามสายงาน (Role Guard)
-  // ถ้า Route นั้นระบุ role แต่ role ของ User ไม่ตรง
+  // 4. ป้องกันข้ามสายงาน (Role Guard)
   if (to.meta.role && to.meta.role !== role) {
-    // ดีดกลับไปหน้าบ้านของตัวเอง
     if (role === 'admin') return next('/admin')
     if (role === 'maid') return next('/maid/home')
-    return next('/login') // ถ้าไม่มี role เลย ให้เด้งออก
+    return next('/login')
   }
 
-  // 5. ผ่านทุกด่าน เชิญครับ!
   next()
 })
 

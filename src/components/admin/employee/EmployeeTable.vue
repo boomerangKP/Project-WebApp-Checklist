@@ -49,7 +49,7 @@ const getStatusColor = (s) => s === 'active' ? 'text-green-700 bg-green-50 borde
   <div @click="closeMenu" class="flex flex-col h-full bg-white rounded-lg shadow-sm border border-gray-200">
     
     <div class="overflow-x-auto flex-1 pb-20"> <table class="w-full text-left border-collapse">
-        <thead class="bg-gray-50 sticky top-0 z-10 shadow-sm">
+        <thead class="bg-gray-50 sticky top-0 z-5 shadow-sm">
           <tr class="border-b border-gray-200 text-gray-600 text-xs uppercase tracking-wider font-semibold">
             <th class="px-6 py-4 whitespace-nowrap">พนักงาน</th>
             <th class="px-6 py-4 whitespace-nowrap">ตำแหน่ง</th>

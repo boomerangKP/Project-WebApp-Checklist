@@ -17,45 +17,30 @@ const notifications = ref([])
 const showDropdown = ref(false)
 const unreadCount = computed(() => notifications.value.filter(n => !n.is_read).length)
 let realtimeSubscription = null
+const containerRef = ref(null) // อ้างอิงถึง Div หลัก
 
-// 🔥 เพิ่มตัวแปรเก็บ Time Slots
+// --- Helper Functions ---
 const timeSlots = ref([])
-
-// --- Helper: ดึงข้อมูลรอบเวลา ---
 const fetchTimeSlots = async () => {
   const { data } = await supabase.from('time_slots').select('*').order('time_slots_order')
   if (data) timeSlots.value = data
 }
 
-// --- Helper: แปลงเวลาเป็นชื่อรอบ (เช่น 10.00 - 11.00 น.) ---
 const getSlotName = (dateString) => {
   if (!dateString) return '-'
   const date = new Date(dateString)
   const timeStr = date.toLocaleTimeString('en-GB', { hour12: false }) 
-  
-  // หาว่าเวลานี้ ตกอยู่ในช่องไหน
-  const match = timeSlots.value.find(slot => 
-    timeStr >= slot.time_slots_start && timeStr < slot.time_slots_end
-  )
-  
-  // ถ้าเจอให้ใช้ชื่อรอบ ถ้าไม่เจอให้โชว์เวลาเดิม
+  const match = timeSlots.value.find(slot => timeStr >= slot.time_slots_start && timeStr < slot.time_slots_end)
   return match ? match.time_slots_name : dayjs(dateString).format('HH.mm น.')
 }
 
-// --- 1. ดึงแจ้งเตือน ---
 const fetchNotifications = async () => {
-  const { data } = await supabase
-    .from('notifications')
-    .select(`*, employees (employees_photo)`)
-    .order('created_at', { ascending: false })
-    .limit(10)
+  const { data } = await supabase.from('notifications').select(`*, employees (employees_photo)`).order('created_at', { ascending: false }).limit(10)
   if (data) notifications.value = data
 }
 
-// --- 2. ฟัง Realtime ---
 const subscribeRealtime = () => {
-  realtimeSubscription = supabase
-    .channel('noti-realtime')
+  realtimeSubscription = supabase.channel('noti-realtime')
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, async (payload) => {
       const newNoti = payload.new
       const { data: emp } = await supabase.from('employees').select('employees_photo').eq('employees_id', newNoti.actor_id).single()
@@ -64,18 +49,13 @@ const subscribeRealtime = () => {
     .subscribe()
 }
 
-// --- 3. Action ---
 const handleClick = async (noti) => {
   showDropdown.value = false 
-
   if (!noti.is_read) {
     noti.is_read = true
     supabase.from('notifications').update({ is_read: true }).eq('id', noti.id).then()
   }
-
-  if (noti.link) {
-    router.push(noti.link)
-  }
+  if (noti.link) router.push(noti.link)
 }
 
 const toggleDropdown = () => showDropdown.value = !showDropdown.value
@@ -90,20 +70,48 @@ const parseMessage = (msg) => {
 }
 
 const formatDate = (d) => dayjs(d).format('D MMM BB')
-// const formatTime = (d) => dayjs(d).format('HH.mm น.') // ไม่ใช้แล้ว
 const timeAgo = (d) => dayjs(d).fromNow()
 
+// 1. ปิดเมื่อคลิกข้างนอก (Click Outside)
+const handleClickOutside = (event) => {
+  if (showDropdown.value && containerRef.value && !containerRef.value.contains(event.target)) {
+    showDropdown.value = false
+  }
+}
+
+// 2. 🔥 ปิดเมื่อ Scroll ข้างนอก (Scroll Outside)
+const handleScroll = (event) => {
+  if (!showDropdown.value) return
+
+  // เช็คว่า Scroll เกิดขึ้นภายในกล่องเราไหม?
+  // ถ้า event.target เป็นส่วนหนึ่งของ containerRef -> แปลว่าเลื่อนข้างใน -> ไม่ปิด
+  const isScrollingInside = containerRef.value && containerRef.value.contains(event.target)
+
+  // ถ้าเลื่อนข้างนอก (Body หรือส่วนอื่น) -> สั่งปิด
+  if (!isScrollingInside) {
+    showDropdown.value = false
+  }
+}
+
 onMounted(() => { 
-  fetchTimeSlots() // โหลดตารางเวลามาก่อน
+  fetchTimeSlots()
   fetchNotifications()
   subscribeRealtime() 
+
+  document.addEventListener('click', handleClickOutside)
+  // ใช้ capture phase (true) เพื่อดักจับ scroll event จากทุก element
+  window.addEventListener('scroll', handleScroll, true) 
 })
 
-onUnmounted(() => { if (realtimeSubscription) supabase.removeChannel(realtimeSubscription) })
+onUnmounted(() => { 
+  if (realtimeSubscription) supabase.removeChannel(realtimeSubscription)
+  document.removeEventListener('click', handleClickOutside)
+  window.removeEventListener('scroll', handleScroll, true)
+})
 </script>
 
 <template>
-  <div class="relative">
+  <div class="relative" ref="containerRef">
     <button @click="toggleDropdown" class="relative p-2 rounded-full hover:bg-gray-100 transition-colors text-gray-600 focus:outline-none">
       <Bell class="w-6 h-6" />
       <span v-if="unreadCount > 0" class="absolute top-0 right-0 flex h-4 w-4 transform translate-x-1 -translate-y-1">
@@ -114,13 +122,14 @@ onUnmounted(() => { if (realtimeSubscription) supabase.removeChannel(realtimeSub
       </span>
     </button>
 
-    <div v-if="showDropdown" class="absolute right-0 mt-3 w-[400px] bg-white rounded-xl shadow-2xl border border-gray-100 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+    <div v-if="showDropdown" class="absolute right-0 mt-3 w-[400px] bg-white rounded-xl shadow-2xl border border-gray-100 z-[999] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+      
       <div class="px-5 py-4 flex justify-between items-center bg-white border-b border-gray-100">
         <h3 class="font-bold text-gray-800 text-lg">ข้อความแจ้งเตือน</h3>
         <button v-if="unreadCount > 0" @click.stop="markAllRead" class="text-sm text-blue-600 hover:underline">อ่านทั้งหมด</button>
       </div>
 
-      <div class="max-h-[450px] overflow-y-auto bg-gray-50/30 p-2 space-y-2">
+      <div class="max-h-[450px] overflow-y-auto bg-gray-50/30 p-2 space-y-2 custom-scrollbar">
         <div v-if="notifications.length === 0" class="p-8 text-center text-gray-400 text-sm">ไม่มีการแจ้งเตือน</div>
 
         <div
@@ -162,7 +171,22 @@ onUnmounted(() => { if (realtimeSubscription) supabase.removeChannel(realtimeSub
         </div>
       </div>
     </div>
-
-    <div v-if="showDropdown" class="fixed inset-0 z-30" @click="showDropdown = false"></div>
   </div>
 </template>
+
+<style scoped>
+/* Scrollbar สวยๆ */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+</style>

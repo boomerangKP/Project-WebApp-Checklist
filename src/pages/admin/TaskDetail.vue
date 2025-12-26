@@ -191,7 +191,7 @@ onMounted(() => { if (taskId) fetchTaskDetail() })
         </div>
       </div>
 
-      <div class="lg:col-span-1 space-y-3 sticky top-2 h-fit z-10">
+      <div class="lg:col-span-1 space-y-3 sticky top-2 h-fit z-5">
         <h2 class="text-xl font-bold text-gray-800">ผู้รับผิดชอบ</h2>
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 flex flex-col items-center text-center">
           <div class="relative mb-3">
