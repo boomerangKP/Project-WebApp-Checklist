@@ -1,199 +1,144 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { Plus, Trash2, Edit, Building, Layers, MapPin, ChevronRight, Home, Users, MoreVertical } from 'lucide-vue-next'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { MapPin, Calendar, Clock, Search, ChevronDown, Check, Lock } from 'lucide-vue-next' // ✅ เพิ่ม Lock
 
 const props = defineProps({
-  rawLocations: { type: Array, default: () => [] },
-  restroomTypes: { type: Array, default: () => [] },
-  loading: Boolean
+  locations: {
+    type: Array,
+    default: () => []
+  },
+  restroomTypes: {
+    type: Array,
+    default: () => []
+  },
+  selectedLocation: [String, Number],
+  selectedType: [String, Number],
+  currentDate: String,
+  currentTime: String,
+
+  // 🔥 ตัวแปรสั่งล็อก (รับค่ามาจากแม่)
+  disabledType: {
+    type: Boolean,
+    default: false
+  }
 })
 
-// เพิ่ม Events: edit-group, delete-group
-const emit = defineEmits(['add', 'edit', 'delete', 'edit-group', 'delete-group'])
+const emit = defineEmits(['update:selectedLocation', 'update:selectedType'])
 
-// --- Navigation State ---
-const viewLevel = ref(0)
-const selectedBuilding = ref('')
-const selectedFloor = ref('')
-const selectedTypeId = ref('')
+// --- Search Logic (เหมือนเดิม) ---
+const searchQuery = ref('')
+const isDropdownOpen = ref(false)
+const dropdownRef = ref(null)
 
-// --- Menu Dropdown State ---
-const activeMenu = ref(null) // เก็บ ID ของเมนูที่เปิดอยู่ (เช่น 'building-A')
-
-// ปิดเมนูเมื่อคลิกที่อื่น
-const closeMenu = () => activeMenu.value = null
-const toggleMenu = (id) => {
-  if (activeMenu.value === id) activeMenu.value = null
-  else activeMenu.value = id
-}
-// ดักจับคลิกทั่วจอเพื่อปิดเมนู
-onMounted(() => document.addEventListener('click', closeMenu))
-onUnmounted(() => document.removeEventListener('click', closeMenu))
-
-// --- Computed Logic (เหมือนเดิม) ---
-const uniqueBuildings = computed(() => {
-  const buildings = props.rawLocations.map(l => l.locations_building)
-  return [...new Set(buildings)].sort()
-})
-
-const uniqueFloors = computed(() => {
-  if (!selectedBuilding.value) return []
-  const floors = props.rawLocations
-    .filter(l => l.locations_building === selectedBuilding.value)
-    .map(l => l.locations_floor)
-  return [...new Set(floors)].sort((a, b) => a - b)
-})
-
-const availableTypesInFloor = computed(() => {
-  if (!selectedBuilding.value || !selectedFloor.value) return []
-  const roomsInFloor = props.rawLocations.filter(l =>
-    l.locations_building === selectedBuilding.value &&
-    l.locations_floor === selectedFloor.value
-  )
-  const usedTypeIds = new Set(roomsInFloor.map(r => r.restroom_types_id))
-  return props.restroomTypes.filter(t => usedTypeIds.has(t.restroom_types_id)).map(t => {
-    return { ...t, count: roomsInFloor.filter(r => r.restroom_types_id === t.restroom_types_id).length }
-  })
-})
-
-const currentRooms = computed(() => {
-  if (!selectedBuilding.value || !selectedFloor.value || !selectedTypeId.value) return []
-  return props.rawLocations.filter(l =>
-    l.locations_building === selectedBuilding.value &&
-    l.locations_floor === selectedFloor.value &&
-    l.restroom_types_id === selectedTypeId.value
+const filteredLocations = computed(() => {
+  if (!searchQuery.value) return props.locations
+  const query = searchQuery.value.toLowerCase()
+  return props.locations.filter(loc =>
+    loc.locations_name.toLowerCase().includes(query) ||
+    loc.locations_building.toLowerCase().includes(query)
   )
 })
 
-const currentTypeName = computed(() => {
-    const t = props.restroomTypes.find(type => type.restroom_types_id === selectedTypeId.value)
-    return t ? t.restroom_types_name : 'ไม่ระบุ'
-})
-
-// --- Actions ---
-const selectBuilding = (b) => { selectedBuilding.value = b; viewLevel.value = 1 }
-const selectFloor = (f) => { selectedFloor.value = f; viewLevel.value = 2 }
-const selectType = (id) => { selectedTypeId.value = id; viewLevel.value = 3 }
-const resetView = () => { viewLevel.value = 0; selectedBuilding.value = ''; selectedFloor.value = ''; selectedTypeId.value = '' }
-
-const handleAdd = (type) => {
-  const contextData = { building: selectedBuilding.value, floor: selectedFloor.value, typeId: selectedTypeId.value }
-  emit('add', { type, data: contextData })
+const selectLocation = (loc) => {
+  searchQuery.value = loc.locations_name
+  emit('update:selectedLocation', loc.locations_id)
+  isDropdownOpen.value = false
 }
 
-// 🔥 Action สำหรับจัดการกลุ่ม (Rename/Delete)
-const handleGroupAction = (action, level, oldVal) => {
-  activeMenu.value = null // ปิดเมนู
-  if (action === 'edit') emit('edit-group', { level, oldVal })
-  if (action === 'delete') emit('delete-group', { level, val: oldVal })
+watch(() => props.selectedLocation, (newVal) => {
+  const found = props.locations.find(l => l.locations_id == newVal)
+  if (found) {
+    searchQuery.value = found.locations_name
+  } else if (!newVal) {
+    searchQuery.value = ''
+  }
+}, { immediate: true })
+
+const handleClickOutside = (event) => {
+  if (dropdownRef.value && !dropdownRef.value.contains(event.target)) {
+    isDropdownOpen.value = false
+    if (!props.selectedLocation) {
+        searchQuery.value = ''
+    } else {
+        const found = props.locations.find(l => l.locations_id == props.selectedLocation)
+        if (found) searchQuery.value = found.locations_name
+    }
+  }
 }
+
+onMounted(() => document.addEventListener('click', handleClickOutside))
+onUnmounted(() => document.removeEventListener('click', handleClickOutside))
 </script>
 
 <template>
-  <div class="animate-in fade-in slide-in-from-bottom-2">
-    
-    <div class="flex items-center gap-2 text-sm text-gray-500 mb-6 bg-gray-50 p-3 rounded-lg border border-gray-100 flex-wrap">
-      <button @click="resetView" class="hover:text-indigo-600 flex items-center gap-1"><Home class="w-4 h-4" /> หน้าแรก</button>
-      <template v-if="viewLevel >= 1"><ChevronRight class="w-4 h-4 text-gray-300" /><span :class="viewLevel === 1 ? 'font-bold text-gray-900' : 'hover:text-indigo-600 cursor-pointer'" @click="viewLevel = 1">อาคาร {{ selectedBuilding }}</span></template>
-      <template v-if="viewLevel >= 2"><ChevronRight class="w-4 h-4 text-gray-300" /><span :class="viewLevel === 2 ? 'font-bold text-gray-900' : 'hover:text-indigo-600 cursor-pointer'" @click="viewLevel = 2">ชั้น {{ selectedFloor }}</span></template>
-      <template v-if="viewLevel >= 3"><ChevronRight class="w-4 h-4 text-gray-300" /><span class="font-bold text-gray-900">{{ currentTypeName }}</span></template>
+  <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-5">
+
+    <h2 class="font-bold text-gray-800 flex items-center gap-2 text-lg">
+      <MapPin class="w-5 h-5 text-indigo-500" />
+      ระบุข้อมูลงาน
+    </h2>
+
+    <div class="space-y-1.5" ref="dropdownRef">
+      <label class="text-sm font-medium text-gray-700">สถานที่ปฏิบัติงาน</label>
+      <div class="relative">
+        <input
+          type="text"
+          v-model="searchQuery"
+          @focus="isDropdownOpen = true"
+          @input="isDropdownOpen = true; emit('update:selectedLocation', '')"
+          placeholder="พิมพ์ชื่อห้อง หรือ ชั้น... (เช่น 101)"
+          class="w-full bg-gray-50 border border-gray-200 text-gray-800 py-3 pl-10 pr-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors placeholder:text-gray-400"
+        />
+        <Search class="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+        <ChevronDown class="w-5 h-5 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none transition-transform"
+          :class="{ 'rotate-180': isDropdownOpen }"
+        />
+
+        <div v-if="isDropdownOpen" class="absolute z-20 mt-1 w-full bg-white rounded-xl shadow-xl border border-gray-100 max-h-60 overflow-y-auto animate-in fade-in zoom-in-95 duration-200">
+          <ul v-if="filteredLocations.length > 0">
+            <li v-for="loc in filteredLocations" :key="loc.locations_id" @click="selectLocation(loc)" class="px-4 py-3 hover:bg-indigo-50 cursor-pointer border-b border-gray-50 last:border-0 flex justify-between items-center group">
+              <div>
+                <div class="font-medium text-gray-800 group-hover:text-indigo-700">{{ loc.locations_name }}</div>
+                <div class="text-xs text-gray-500">อาคาร {{ loc.locations_building }} • ชั้น {{ loc.locations_floor }}</div>
+              </div>
+              <Check v-if="selectedLocation === loc.locations_id" class="w-4 h-4 text-indigo-600" />
+            </li>
+          </ul>
+          <div v-else class="p-4 text-center text-gray-400 text-sm">ไม่พบสถานที่ที่ค้นหา</div>
+        </div>
+      </div>
     </div>
 
-    <div v-if="viewLevel === 0">
-        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
-            <div v-for="b in uniqueBuildings" :key="b" 
-                 class="relative bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:border-indigo-300 transition-all group text-center"
-                 @click="selectBuilding(b)"
-            >
-                <div class="absolute top-2 right-2 z-10">
-                    <button @click.stop="toggleMenu(`building-${b}`)" class="p-1 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors">
-                        <MoreVertical class="w-4 h-4" />
-                    </button>
-                    <div v-if="activeMenu === `building-${b}`" class="absolute right-0 mt-1 w-32 bg-white rounded-lg shadow-xl border border-gray-100 z-20 overflow-hidden text-left animate-in fade-in zoom-in-95 duration-150">
-                        <button @click.stop="handleGroupAction('edit', 'building', b)" class="w-full px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 flex items-center gap-2"><Edit class="w-3 h-3" /> แก้ไขชื่อ</button>
-                        <button @click.stop="handleGroupAction('delete', 'building', b)" class="w-full px-4 py-2 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2"><Trash2 class="w-3 h-3" /> ลบอาคาร</button>
-                    </div>
-                </div>
+    <div class="space-y-1.5">
+      <label class="text-sm font-medium text-gray-700">ประเภทห้องน้ำ</label>
+      <div class="relative">
+        <select
+          :value="selectedType"
+          @change="$emit('update:selectedType', $event.target.value)"
+          :disabled="disabledType"
+          class="w-full appearance-none border text-gray-800 py-3 px-4 pr-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors cursor-pointer"
+          :class="disabledType ? 'bg-gray-100 text-gray-500 border-gray-200 cursor-not-allowed' : 'bg-gray-50 border-gray-200'"
+        >
+          <option value="" disabled>-- กรุณาเลือกประเภท --</option>
+          <option v-for="type in restroomTypes" :key="type.restroom_types_id" :value="type.restroom_types_id">
+            {{ type.restroom_types_name }}
+          </option>
+        </select>
 
-                <div class="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform"><Building class="w-6 h-6" /></div>
-                <h3 class="font-bold text-gray-900 text-lg">อาคาร {{ b }}</h3>
-                <p class="text-xs text-gray-500 mt-1">คลิกเพื่อดูชั้น</p>
-            </div>
-            
-            <button @click="handleAdd('building')" class="border-2 border-dashed border-gray-300 rounded-xl p-6 flex flex-col items-center justify-center text-gray-400 hover:text-indigo-600 hover:border-indigo-300 transition-all"><Plus class="w-8 h-8 mb-2" /><span class="text-sm font-medium">เพิ่มอาคาร</span></button>
+        <div class="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">
+          <Lock v-if="disabledType" class="w-4 h-4 text-gray-400" />
+          <ChevronDown v-else class="w-5 h-5" />
         </div>
+      </div>
+
+      <p v-if="disabledType" class="text-xs text-indigo-500 flex items-center gap-1 mt-1 animate-in fade-in slide-in-from-top-1">
+         <Lock class="w-3 h-3" /> ระบบเลือกประเภทให้อัตโนมัติตามสถานที่
+      </p>
     </div>
 
-    <div v-else-if="viewLevel === 1">
-        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
-            <div v-for="f in uniqueFloors" :key="f"
-                 class="relative bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:border-indigo-300 transition-all group text-center"
-                 @click="selectFloor(f)"
-            >
-                <div class="absolute top-2 right-2 z-10">
-                    <button @click.stop="toggleMenu(`floor-${f}`)" class="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors">
-                        <MoreVertical class="w-4 h-4" />
-                    </button>
-                     <div v-if="activeMenu === `floor-${f}`" class="absolute right-0 mt-1 w-32 bg-white rounded-lg shadow-xl border border-gray-100 z-20 overflow-hidden text-left animate-in fade-in zoom-in-95 duration-150">
-                        <button @click.stop="handleGroupAction('edit', 'floor', f)" class="w-full px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 flex items-center gap-2"><Edit class="w-3 h-3" /> แก้ไขชื่อ</button>
-                        <button @click.stop="handleGroupAction('delete', 'floor', f)" class="w-full px-4 py-2 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2"><Trash2 class="w-3 h-3" /> ลบชั้น</button>
-                    </div>
-                </div>
-
-                <div class="w-12 h-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform"><Layers class="w-6 h-6" /></div>
-                <h3 class="font-bold text-gray-900 text-lg">ชั้น {{ f }}</h3>
-                <p class="text-xs text-gray-500 mt-1">คลิกเพื่อดูประเภท</p>
-            </div>
-            <button @click="handleAdd('floor')" class="border-2 border-dashed border-gray-300 rounded-xl p-6 flex flex-col items-center justify-center text-gray-400 hover:text-blue-600 hover:border-blue-300 transition-all"><Plus class="w-8 h-8 mb-2" /><span class="text-sm font-medium">เพิ่มชั้น</span></button>
-        </div>
+    <div class="pt-3 border-t border-gray-100 flex items-center justify-between text-sm text-gray-500 bg-gray-50/50 -mx-5 -mb-5 p-4 rounded-b-2xl mt-2">
+      <div class="flex items-center gap-1.5"><Calendar class="w-4 h-4" /> {{ currentDate }}</div>
+      <div class="flex items-center gap-1.5"><Clock class="w-4 h-4" /> {{ currentTime }}</div>
     </div>
-
-    <div v-else-if="viewLevel === 2">
-       <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
-            <div v-for="t in availableTypesInFloor" :key="t.restroom_types_id" @click="selectType(t.restroom_types_id)" class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:border-emerald-300 cursor-pointer transition-all group relative overflow-hidden flex flex-col h-full min-h-[180px]">
-                <div class="w-full flex justify-center mb-2">
-                   <div class="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform"><Users class="w-6 h-6" /></div>
-                </div>
-                <div class="flex-1 flex items-center justify-center w-full px-1">
-                   <h3 class="font-bold text-gray-900 text-sm text-center break-words w-full leading-snug">{{ t.restroom_types_name }}</h3>
-                </div>
-                <div class="w-full flex justify-center mt-3">
-                   <span class="text-xs font-bold bg-gray-100 px-3 py-1 rounded-full text-gray-500">{{ t.count }} ห้อง</span>
-                </div>
-            </div>
-            <button @click="handleAdd('room')" class="border-2 border-dashed border-gray-300 rounded-xl p-6 flex flex-col items-center justify-center text-gray-400 hover:text-emerald-600 hover:border-emerald-300 transition-all h-full min-h-[180px]">
-                <Plus class="w-8 h-8 mb-2" /><span class="text-sm font-medium">เพิ่มห้องใหม่</span>
-            </button>
-        </div>
-    </div>
-    <div v-else-if="viewLevel === 3">
-       <div class="flex justify-between items-center mb-4">
-            <h2 class="font-bold text-gray-800 flex items-center gap-2 text-lg"><MapPin class="w-5 h-5 text-indigo-500" /> {{ currentTypeName }}</h2>
-            <button @click="handleAdd('room')" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-indigo-700 shadow-sm"><Plus class="w-4 h-4" /> เพิ่มจุดตรวจ</button>
-        </div>
-        <div class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
-                    <tr>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase w-16">ID</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ชื่อจุดตรวจ / ห้อง</th>
-                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">จัดการ</th>
-                    </tr>
-                </thead>
-                <tbody class="bg-white divide-y divide-gray-200">
-                    <tr v-if="currentRooms.length === 0"><td colspan="3" class="px-6 py-10 text-center text-gray-400">ยังไม่มีข้อมูลจุดตรวจ</td></tr>
-                    <tr v-for="room in currentRooms" :key="room.locations_id" class="hover:bg-gray-50 transition-colors">
-                        <td class="px-6 py-4 text-sm text-gray-400">#{{ room.locations_id }}</td>
-                        <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ room.locations_name }}</td>
-                        <td class="px-6 py-4 text-right flex justify-end gap-2">
-                            <button @click="$emit('edit', room)" class="text-indigo-600 hover:bg-indigo-50 p-2 rounded-lg transition-colors"><Edit class="w-4 h-4" /></button>
-                            <button @click="$emit('delete', room.locations_id)" class="text-red-600 hover:bg-red-50 p-2 rounded-lg transition-colors"><Trash2 class="w-4 h-4" /></button>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-    </div>
-
   </div>
 </template>
