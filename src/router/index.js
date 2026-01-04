@@ -51,12 +51,17 @@ const router = createRouter({
         {
           path: 'locations',  // ตรงกับ Sidebar ที่ตั้งไว้
           name: 'admin-locations',
-          component: () => import('../pages/admin/Locations.vue')
+          component: () => import('../pages/admin/LocationManagement.vue')
         },
         {
           path: 'checklists', // ตรงกับ Sidebar ที่ตั้งไว้
           name: 'admin-checklists',
           component: () => import('../pages/admin/Checklists.vue')
+        },
+        {
+          path: 'qrcodeprinter', // Printer
+          name: 'admin-qrcodeprinter',
+          component: () => import('../pages/admin/QRCodePrinter.vue')
         }
       ]
     },
@@ -70,7 +75,7 @@ const router = createRouter({
         {
           path: 'home',
           name: 'maid-home',
-          component: () => import('../pages/maid/Home.vue')
+          component: () => import('../pages/maid/MaidHome.vue')
         },
         {
           path: 'manual-record',
@@ -91,6 +96,11 @@ const router = createRouter({
           path: '',
           redirect: { name: 'maid-home' }
         },
+        {
+          path: '/maid/scan', // สำหรับปุ่มสแกน
+          name: 'maid-scan',
+          component: () => import('@/pages/maid/ScanQR.vue')
+        },
         // ใน children ของ path: '/admin'
 
       ]
@@ -109,6 +119,28 @@ const router = createRouter({
       component: () => import('../pages/NotFound.vue'),
       meta: { requiresAuth: false }
     },
+    {
+      path: '/scan/:id',
+      name: 'scan-dispatcher',
+      // ❌ ลบอันนี้: component: () => import('@/pages/customer/ScanDispatcher.vue')
+      // ✅ ใช้อันนี้แทน:
+      component: () => import('@/pages/ScanDispatcher.vue')
+    },
+    {
+      path: '/feedback/:id',
+      name: 'feedback',
+      // เช็คอันนี้ด้วยครับ ว่าสร้างไว้ที่ไหน ถ้าไว้ข้างนอกก็แก้เป็น
+      component: () => import('@/pages/customer/Feedback.vue')
+    },
+
+
+    {
+      path: '/maid/job/:id',
+      name: 'maid-job',
+      component: () => import('@/pages/maid/JobSubmit.vue'),
+      meta: { requiresAuth: true } // (Optional) บังคับว่าต้อง Login ก่อนถึงจะเข้าหน้านี้ได้
+    },
+    
   ]
 })
 

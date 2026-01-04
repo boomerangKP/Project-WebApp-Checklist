@@ -2,7 +2,7 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { supabase } from '@/lib/supabase'
 import { useUserStore } from '@/stores/user'
-import { useRouter } from 'vue-router' 
+import { useRouter } from 'vue-router'
 import { Filter, ArrowLeft, Loader2, CalendarDays } from 'lucide-vue-next'
 
 // Import Components
@@ -39,7 +39,7 @@ const fetchHistory = async () => {
       else if (activeFilter.value.status === 'waiting') query = query.in('check_sessions_status', ['waiting', 'in_progress'])
     }
     if (activeFilter.value.location) query = query.eq('locations_id', activeFilter.value.location)
-    
+
     const now = new Date()
     if (activeFilter.value.period === 'today') {
        const start = new Date(now.setHours(0,0,0,0)).toISOString()
@@ -87,8 +87,8 @@ onUnmounted(() => {
 
 <template>
   <div class="min-h-screen bg-gray-50 pb-24">
-    
-    <div class="bg-white p-4 shadow-sm sticky top-0 z-10 flex items-center justify-between">
+
+    <div class="bg-white p-4 shadow-sm fixed top-0 left-0 w-full z-20 flex items-center justify-between">
       <div class="flex items-center gap-3">
         <button @click="router.back()" class="p-2 -ml-2 rounded-full hover:bg-gray-100 text-gray-600 transition-colors">
           <ArrowLeft class="w-6 h-6" />
@@ -101,7 +101,8 @@ onUnmounted(() => {
       </button>
     </div>
 
-    <div class="p-4 space-y-4">
+    <div class="p-4 space-y-4 pt-20">
+
        <div v-if="loading" class="flex flex-col items-center justify-center py-10 text-gray-400">
           <Loader2 class="w-8 h-8 animate-spin mb-2" />
           <p>กำลังโหลดข้อมูล...</p>
@@ -113,18 +114,18 @@ onUnmounted(() => {
        </div>
 
        <div v-else>
-          <HistoryCard 
-             v-for="item in historyItems" 
-             :key="item.check_sessions_id" 
-             :item="item" 
+          <HistoryCard
+             v-for="item in historyItems"
+             :key="item.check_sessions_id"
+             :item="item"
              class="mb-3"
              @click="router.push(`/maid/history/${item.check_sessions_id}`)"
           />
        </div>
     </div>
 
-    <HistoryFilter 
-      :is-open="isFilterOpen" 
+    <HistoryFilter
+      :is-open="isFilterOpen"
       :locations="locationsList"
       @close="isFilterOpen = false"
       @apply="handleApplyFilter"

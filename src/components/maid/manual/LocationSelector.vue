@@ -1,31 +1,24 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import { MapPin, Calendar, Clock, Search, ChevronDown, Check, Lock } from 'lucide-vue-next' // ✅ เพิ่ม Lock
+import { MapPin, Calendar, Clock, Search, ChevronDown, Check, Lock } from 'lucide-vue-next'
 
 const props = defineProps({
-  locations: {
-    type: Array,
-    default: () => []
-  },
-  restroomTypes: {
-    type: Array,
-    default: () => []
-  },
+  locations: { type: Array, default: () => [] },
+  restroomTypes: { type: Array, default: () => [] },
   selectedLocation: [String, Number],
   selectedType: [String, Number],
   currentDate: String,
   currentTime: String,
 
   // 🔥 ตัวแปรสั่งล็อก (รับค่ามาจากแม่)
-  disabledType: {
-    type: Boolean,
-    default: false
-  }
+  disabledType: { type: Boolean, default: false },
+  
+  // ✅ เพิ่มตัวนี้: สั่งล็อกช่องสถานที่
+  disabledLocation: { type: Boolean, default: false }
 })
 
 const emit = defineEmits(['update:selectedLocation', 'update:selectedType'])
 
-// --- Search Logic (เหมือนเดิม) ---
 const searchQuery = ref('')
 const isDropdownOpen = ref(false)
 const dropdownRef = ref(null)
@@ -45,6 +38,7 @@ const selectLocation = (loc) => {
   isDropdownOpen.value = false
 }
 
+// Watcher เพื่ออัปเดตชื่อในช่องค้นหาตาม ID ที่ส่งมา
 watch(() => props.selectedLocation, (newVal) => {
   const found = props.locations.find(l => l.locations_id == newVal)
   if (found) {
@@ -57,6 +51,7 @@ watch(() => props.selectedLocation, (newVal) => {
 const handleClickOutside = (event) => {
   if (dropdownRef.value && !dropdownRef.value.contains(event.target)) {
     isDropdownOpen.value = false
+    // Logic คืนค่าชื่อเดิมถ้าไม่ได้เลือกใหม่ (เหมือนเดิม)
     if (!props.selectedLocation) {
         searchQuery.value = ''
     } else {
@@ -81,20 +76,26 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside))
     <div class="space-y-1.5" ref="dropdownRef">
       <label class="text-sm font-medium text-gray-700">สถานที่ปฏิบัติงาน</label>
       <div class="relative">
+        
         <input
           type="text"
           v-model="searchQuery"
-          @focus="isDropdownOpen = true"
-          @input="isDropdownOpen = true; emit('update:selectedLocation', '')"
+          @focus="!disabledLocation && (isDropdownOpen = true)" 
+          @input="!disabledLocation && (isDropdownOpen = true); !disabledLocation && emit('update:selectedLocation', '')"
+          :disabled="disabledLocation"
           placeholder="พิมพ์ชื่อห้อง หรือ ชั้น... (เช่น 101)"
-          class="w-full bg-gray-50 border border-gray-200 text-gray-800 py-3 pl-10 pr-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors placeholder:text-gray-400"
-        />
-        <Search class="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-        <ChevronDown class="w-5 h-5 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none transition-transform"
-          :class="{ 'rotate-180': isDropdownOpen }"
+          class="w-full border text-gray-800 py-3 pl-10 pr-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors placeholder:text-gray-400"
+          :class="disabledLocation ? 'bg-gray-100 border-gray-200 text-gray-500 cursor-not-allowed' : 'bg-gray-50 border-gray-200'"
         />
 
-        <div v-if="isDropdownOpen" class="absolute z-20 mt-1 w-full bg-white rounded-xl shadow-xl border border-gray-100 max-h-60 overflow-y-auto animate-in fade-in zoom-in-95 duration-200">
+        <Search class="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+
+        <div class="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">
+           <Lock v-if="disabledLocation" class="w-4 h-4 text-gray-400" />
+           <ChevronDown v-else class="w-5 h-5 text-gray-400 transition-transform" :class="{ 'rotate-180': isDropdownOpen }" />
+        </div>
+
+        <div v-if="isDropdownOpen && !disabledLocation" class="absolute z-20 mt-1 w-full bg-white rounded-xl shadow-xl border border-gray-100 max-h-60 overflow-y-auto animate-in fade-in zoom-in-95 duration-200">
           <ul v-if="filteredLocations.length > 0">
             <li v-for="loc in filteredLocations" :key="loc.locations_id" @click="selectLocation(loc)" class="px-4 py-3 hover:bg-indigo-50 cursor-pointer border-b border-gray-50 last:border-0 flex justify-between items-center group">
               <div>
@@ -131,8 +132,8 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside))
         </div>
       </div>
 
-      <p v-if="disabledType" class="text-xs text-indigo-500 flex items-center gap-1 mt-1 animate-in fade-in slide-in-from-top-1">
-         <Lock class="w-3 h-3" /> ระบบเลือกประเภทให้อัตโนมัติตามสถานที่
+      <p v-if="disabledType || disabledLocation" class="text-xs text-indigo-500 flex items-center gap-1 mt-1 animate-in fade-in slide-in-from-top-1">
+         <Lock class="w-3 h-3" /> ระบบระบุข้อมูลให้อัตโนมัติตาม QR Code
       </p>
     </div>
 

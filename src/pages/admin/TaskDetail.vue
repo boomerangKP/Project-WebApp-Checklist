@@ -2,42 +2,27 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { supabase } from '@/lib/supabase'
+import Swal from 'sweetalert2' // ✅ Import SweetAlert2
 import {
   ArrowLeft, Clock, MapPin, Calendar, CheckCircle2, XCircle,
-  Loader2, Check, Building, RotateCcw
+  Loader2, Check, Building, RotateCcw, MessageSquare
 } from 'lucide-vue-next'
-
-// Import Component 2 ตัว (ตัวเดิม กับ ตัวใหม่)
-import ConfirmModal from '@/components/ui/ConfirmModal.vue'
-import ResetConfirmModal from '@/components/ui/ResetConfirmModal.vue' // <--- ตัวใหม่
 
 const route = useRoute()
 const router = useRouter()
 const taskId = route.params.id
 
-// Data State
+// --- State ---
 const session = ref(null)
 const checkResults = ref([])
 const loading = ref(true)
 const submitting = ref(false)
 
-// State สำหรับ Modal ปกติ (Approve/Reject)
-const modalConfig = ref({
-  isOpen: false,
-  type: '',
-  title: '',
-  message: '',
-  variant: 'success',
-  requireReason: false
-})
-
-// State สำหรับ Modal ตัวใหม่ (Reset) แยกออกมาเลย
-const showResetModal = ref(false)
-
-// --- 1. ดึงข้อมูล ---
+// --- 1. Fetch Data (ดึงข้อมูลงาน) ---
 const fetchTaskDetail = async () => {
   loading.value = true
   try {
+    // ดึงข้อมูล Session + พนักงาน + สถานที่
     const { data: sessionData, error: sessionError } = await supabase
       .from('check_sessions')
       .select(`
@@ -51,6 +36,7 @@ const fetchTaskDetail = async () => {
     if (sessionError) throw sessionError
     session.value = sessionData
 
+    // ดึงรายการ Checklist ผลการตรวจ
     const { data: resultData, error: resultError } = await supabase
       .from('check_results')
       .select(`*, check_items ( check_items_name, check_items_description )`)
@@ -59,52 +45,108 @@ const fetchTaskDetail = async () => {
 
     if (resultError) throw resultError
     checkResults.value = resultData
+
   } catch (err) {
-    console.error('Error:', err)
+    console.error('Error fetching task:', err)
+    Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถโหลดข้อมูลงานได้', 'error')
     router.push('/admin/check')
   } finally {
     loading.value = false
   }
 }
 
-// --- 2. เปิด Modal ปกติ (Approve/Reject) ---
-const openApproveModal = () => {
-  modalConfig.value = {
-    isOpen: true,
-    type: 'approve',
-    title: 'ยืนยันการตรวจสอบ ?',
-    message: 'งานนี้จะได้รับการตรวจสอบเรียบร้อยแล้ว',
-    variant: 'success',
-    requireReason: false
+// --- 2. Action Handlers (จัดการปุ่มกดด้วย SweetAlert2) ---
+
+// ✅ อนุมัติ (Approve)
+const handleApprove = async () => {
+  const result = await Swal.fire({
+    title: 'ยืนยันการตรวจสอบ?',
+    text: "งานนี้จะได้รับการอนุมัติว่าเรียบร้อยแล้ว",
+    icon: 'question',
+    showCancelButton: true,
+    confirmButtonColor: '#22c55e', // สีเขียว
+    cancelButtonColor: '#9ca3af',  // สีเทา
+    confirmButtonText: 'ยืนยัน, อนุมัติเลย!',
+    cancelButtonText: 'ยกเลิก',
+    reverseButtons: true
+  })
+
+  if (result.isConfirmed) {
+    await updateStatusInDB('approved', null)
+    Swal.fire({
+      icon: 'success',
+      title: 'เรียบร้อย!',
+      text: 'งานได้รับการอนุมัติแล้ว',
+      timer: 1500,
+      showConfirmButton: false
+    })
   }
 }
 
-const openRejectModal = () => {
-  modalConfig.value = {
-    isOpen: true,
-    type: 'reject',
-    title: 'ส่งกลับเพื่อแก้ไข ?',
-    message: 'กรุณาบอกเหตุผลที่ต้องส่งกลับ',
-    variant: 'danger',
-    requireReason: true
+// ❌ ส่งกลับแก้ไข (Reject)
+const handleReject = async () => {
+  const result = await Swal.fire({
+    title: 'ส่งกลับเพื่อแก้ไข?',
+    text: "กรุณาระบุเหตุผลที่ต้องส่งกลับงานนี้:",
+    icon: 'warning',
+    input: 'textarea',
+    inputPlaceholder: 'พิมพ์เหตุผลที่นี่... (เช่น พื้นยังไม่สะอาด)',
+    inputAttributes: {
+      'aria-label': 'Type your message here'
+    },
+    showCancelButton: true,
+    confirmButtonColor: '#ef4444', // สีแดง
+    cancelButtonColor: '#9ca3af',
+    confirmButtonText: 'ยืนยันส่งกลับ',
+    cancelButtonText: 'ยกเลิก',
+    reverseButtons: true,
+    preConfirm: (reason) => {
+      if (!reason) {
+        Swal.showValidationMessage('กรุณาระบุเหตุผลด้วยครับ')
+      }
+      return reason
+    }
+  })
+
+  if (result.isConfirmed) {
+    await updateStatusInDB('rejected', result.value)
+    Swal.fire({
+      icon: 'success',
+      title: 'ส่งกลับแล้ว!',
+      text: 'งานถูกส่งกลับไปแก้ไขเรียบร้อย',
+      timer: 1500,
+      showConfirmButton: false
+    })
   }
 }
 
-// --- 3. Handle Confirm ปกติ ---
-const handleMainConfirm = async (reason) => {
-  const status = modalConfig.value.type === 'approve' ? 'approved' : 'rejected'
-  await updateStatusInDB(status, reason)
-  modalConfig.value.isOpen = false
+// 🔄 รีเซ็ต (Reset)
+const handleReset = async () => {
+  const result = await Swal.fire({
+    title: 'ต้องการเปลี่ยนแปลงผลตรวจ?',
+    text: "สถานะงานจะถูกรีเซ็ตกลับเป็น 'รอตรวจสอบ'",
+    icon: 'info',
+    showCancelButton: true,
+    confirmButtonColor: '#3b82f6', // สีฟ้า
+    cancelButtonColor: '#9ca3af',
+    confirmButtonText: 'ใช่, รีเซ็ตเลย',
+    cancelButtonText: 'ยกเลิก',
+    reverseButtons: true
+  })
+
+  if (result.isConfirmed) {
+    await updateStatusInDB('waiting', null)
+    Swal.fire({
+      icon: 'success',
+      title: 'รีเซ็ตสำเร็จ!',
+      text: 'สถานะกลับมาเป็นรอตรวจสอบแล้ว',
+      timer: 1500,
+      showConfirmButton: false
+    })
+  }
 }
 
-// --- 4. Handle Reset (สำหรับ Modal ตัวใหม่) ---
-const handleResetConfirm = async () => {
-  // บันทึกสถานะเป็น 'waiting' (ล้างค่า)
-  await updateStatusInDB('waiting', null)
-  showResetModal.value = false // ปิด Modal ตัวใหม่
-}
-
-// --- Logic บันทึกลง Database (ใช้ร่วมกันได้) ---
+// --- 3. Database Update Logic ---
 const updateStatusInDB = async (status, reasonInput) => {
   submitting.value = true
   try {
@@ -112,11 +154,12 @@ const updateStatusInDB = async (status, reasonInput) => {
       check_sessions_status: status,
       updated_at: new Date()
     }
-    // ถ้าส่งกลับแก้ไข บันทึกเหตุผล
+
+    // ถ้า Reject ให้บันทึกเหตุผล
     if (status === 'rejected' && reasonInput) {
        updates.supervisor_comment = reasonInput
     }
-    // ถ้า Reset ให้ล้างเหตุผลเดิมด้วย (optional)
+    // ถ้ารีเซ็ตเป็น waiting ให้ลบเหตุผลเดิมทิ้ง
     if (status === 'waiting') {
        updates.supervisor_comment = null
     }
@@ -128,17 +171,19 @@ const updateStatusInDB = async (status, reasonInput) => {
 
     if (error) throw error
 
+    // อัปเดตข้อมูลในหน้าจอทันที ไม่ต้องโหลดใหม่
     session.value.check_sessions_status = status
     session.value.supervisor_comment = (status === 'rejected') ? reasonInput : null
 
   } catch (err) {
-    alert('Error: ' + err.message)
+    console.error('Update error:', err)
+    Swal.fire('Error', 'เกิดข้อผิดพลาดในการบันทึกข้อมูล', 'error')
   } finally {
     submitting.value = false
   }
 }
 
-// Helpers
+// --- Helpers ---
 const formatDate = (d) => d ? new Date(d).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }) : '-'
 const getRoleName = (r) => (r === 'maid' || r === 'user') ? 'พนักงานทำความสะอาด' : (r === 'admin' ? 'ผู้ดูแลระบบ' : 'พนักงาน')
 const isCompleted = computed(() => ['approved', 'rejected'].includes(session.value?.check_sessions_status))
@@ -147,13 +192,15 @@ onMounted(() => { if (taskId) fetchTaskDetail() })
 </script>
 
 <template>
-  <div class="space-y-4">
+  <div class="space-y-4 pb-10">
 
     <button @click="router.back()" class="flex items-center text-gray-600 hover:text-gray-900 transition-colors font-medium border border-gray-300 bg-white px-4 py-2 rounded-lg shadow-sm hover:bg-gray-50 w-fit">
       <ArrowLeft class="w-5 h-5 mr-2" /> ย้อนกลับ
     </button>
 
-    <div v-if="loading" class="flex justify-center py-20"><Loader2 class="w-10 h-10 text-gray-400 animate-spin" /></div>
+    <div v-if="loading" class="flex justify-center py-20">
+      <Loader2 class="w-10 h-10 text-indigo-500 animate-spin" />
+    </div>
 
     <div v-else class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start relative">
 
@@ -170,29 +217,53 @@ onMounted(() => { if (taskId) fetchTaskDetail() })
               <div class="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded"><MapPin class="w-4 h-4"/> ชั้น {{ session.locations?.locations_floor || '-' }}</div>
             </div>
           </div>
+          
           <div class="px-4 py-1.5 rounded-full font-bold text-white flex items-center gap-2 text-sm shadow-sm"
-            :class="{'bg-[#FBBF24]': !isCompleted, 'bg-[#4ADE80]': session.check_sessions_status === 'approved', 'bg-[#F87171]': session.check_sessions_status === 'rejected'}">
+            :class="{
+              'bg-yellow-400': !isCompleted, 
+              'bg-green-500': session.check_sessions_status === 'approved', 
+              'bg-red-400': session.check_sessions_status === 'rejected'
+            }">
             {{ session.check_sessions_status === 'approved' ? 'อนุมัติแล้ว' : (session.check_sessions_status === 'rejected' ? 'ส่งแก้ไข' : 'รอตรวจสอบ') }}
           </div>
         </div>
 
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          <div class="p-4 border-b border-gray-100 bg-gray-50"><h3 class="text-lg font-bold text-gray-800">รายการตรวจสอบ</h3></div>
+          <div class="p-4 border-b border-gray-100 bg-gray-50">
+            <h3 class="text-lg font-bold text-gray-800">รายการตรวจสอบ</h3>
+          </div>
           <div class="p-5 space-y-3">
-            <div v-for="(item, index) in checkResults" :key="item.check_results_id" class="bg-white rounded-lg p-3 border border-gray-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-              <div>
+            <div v-for="(item, index) in checkResults" :key="item.check_results_id" 
+              class="bg-white rounded-lg p-3 border border-gray-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 hover:bg-gray-50 transition-colors"
+              :class="{
+                'border-l-4 border-l-red-500': ['fail','false'].includes(item.check_results_status), 
+                'border-l-4 border-l-green-500': ['pass','true'].includes(item.check_results_status)
+              }"
+            >
+              <div class="flex-1">
                 <div class="font-bold text-gray-800 text-base mb-1">{{ index + 1 }}. {{ item.check_items?.check_items_name }}</div>
                 <div class="text-gray-500 text-xs font-light">{{ item.check_items?.check_items_description || '-' }}</div>
+                
+                <div v-if="item.check_results_detail" class="mt-2 text-xs text-gray-600 bg-yellow-50 p-2 rounded-md border border-yellow-100 flex items-start gap-2">
+                   <MessageSquare class="w-3 h-3 mt-0.5 text-yellow-600 shrink-0" />
+                   <span><span class="font-bold text-yellow-600">หมายเหตุ:</span> {{ item.check_results_detail }}</span>
+                </div>
               </div>
-              <div v-if="['pass','true'].includes(item.check_results_status)" class="flex items-center gap-2 bg-green-100 text-green-700 px-3 py-1 rounded-md font-bold text-xs"><Check class="w-3 h-3"/> เรียบร้อย</div>
-              <div v-else-if="['fail','false'].includes(item.check_results_status)" class="flex items-center gap-2 bg-red-100 text-red-700 px-3 py-1 rounded-md font-bold text-xs"><XCircle class="w-3 h-3"/> ไม่ผ่าน</div>
+              
+              <div v-if="['pass','true'].includes(item.check_results_status)" class="flex items-center gap-2 bg-green-100 text-green-700 px-3 py-1 rounded-md font-bold text-xs shrink-0">
+                <Check class="w-3 h-3"/> เรียบร้อย
+              </div>
+              <div v-else-if="['fail','false'].includes(item.check_results_status)" class="flex items-center gap-2 bg-red-100 text-red-700 px-3 py-1 rounded-md font-bold text-xs shrink-0">
+                <XCircle class="w-3 h-3"/> ไม่ผ่าน
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      <div class="lg:col-span-1 space-y-3 sticky top-2 h-fit z-5">
+      <div class="lg:col-span-1 space-y-3 sticky top-4 h-fit z-10">
         <h2 class="text-xl font-bold text-gray-800">ผู้รับผิดชอบ</h2>
+        
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 flex flex-col items-center text-center">
           <div class="relative mb-3">
             <img v-if="session.employees?.employees_photo" :src="session.employees.employees_photo" class="w-20 h-20 rounded-full object-cover border-4 border-gray-50 shadow-sm"/>
@@ -207,49 +278,35 @@ onMounted(() => { if (taskId) fetchTaskDetail() })
 
           <div v-if="isCompleted" class="text-center space-y-3">
              <div class="p-3 rounded-lg bg-gray-50 border border-gray-100">
-                <CheckCircle2 v-if="session.check_sessions_status === 'approved'" class="w-8 h-8 text-green-500 mx-auto mb-1" />
-                <XCircle v-else class="w-8 h-8 text-red-500 mx-auto mb-1" />
-                <div class="font-bold text-gray-700 text-sm">{{ session.check_sessions_status === 'approved' ? 'ตรวจสอบแล้วเรียบร้อย' : 'ส่งกลับแก้ไขแล้ว' }}</div>
-                <div class="text-xs text-gray-400">เมื่อ: {{ formatDate(session.updated_at) }}</div>
-                <div v-if="session.check_sessions_status === 'rejected' && session.supervisor_comment" class="mt-2 text-xs text-red-500 bg-red-50 p-2 rounded text-left">
-                  <b>เหตุผล:</b> {{ session.supervisor_comment }}
+                <CheckCircle2 v-if="session.check_sessions_status === 'approved'" class="w-10 h-10 text-green-500 mx-auto mb-2" />
+                <XCircle v-else class="w-10 h-10 text-red-500 mx-auto mb-2" />
+                
+                <div class="font-bold text-gray-700 text-sm">
+                  {{ session.check_sessions_status === 'approved' ? 'ตรวจสอบแล้วเรียบร้อย' : 'ส่งกลับแก้ไขแล้ว' }}
+                </div>
+                <div class="text-xs text-gray-400 mt-1">เมื่อ: {{ formatDate(session.updated_at) }}</div>
+                
+                <div v-if="session.check_sessions_status === 'rejected' && session.supervisor_comment" class="mt-3 text-xs text-red-600 bg-red-50 p-3 rounded-lg text-left border border-red-100">
+                  <b class="block mb-1">เหตุผล:</b> {{ session.supervisor_comment }}
                 </div>
              </div>
 
-             <button @click="showResetModal = true" class="text-xs text-red-500 hover:text-red-700 font-bold underline flex items-center justify-center gap-1 w-full transition-colors">
+             <button @click="handleReset" class="text-xs text-indigo-500 hover:text-indigo-700 font-bold underline flex items-center justify-center gap-1 w-full transition-colors pt-2">
                 <RotateCcw class="w-3 h-3" /> ต้องการเปลี่ยนแปลงผลตรวจ?
              </button>
           </div>
 
-          <div v-else class="space-y-2">
-            <button @click="openApproveModal" :disabled="submitting" class="w-full bg-[#22c55e] hover:bg-[#16a34a] text-white font-bold text-base py-2.5 px-4 rounded-lg shadow-sm flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50">
-              <CheckCircle2 class="w-5 h-5" /> ตรวจสอบ
+          <div v-else class="space-y-3">
+            <button @click="handleApprove" :disabled="submitting" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold text-base py-3 px-4 rounded-xl shadow-md hover:shadow-lg flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">
+              <CheckCircle2 class="w-5 h-5" /> ตรวจสอบ (อนุมัติ)
             </button>
-            <button @click="openRejectModal" :disabled="submitting" class="w-full bg-[#ef4444] hover:bg-[#dc2626] text-white font-bold text-base py-2.5 px-4 rounded-lg shadow-sm flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50">
+            <button @click="handleReject" :disabled="submitting" class="w-full bg-white border-2 border-red-100 text-red-500 hover:bg-red-50 hover:border-red-200 font-bold text-base py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">
               <XCircle class="w-5 h-5" /> ส่งกลับแก้ไข
             </button>
           </div>
         </div>
       </div>
     </div>
-
-    <ConfirmModal
-      :is-open="modalConfig.isOpen"
-      :title="modalConfig.title"
-      :message="modalConfig.message"
-      :variant="modalConfig.variant"
-      :require-reason="modalConfig.requireReason"
-      :loading="submitting"
-      @close="modalConfig.isOpen = false"
-      @confirm="handleMainConfirm"
-    />
-
-    <ResetConfirmModal
-      :is-open="showResetModal"
-      :loading="submitting"
-      @close="showResetModal = false"
-      @confirm="handleResetConfirm"
-    />
 
   </div>
 </template>

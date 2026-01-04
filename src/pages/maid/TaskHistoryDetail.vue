@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { supabase } from '@/lib/supabase'
 import {
   ArrowLeft, MapPin, Calendar, Clock,
-  CheckCircle2, XCircle, AlertCircle, Loader2, User
+  CheckCircle2, XCircle, AlertCircle, Loader2, User, FileText // ✅ เพิ่ม FileText
 } from 'lucide-vue-next'
 
 const route = useRoute()
@@ -112,7 +112,6 @@ onMounted(fetchData)
         </div>
 
         <div class="pt-4 border-t border-gray-100 flex flex-col gap-3 text-sm text-gray-500 pl-2">
-
           <div class="flex items-center gap-2">
             <Calendar class="w-4 h-4 text-gray-400" />
             <span>ส่งงานเมื่อ: <span class="text-gray-800 font-medium">{{ formatThaiDate(session.created_at) }}</span></span>
@@ -128,7 +127,6 @@ onMounted(fetchData)
              <User class="w-4 h-4 text-gray-400" />
              <span>ผู้ตรวจสอบ: <span class="text-gray-800 font-medium">หัวหน้างาน</span></span>
           </div>
-
         </div>
       </div>
 
@@ -150,7 +148,7 @@ onMounted(fetchData)
         </h3>
 
         <div v-for="(item, index) in results" :key="item.check_results_id"
-          class="bg-white p-4 rounded-xl shadow-sm border transition-all"
+          class="bg-white p-4 rounded-xl shadow-sm border transition-all flex flex-col gap-3"
           :class="item.check_results_status === 'fail'
             ? 'border-red-300 ring-1 ring-red-100 bg-red-50/10'
             : 'border-gray-100'"
@@ -165,6 +163,7 @@ onMounted(fetchData)
                   {{ item.check_items?.check_items_description }}
                </div>
             </div>
+            
             <div class="flex-shrink-0">
                <div v-if="['pass', 'fixed', '✓'].includes(item.check_results_status)"
                     class="flex items-center gap-1.5 text-green-600 bg-green-50 px-2.5 py-1 rounded-lg border border-green-100">
@@ -178,6 +177,14 @@ onMounted(fetchData)
                </div>
             </div>
           </div>
+
+          <div v-if="item.check_results_detail" class="text-xs text-gray-600 bg-yellow-50 p-2.5 rounded-lg border border-yellow-100 flex items-start gap-2">
+             <FileText class="w-3.5 h-3.5 text-yellow-600 mt-0.5 shrink-0" />
+             <div>
+                <span class="font-bold text-yellow-700">หมายเหตุ:</span> {{ item.check_results_detail }}
+             </div>
+          </div>
+
         </div>
       </div>
 

@@ -1,29 +1,56 @@
 <script setup>
-import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { supabase } from '@/lib/supabase'
 import { useUserStore } from '@/stores/user'
-import { Search } from 'lucide-vue-next' // ❌ เอา Bell ออก เพราะไปอยู่ใน component แล้ว
-import LogoutConfirmModal from '@/components/ui/LogoutConfirmModal.vue'
-import Notification from '@/components/admin/NotificationBell.vue'// ✅ 1. Import NotificationBell เข้ามา
+import { Search } from 'lucide-vue-next'
+import Notification from '@/components/admin/NotificationBell.vue'
+
+// ✅ 1. Import useSwal เข้ามา
+import { useSwal } from '@/composables/useSwal'
 
 const router = useRouter()
 const userStore = useUserStore()
-const showLogoutModal = ref(false)
 
-const handleLogoutConfirm = async () => {
-  await supabase.auth.signOut()
-  userStore.clearSession()
-  window.location.replace('/login')
-}
+// ✅ 2. เรียกใช้ฟังก์ชันจาก useSwal
+const { swalConfirm, swalSuccess } = useSwal()
 
-const onLogoutClick = () => {
-  showLogoutModal.value = true
+// ✅ 3. รวม Logic การ Logout ไว้ในฟังก์ชันเดียว
+const onLogoutClick = async () => {
+  // เรียก SweetAlert ถามยืนยัน
+  const isConfirmed = await swalConfirm(
+    'ยืนยันการออกจากระบบ?',       // Title
+    'คุณต้องการออกจากระบบใช่หรือไม่', // Text
+    'ออกจากระบบ',                 // Button Text
+    'warning'                     // Icon สีเหลือง/แดง
+  )
+
+  if (isConfirmed) {
+    try {
+      // สั่ง Logout ที่ Supabase
+      await supabase.auth.signOut()
+    } catch (error) {
+      console.error('Logout error:', error)
+    }
+
+    // 🔥🔥🔥 ไม้ตาย: ล้างความจำ Browser ทิ้งให้เกลี้ยง! 🔥🔥🔥
+    // แก้ปัญหา Chrome จำแม่นจนเด้งกลับหน้าเดิม
+    localStorage.clear()
+    sessionStorage.clear()
+
+    // เคลียร์ Session ใน Store ของเรา
+    userStore.clearSession()
+
+    // แจ้งเตือนสวยๆ ก่อนไป (await เพื่อให้ User เห็นข้อความก่อน)
+    // await swalSuccess('ออกจากระบบเรียบร้อย')
+
+    // 🔥 ใช้ window.location.replace เพื่อบังคับรีโหลดใหม่
+    window.location.replace('/login')
+  }
 }
 </script>
 
 <template>
-  <header class="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 shadow-sm z-10">
+  <header class="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 shadow-sm z-index">
 
     <div class="flex-1 max-w-md">
       <div class="relative">
@@ -40,7 +67,7 @@ const onLogoutClick = () => {
 
     <div class="flex items-center space-x-6">
 
-      <Notification /> <!-- ✅ 2. ใช้ NotificationBell component ที่นี่ -->
+      <Notification />
 
       <div class="flex items-center border-l pl-6 border-gray-200">
         <div class="text-right mr-3 hidden sm:block">
@@ -65,9 +92,5 @@ const onLogoutClick = () => {
 
     </div>
 
-    <LogoutConfirmModal
-      v-model="showLogoutModal"
-      @confirm="handleLogoutConfirm"
-    />
   </header>
 </template>

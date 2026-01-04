@@ -2,6 +2,7 @@
 import { ref, watch } from 'vue'
 import { Loader2, X, RefreshCw } from 'lucide-vue-next'
 import { supabase } from '@/lib/supabase'
+import { useSwal } from '@/composables/useSwal' // นำเข้า useSwal
 
 const props = defineProps({
   isOpen: Boolean,
@@ -11,6 +12,9 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['close', 'save'])
+
+// ใช้ SweetAlert2
+const { swalError } = useSwal()
 
 const form = ref({
   code: '',
@@ -100,19 +104,20 @@ const handlePhoneInput = (e) => {
   form.value.phone = value
 }
 
-const handleSubmit = () => {
-  if (!form.value.code) return alert('ไม่พบรหัสพนักงาน')
-  if (!form.value.firstname.trim()) return alert('กรุณากรอก ชื่อจริง')
-  if (!form.value.lastname.trim()) return alert('กรุณากรอก นามสกุล')
-  if (!form.value.gender) return alert('กรุณาเลือก เพศ')
-  if (!form.value.department.trim()) return alert('กรุณาเลือก แผนก')
-  if (!form.value.position) return alert('กรุณาเลือก ตำแหน่ง')
-  if (!form.value.role) return alert('กรุณาเลือก บทบาท')
-  if (!form.value.email.trim()) return alert('กรุณากรอก อีเมล')
-  if (!form.value.phone.trim()) return alert('กรุณากรอก เบอร์โทรศัพท์')
+const handleSubmit = async () => { // ทำให้เป็น async function
+  // เปลี่ยนจาก alert() ธรรมดา เป็น swalError() จาก useSwal
+  if (!form.value.code) return swalError('ข้อผิดพลาด', 'ไม่พบรหัสพนักงาน')
+  if (!form.value.firstname.trim()) return swalError('ข้อมูลไม่ครบ', 'กรุณากรอก ชื่อจริง')
+  if (!form.value.lastname.trim()) return swalError('ข้อมูลไม่ครบ', 'กรุณากรอก นามสกุล')
+  if (!form.value.gender) return swalError('ข้อมูลไม่ครบ', 'กรุณาเลือก เพศ')
+  if (!form.value.department.trim()) return swalError('ข้อมูลไม่ครบ', 'กรุณาเลือก แผนก')
+  if (!form.value.position) return swalError('ข้อมูลไม่ครบ', 'กรุณาเลือก ตำแหน่ง')
+  if (!form.value.role) return swalError('ข้อมูลไม่ครบ', 'กรุณาเลือก บทบาท')
+  if (!form.value.email.trim()) return swalError('ข้อมูลไม่ครบ', 'กรุณากรอก อีเมล')
+  if (!form.value.phone.trim()) return swalError('ข้อมูลไม่ครบ', 'กรุณากรอก เบอร์โทรศัพท์')
 
   if (form.value.phone.length !== 10) {
-    return alert('เบอร์โทรศัพท์ต้องมี 10 หลักถ้วน')
+    return swalError('ข้อมูลไม่ถูกต้อง', 'เบอร์โทรศัพท์ต้องมี 10 หลักถ้วน')
   }
 
   const formattedPhone = form.value.phone.replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3')
