@@ -19,14 +19,23 @@ const loading = ref(true)
 const isRefreshing = ref(false)
 const realtimeChannel = ref(null)
 
-const stats = ref({ total: 0, pending: 0, completed: 0, activeStaff: 0 })
+// [UPDATE 1] เพิ่ม field สำหรับเก็บข้อมูลรีวิว (todayReviews, averageRating)
+const stats = ref({ 
+  total: 0, 
+  pending: 0, 
+  completed: 0, 
+  activeStaff: 0,
+  todayReviews: 0,   // เพิ่ม
+  averageRating: 0   // เพิ่ม
+})
+
 const recentActivities = ref([])
 const floorStats = ref([])
 
-// --- Chart Configuration (ปรับใหม่เพื่อโชว์แท่งคู่) ---
+// --- Chart Configuration ---
 const chartData = ref({
-  labels: ['รอตรวจสอบ', 'เรียบร้อย', 'พบปัญหา'], // แกน X
-  datasets: [] // เดี๋ยวเรายัดข้อมูลแยกเช้า/บ่ายใส่ตรงนี้
+  labels: ['รอตรวจสอบ', 'เรียบร้อย', 'พบปัญหา'], 
+  datasets: [] 
 })
 
 const chartOptions = {
@@ -34,7 +43,7 @@ const chartOptions = {
   maintainAspectRatio: false,
   plugins: { 
     legend: { 
-      display: true, // ✅ เปิด Legend ให้รู้ว่าสีไหนรอบไหน
+      display: true, 
       position: 'top',
       labels: { usePointStyle: true, boxWidth: 8 }
     } 
@@ -78,7 +87,7 @@ const fetchData = async () => {
     
     if (locError) throw locError
 
-    // 2. ดึงงานที่ส่งมา "วันนี้"
+    // 2. ดึงงานที่ส่งมา "วันนี้" (check_sessions)
     const { data: sessions, error } = await supabase
       .from('check_sessions')
       .select(`*, locations(locations_id, locations_building, locations_floor, locations_name), employees(*)`)
@@ -87,12 +96,28 @@ const fetchData = async () => {
 
     if (error) throw error
 
-    // --- 3. แยกข้อมูล รอบเช้า vs รอบบ่าย (Split Logic) ---
-    // เช้า < 12:00, บ่าย >= 12:00
+    // [UPDATE 2] ดึงข้อมูลรีวิวของ "วันนี้" (feedbacks)
+    const { data: feedbacks, error: feedbackError } = await supabase
+      .from('feedbacks')
+      .select('rating')
+      .gte('created_at', `${today}T00:00:00`)
+      .lte('created_at', `${today}T23:59:59`)
+
+    if (feedbackError) throw feedbackError
+
+    // --- คำนวณ Stats รีวิว ---
+    let reviewsCount = 0
+    let avgRating = 0
+    if (feedbacks && feedbacks.length > 0) {
+      reviewsCount = feedbacks.length
+      const sumRating = feedbacks.reduce((acc, curr) => acc + curr.rating, 0)
+      avgRating = (sumRating / reviewsCount).toFixed(1)
+    }
+
+    // --- 3. แยกข้อมูล รอบเช้า vs รอบบ่าย ---
     const morningSessions = sessions.filter(s => new Date(s.created_at).getHours() < 12)
     const afternoonSessions = sessions.filter(s => new Date(s.created_at).getHours() >= 12)
 
-    // Helper คำนวณยอดของแต่ละกะ
     const calculateShiftStats = (shiftSessions, targetCount) => {
       const completedIds = new Set(
         shiftSessions
@@ -101,22 +126,22 @@ const fetchData = async () => {
       )
       const completed = completedIds.size
       const problem = shiftSessions.filter(s => ['fail', 'rejected'].includes(s.check_sessions_status)).length
-      const pending = Math.max(0, targetCount - completed) // งานค้าง
+      const pending = Math.max(0, targetCount - completed)
       return { completed, problem, pending }
     }
 
-    const targetPerShift = allLocations.length // เป้าต่อกะ คือจำนวนห้องทั้งหมด
+    const targetPerShift = allLocations.length 
     const morningStats = calculateShiftStats(morningSessions, targetPerShift)
     const afternoonStats = calculateShiftStats(afternoonSessions, targetPerShift)
 
-    // --- 4. อัปเดต Chart (แท่งคู่) ---
+    // --- 4. อัปเดต Chart ---
     chartData.value = {
       labels: ['รอตรวจสอบ', 'เรียบร้อย', 'พบปัญหา'],
       datasets: [
         {
           label: 'รอบเช้า',
           data: [morningStats.pending, morningStats.completed, morningStats.problem],
-          backgroundColor: '#3b82f6', // สีฟ้า
+          backgroundColor: '#3b82f6',
           borderRadius: 4,
           barPercentage: 0.6,
           categoryPercentage: 0.8
@@ -124,7 +149,7 @@ const fetchData = async () => {
         {
           label: 'รอบบ่าย',
           data: [afternoonStats.pending, afternoonStats.completed, afternoonStats.problem],
-          backgroundColor: '#f59e0b', // สีส้ม
+          backgroundColor: '#f59e0b',
           borderRadius: 4,
           barPercentage: 0.6,
           categoryPercentage: 0.8
@@ -132,25 +157,23 @@ const fetchData = async () => {
       ]
     }
 
-    // --- 5. Stats Cards (ยังโชว์ภาพรวมทั้งวันเหมือนเดิม เพื่อดูยอดรวม) ---
-    // แต่เราคำนวณเป้ารวมเป็น x2 (เช้า+บ่าย) เพื่อให้ % ถูกต้อง
-    const totalDailyTarget = targetPerShift
-    
-    // รวมงานเสร็จจริงทั้งวัน (เช้า + บ่าย)
-    // หมายเหตุ: เราใช้วิธีบวกกันตรงๆ เพราะ 1 ห้องทำได้ 2 รอบ
+    // --- 5. Stats Cards Update ---
+    const totalDailyTarget = targetPerShift // * 2 ถ้าอยากนับรวม 2 รอบ (ในที่นี้ใช้ฐานเดิมของคุณ)
     const totalCompleted = morningStats.completed + afternoonStats.completed
-    const totalPending = Math.max(0, totalDailyTarget - totalCompleted)
+    const totalPending = Math.max(0, totalDailyTarget - totalCompleted) // Logic เดิมของคุณ
     const uniqueStaff = new Set(sessions.map(s => s.employees_id)).size
 
     stats.value = { 
         total: totalDailyTarget, 
         pending: totalPending, 
         completed: totalCompleted, 
-        activeStaff: uniqueStaff 
+        activeStaff: uniqueStaff,
+        // เพิ่มค่าที่ได้จากการคำนวณข้างบน
+        todayReviews: reviewsCount,
+        averageRating: avgRating
     }
 
-    // --- 6. Floor Stats (ความคืบหน้าตามชั้น - เหมาวัน) ---
-    // (ส่วนนี้ใช้ Logic เดิม เพื่อดูภาพรวมว่าชั้นไหนเสร็จครบ 2 รอบแล้วบ้าง)
+    // --- 6. Floor Stats ---
     const floorsMap = {}
     allLocations.forEach(loc => {
         const key = `${loc.locations_building}|${loc.locations_floor}`
@@ -163,16 +186,13 @@ const fetchData = async () => {
                 done: 0 
             }
         }
-        // เป้าชั้นนี้ = จำนวนห้อง x 2 รอบ
         floorsMap[key].target += 1 
     })
 
-    // วนลูปนับงานที่เสร็จ (ทั้งเช้าและบ่าย)
     sessions.forEach(s => {
        if (['pass', 'fixed', 'approved'].includes(s.check_sessions_status)) {
            const key = `${s.locations.locations_building}|${s.locations.locations_floor}`
            if (floorsMap[key]) {
-               // นับเพิ่มทีละ 1 เลย (เพราะเราตั้งเป้า x2 ไว้แล้ว)
                floorsMap[key].done += 1
            }
        }
@@ -185,8 +205,8 @@ const fetchData = async () => {
         })
         .map(f => ({
             name: f.name,
-            total: f.target,     // เป้าโชว์เป็นเลข x2
-            completed: Math.min(f.done, f.target) // กันเกิน
+            total: f.target, 
+            completed: Math.min(f.done, f.target) 
         }))
 
     recentActivities.value = sessions.slice(0, 10)
@@ -199,18 +219,24 @@ const fetchData = async () => {
   }
 }
 
-// ... (ส่วน handleRefresh และ Realtime เหมือนเดิม) ...
 const handleRefresh = async () => {
     isRefreshing.value = true
     await fetchData()
 }
 
+// [UPDATE 3] เพิ่มการ Subscribe ตาราง feedbacks
 const subscribeRealtime = () => {
   if (realtimeChannel.value) supabase.removeChannel(realtimeChannel.value)
   realtimeChannel.value = supabase
     .channel('dashboard-main-stats')
+    // ฟัง check_sessions (เดิม)
     .on('postgres_changes', 
       { event: '*', schema: 'public', table: 'check_sessions' }, 
+      (payload) => { fetchData() }
+    )
+    // ฟัง feedbacks (ใหม่) - รีวิวเด้งปุ๊บ ยอดเปลี่ยนปั๊บ
+    .on('postgres_changes', 
+      { event: '*', schema: 'public', table: 'feedbacks' }, 
       (payload) => { fetchData() }
     )
     .subscribe()

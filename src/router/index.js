@@ -62,6 +62,16 @@ const router = createRouter({
           path: 'qrcodeprinter', // Printer
           name: 'admin-qrcodeprinter',
           component: () => import('../pages/admin/QRCodePrinter.vue')
+        },
+        {
+          path: 'editfeedback', // Printer
+          name: 'admin-editfeedback',
+          component: () => import('../pages/admin/EditFeedback.vue')
+        },
+        {
+          path: 'satisfaction',
+          name: 'report-satisfaction',
+          component: () => import('../pages/admin/ReportSatisfaction.vue') // ต้องสร้างไฟล์นี้
         }
       ]
     },
@@ -140,7 +150,7 @@ const router = createRouter({
       component: () => import('@/pages/maid/JobSubmit.vue'),
       meta: { requiresAuth: true } // (Optional) บังคับว่าต้อง Login ก่อนถึงจะเข้าหน้านี้ได้
     },
-    
+
   ]
 })
 

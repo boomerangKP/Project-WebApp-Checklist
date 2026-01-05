@@ -14,7 +14,7 @@ const emit = defineEmits(['update:itemsPerPage', 'changePage'])
 </script>
 
 <template>
-  <div class="px-6 py-4 border-t border-gray-100 bg-white flex flex-col sm:flex-row gap-4 items-center justify-between">
+  <div class="px-4 py-2 border-t border-gray-100 bg-white flex flex-col sm:flex-row gap-4 items-center justify-between">
     <div class="flex items-center gap-4 text-sm text-gray-600">
       <span>แสดง {{ startEntry }} ถึง {{ endEntry }} จาก {{ totalItems }} รายการ</span>
       <div class="flex items-center gap-2">

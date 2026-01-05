@@ -45,11 +45,11 @@ const getStatusColor = (s) => s === 'active' ? 'text-emerald-700 bg-emerald-50 b
 
 <template>
   <div @click="closeMenu" class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden flex flex-col h-[calc(100vh-260px)] relative">
-    
+
     <div class="flex-1 overflow-y-auto overflow-x-auto relative custom-scrollbar">
       <table class="w-full text-left border-collapse">
-        
-        <thead class="sticky top-0 z-5 bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-500 font-semibold tracking-wider shadow-sm">
+
+        <thead class="sticky top-0 z-10 bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-500 font-semibold tracking-wider shadow-sm">
           <tr>
             <th class="px-6 py-4 whitespace-nowrap">พนักงาน</th>
             <th class="px-6 py-4 whitespace-nowrap">ตำแหน่ง</th>
@@ -58,12 +58,12 @@ const getStatusColor = (s) => s === 'active' ? 'text-emerald-700 bg-emerald-50 b
             <th class="px-6 py-4 text-right whitespace-nowrap">จัดการ</th>
           </tr>
         </thead>
-        
+
         <tbody class="divide-y divide-gray-100 bg-white">
           <tr v-if="loading">
             <td colspan="5" class="px-6 py-20 text-center text-gray-400">
               <div class="flex flex-col items-center justify-center gap-3">
-                 <Loader2 class="w-8 h-8 animate-spin text-indigo-500" /> 
+                 <Loader2 class="w-8 h-8 animate-spin text-indigo-500" />
                  <span>กำลังโหลดข้อมูล...</span>
               </div>
             </td>
@@ -92,32 +92,32 @@ const getStatusColor = (s) => s === 'active' ? 'text-emerald-700 bg-emerald-50 b
                 </div>
               </div>
             </td>
-            
+
             <td class="px-6 py-4 text-sm text-gray-600 whitespace-nowrap">
               <span class="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium bg-gray-100 text-gray-700">
                 {{ getRoleLabel(emp.role) }}
               </span>
             </td>
-            
+
             <td class="px-6 py-4">
               <div class="flex flex-col gap-1 text-sm text-gray-600">
                 <div v-if="emp.employees_phone" class="flex items-center gap-2 whitespace-nowrap"><Phone class="w-3 h-3 text-gray-400" /> {{ emp.employees_phone }}</div>
                 <div v-if="emp.email" class="flex items-center gap-2 whitespace-nowrap"><Mail class="w-3 h-3 text-gray-400" /> {{ emp.email }}</div>
               </div>
             </td>
-            
+
             <td class="px-6 py-4">
               <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border whitespace-nowrap" :class="getStatusColor(emp.employees_status)">
                 <span class="w-1.5 h-1.5 rounded-full bg-current mr-1.5"></span>{{ emp.employees_status === 'active' ? 'ใช้งาน' : 'ระงับ' }}
               </span>
             </td>
-            
+
             <td class="px-6 py-4 text-right relative">
               <div class="relative inline-block text-left">
                 <button type="button" @click.stop="toggleMenu(emp.employees_id)" class="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors focus:outline-none">
                   <MoreHorizontal class="w-5 h-5" />
                 </button>
-                
+
                 <div v-if="activeMenuId === emp.employees_id" class="absolute right-0 top-full mt-1 w-40 bg-white rounded-lg shadow-xl border border-gray-100 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-100 origin-top-right">
                   <button type="button" @click.stop="handleEdit(emp)" class="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 flex items-center gap-2 transition-colors">
                     <Edit class="w-4 h-4" /> แก้ไขข้อมูล
@@ -134,17 +134,17 @@ const getStatusColor = (s) => s === 'active' ? 'text-emerald-700 bg-emerald-50 b
       </table>
     </div>
 
-    <div class="sticky bottom-0 z-20 bg-white border-t border-gray-200 px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
-      
+    <div class="sticky bottom-0 z-20 bg-white border-t border-gray-200 px-4 py-2 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+
       <div class="flex items-center gap-4 text-sm text-gray-600">
         <span class="whitespace-nowrap">
           แสดง {{ totalItems > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0 }} ถึง {{ Math.min(currentPage * itemsPerPage, totalItems) }} จาก <span class="font-bold text-gray-900">{{ totalItems }}</span> รายการ
         </span>
-        
+
         <div class="flex items-center gap-2">
           <span class="hidden sm:inline">แสดง:</span>
-          <select 
-            :value="itemsPerPage" 
+          <select
+            :value="itemsPerPage"
             @change="$emit('update:itemsPerPage', Number($event.target.value))"
             class="border border-gray-300 rounded-md text-sm py-1 px-2 focus:ring-2 focus:ring-indigo-500 outline-none cursor-pointer bg-white"
           >
@@ -160,9 +160,9 @@ const getStatusColor = (s) => s === 'active' ? 'text-emerald-700 bg-emerald-50 b
       <div class="flex items-center gap-1">
         <button type="button" @click="$emit('changePage', 1)" :disabled="currentPage === 1" class="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed text-gray-500 hover:text-indigo-600 transition-colors"><ChevronsLeft class="w-4 h-4" /></button>
         <button type="button" @click="$emit('changePage', currentPage - 1)" :disabled="currentPage === 1" class="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed text-gray-500 hover:text-indigo-600 transition-colors"><ChevronLeft class="w-4 h-4" /></button>
-        
+
         <span class="px-3 py-1.5 text-sm font-bold text-indigo-600 bg-indigo-50 rounded-lg min-w-[32px] text-center select-none border border-indigo-100">{{ currentPage }}</span>
-        
+
         <button type="button" @click="$emit('changePage', currentPage + 1)" :disabled="currentPage === totalPages" class="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed text-gray-500 hover:text-indigo-600 transition-colors"><ChevronRight class="w-4 h-4" /></button>
         <button type="button" @click="$emit('changePage', totalPages)" :disabled="currentPage === totalPages" class="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed text-gray-500 hover:text-indigo-600 transition-colors"><ChevronsRight class="w-4 h-4" /></button>
       </div>

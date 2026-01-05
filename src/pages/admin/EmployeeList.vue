@@ -201,7 +201,7 @@ const handleDeleteConfirm = async (empToDelete) => {
 
     // แสดงแจ้งเตือนสำเร็จ
     await swalSuccess("ลบสำเร็จ!", "ข้อมูลพนักงานถูกลบออกจากระบบแล้ว");
-    
+
     // ตรวจสอบหน้าปัจจุบัน ถ้าข้อมูลหมดหน้านี้ ให้ถอยไปหน้าก่อนหน้า
     if (paginatedEmployees.value.length === 0 && currentPage.value > 1) {
       currentPage.value--;
@@ -226,7 +226,7 @@ onMounted(() => {
     <h1 class="text-2xl font-bold text-gray-800">จัดการพนักงาน</h1>
 
     <div
-      class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden min-h-[500px] flex flex-col"
+      class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden  flex flex-col"
     >
       <EmployeeToolbar
         v-model:searchQuery="searchQuery"
@@ -234,16 +234,16 @@ onMounted(() => {
         v-model:statusFilter="statusFilter"
         @add="openAdd"
       />
-      <EmployeeTable 
-        :employees="paginatedEmployees" 
+      <EmployeeTable
+        :employees="paginatedEmployees"
         :loading="loading"
-        :currentPage="currentPage" 
+        :currentPage="currentPage"
         :totalPages="totalPages"
-        :totalItems="filteredEmployees.length" 
-        v-model:itemsPerPage="itemsPerPage" 
+        :totalItems="filteredEmployees.length"
+        v-model:itemsPerPage="itemsPerPage"
         @edit="openEdit"
-        @delete="openDelete" 
-        @changePage="changePage" 
+        @delete="openDelete"
+        @changePage="changePage"
       />
     </div>
 

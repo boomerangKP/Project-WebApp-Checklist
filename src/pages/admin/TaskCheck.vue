@@ -22,7 +22,7 @@ const openTaskDetail = (id) => router.push({ path: `/admin/check/${id}` })
 </script>
 
 <template>
-  <div class="space-y-6 h-full flex flex-col">
+  <div class="space-y-6 flex-1 flex flex-col">
     
     <div class="shrink-0 flex items-center justify-between">
       <h1 class="text-2xl font-bold text-gray-800">รายการตรวจสอบงาน</h1>

@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
-import { Edit, Trash2, Loader2, Building, Copy, Check, ChevronLeft, ChevronRight } from 'lucide-vue-next'
+import { Edit, Trash2, Loader2, ChevronLeft, ChevronRight, CheckCircle, XCircle, ListOrdered } from 'lucide-vue-next'
 
 // --- Props & Emits ---
 const props = defineProps({
@@ -11,11 +11,10 @@ const props = defineProps({
 
 const emit = defineEmits(['edit', 'delete'])
 
-// --- 1. Pagination Logic (ระบบแบ่งหน้า) ---
+// --- Pagination Logic (ระบบแบ่งหน้า - คงเดิม) ---
 const currentPage = ref(1)
-const itemsPerPage = ref(10) // ค่าเริ่มต้น 10 รายการ
+const itemsPerPage = ref(10)
 
-// เมื่อข้อมูลเปลี่ยน (เช่น กดค้นหา) ให้รีเซ็ตกลับไปหน้า 1
 watch(() => props.items, () => {
   currentPage.value = 1
 })
@@ -26,12 +25,10 @@ const totalPages = computed(() => Math.ceil(totalItems.value / itemsPerPage.valu
 const startIndex = computed(() => (currentPage.value - 1) * itemsPerPage.value)
 const endIndex = computed(() => Math.min(startIndex.value + itemsPerPage.value, totalItems.value))
 
-// ตัดข้อมูลเฉพาะหน้าปัจจุบันมาแสดง
 const paginatedItems = computed(() => {
   return props.items.slice(startIndex.value, endIndex.value)
 })
 
-// คำนวณเลขหน้าที่จะแสดง (เช่น 1 2 ... 5)
 const visiblePages = computed(() => {
   const pages = []
   const delta = 1 
@@ -54,19 +51,6 @@ const changePage = (page) => {
     currentPage.value = page
   }
 }
-
-// --- 2. Copy to Clipboard ---
-const copiedId = ref(null)
-
-const copyToClipboard = async (text, id) => {
-  try {
-    await navigator.clipboard.writeText(text)
-    copiedId.value = id
-    setTimeout(() => { copiedId.value = null }, 1500)
-  } catch (err) {
-    console.error('Failed to copy', err)
-  }
-}
 </script>
 
 <template>
@@ -77,20 +61,18 @@ const copyToClipboard = async (text, id) => {
         
         <thead class="sticky top-0 z-10 bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-500 font-semibold tracking-wider shadow-sm">
           <tr>
-            <th class="px-6 py-4 whitespace-nowrap min-w-[150px]">Code</th> 
-            <th class="px-6 py-4 whitespace-nowrap">ชื่อจุดตรวจ / ห้อง</th>
-            <th class="px-6 py-4 text-center">อาคาร</th>
-            <th class="px-6 py-4 text-center">ชั้น</th>
-            <th class="px-6 py-4 text-center">ประเภท</th>
-            <th class="px-6 py-4 text-center">สถานะ</th>
-            <th class="px-6 py-4 text-right">จัดการ</th>
+            <th class="px-6 py-4 text-center w-20">ลำดับ</th> 
+            <th class="px-6 py-4 whitespace-nowrap">หัวข้อการประเมิน</th>
+            <th class="px-6 py-4">คำอธิบายเพิ่มเติม</th>
+            <th class="px-6 py-4 text-center w-32">สถานะ</th>
+            <th class="px-6 py-4 text-right w-32">จัดการ</th>
           </tr>
         </thead>
         
         <tbody class="divide-y divide-gray-100">
           
           <tr v-if="loading">
-            <td colspan="7" class="px-6 py-20 text-center text-gray-400">
+            <td colspan="5" class="px-6 py-20 text-center text-gray-400">
               <div class="flex flex-col items-center justify-center h-full">
                  <Loader2 class="w-8 h-8 animate-spin mb-2 text-indigo-500" /> 
                  <span>กำลังโหลดข้อมูล...</span>
@@ -99,72 +81,39 @@ const copyToClipboard = async (text, id) => {
           </tr>
           
           <tr v-else-if="items.length === 0">
-            <td colspan="7" class="px-6 py-20 text-center text-gray-400 bg-gray-50/30">
-              ไม่พบข้อมูล
+            <td colspan="5" class="px-6 py-20 text-center text-gray-400 bg-gray-50/30">
+              ไม่พบข้อมูลแบบประเมิน
             </td>
           </tr>
 
-          <tr v-for="item in paginatedItems" :key="item.locations_id" 
+          <tr v-for="item in paginatedItems" :key="item.id" 
               class="group transition-all duration-300 hover:bg-gray-50"
-              :class="[item.locations_id === highlightId ? 'bg-emerald-50' : '']"
+              :class="[item.id === highlightId ? 'bg-emerald-50' : '']"
           >
-            <td class="px-6 py-4 whitespace-nowrap">
-              <div class="flex items-center gap-2">
-                <button 
-                  @click="copyToClipboard(item.locations_code, item.locations_id)"
-                  class="group/btn flex items-center gap-2 px-2.5 py-1.5 rounded-lg border transition-all duration-200"
-                  :class="copiedId === item.locations_id 
-                    ? 'bg-emerald-100 border-emerald-200 text-emerald-700' 
-                    : 'bg-white border-gray-200 text-gray-600 hover:border-indigo-300 hover:text-indigo-600 shadow-sm'"
-                  title="คลิกเพื่อคัดลอก"
-                >
-                  <span class="font-mono text-xs font-semibold tracking-wide">
-                    {{ item.locations_code }}
-                  </span>
-                  
-                  <Check v-if="copiedId === item.locations_id" class="w-3 h-3" />
-                  <Copy v-else class="w-3 h-3 opacity-30 group-hover/btn:opacity-100 transition-opacity" />
-                </button>
+            <td class="px-6 py-4 text-center">
+              {{ item.ordering }}
+            </td>
 
-                <span v-if="item.locations_id === highlightId" class="text-[10px] font-bold bg-emerald-500 text-white px-1.5 py-0.5 rounded-full animate-pulse shadow-sm">
-                  NEW
-                </span>
+            <td class="px-6 py-4">
+              <div class="font-bold text-gray-800 text-sm flex items-center gap-2">
+                 {{ item.name }}
+                 <span v-if="item.id === highlightId" class="text-[10px] font-bold bg-emerald-500 text-white px-1.5 py-0.5 rounded-full animate-pulse shadow-sm">NEW</span>
               </div>
             </td>
 
             <td class="px-6 py-4">
-              <div class="font-medium text-gray-900 text-sm">{{ item.locations_name }}</div>
-            </td>
-
-            <td class="px-6 py-4 text-center">
-              <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-gray-50 text-gray-600 text-xs border border-gray-100">
-                <Building class="w-3 h-3 text-gray-400" />
-                {{ item.locations_building }}
+              <div class="text-sm text-gray-500 max-w-xs truncate" :title="item.description">
+                {{ item.description || '-' }}
               </div>
             </td>
 
             <td class="px-6 py-4 text-center">
-                <span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-white border border-gray-200 text-xs font-bold text-gray-700 shadow-sm">
-                  {{ item.locations_floor }}
-                </span>
-            </td>
-
-            <td class="px-6 py-4 text-center">
-              <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">
-                {{ item.restroom_types?.restroom_types_name || '-' }}
+              <span v-if="item.is_active" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-100">
+                <CheckCircle class="w-3 h-3" /> ใช้งาน
               </span>
-            </td>
-
-            <td class="px-6 py-4 text-center">
-              <div class="flex justify-center items-center gap-1.5">
-                  <div :class="[
-                    'w-2 h-2 rounded-full', 
-                    item.locations_status === 'active' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]' : 'bg-gray-300'
-                  ]"></div>
-                  <span class="text-xs text-gray-500">
-                    {{ item.locations_status === 'active' ? 'ปกติ' : 'ปิด' }}
-                  </span>
-              </div>
+              <span v-else class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-500 border border-gray-200">
+                <XCircle class="w-3 h-3" /> ปิดใช้งาน
+              </span>
             </td>
 
             <td class="px-6 py-4 text-right">
@@ -172,7 +121,7 @@ const copyToClipboard = async (text, id) => {
                 <button @click="$emit('edit', item)" class="p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="แก้ไข">
                   <Edit class="w-4 h-4" />
                 </button>
-                <button @click="$emit('delete', item.locations_id)" class="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="ลบ">
+                <button @click="$emit('delete', item.id)" class="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="ลบ">
                   <Trash2 class="w-4 h-4" />
                 </button>
               </div>
@@ -198,7 +147,6 @@ const copyToClipboard = async (text, id) => {
              <option :value="10">10</option>
              <option :value="20">20</option>
              <option :value="50">50</option>
-             <option :value="100">100</option>
            </select>
         </div>
       </div>

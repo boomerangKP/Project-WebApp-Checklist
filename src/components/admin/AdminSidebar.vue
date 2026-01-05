@@ -12,7 +12,11 @@ import {
   ChevronRight,
   MapPin,      
   ListChecks,
-  Printer   
+  Printer,
+  MessageSquareQuote,
+  UserCheck,
+  Heart
+
 } from 'lucide-vue-next'
 
 const route = useRoute()
@@ -32,17 +36,27 @@ const toggleSubmenu = (name) => {
 const menuItems = [
   { name: 'ภาพรวมระบบ', path: '/admin', icon: LayoutDashboard },
   { name: 'ตรวจสอบงาน', path: '/admin/check', icon: ClipboardList },
-  { name: 'รายงานผล', path: '/admin/report', icon: FileText },
   { name: 'จัดการพนักงาน', path: '/admin/employees', icon: Users },
   
   // 🔥 เมนูแบบ Tree
+  { 
+    name: 'รายงานผล', 
+    icon: FileText,
+    children: [
+      { name: 'การปฏิบัติงาน', path: '/admin/report', icon: UserCheck },
+      { name: 'ความพึงพอใจ', path: '/admin/satisfaction', icon: Heart },
+
+    ]
+  },
   { 
     name: 'ตั้งค่าระบบ', 
     icon: Settings,
     children: [
       { name: 'จัดการสถานที่', path: '/admin/locations', icon: MapPin }, 
       { name: 'รายการตรวจสอบ', path: '/admin/checklists', icon: ListChecks },
-      { name: 'ดาวโหลด QR Code', path: '/admin/qrcodeprinter', icon: Printer }
+      { name: 'แบบประเมิน', path: '/admin/editfeedback', icon: MessageSquareQuote },
+      { name: 'ดาวโหลด QR Code', path: '/admin/qrcodeprinter', icon: Printer },
+
     ]
   },
 ]
