@@ -121,7 +121,7 @@ const isAllSelected = computed(() => {
       </div>
     </div>
 
-    <div class="border-t border-gray-200 bg-white flex-shrink-0 z-10 py-4 px-6 flex flex-col sm:flex-row items-center justify-between gap-4 select-none" v-if="locations.length > 0">
+    <div class="border-t border-gray-200 bg-white flex-shrink-0 z-10 py-2 px-4 flex flex-col sm:flex-row items-center justify-between gap-4 select-none" v-if="locations.length > 0">
       
       <div class="flex flex-wrap items-center gap-4 text-sm text-gray-600">
         <span class="whitespace-nowrap">

@@ -77,10 +77,23 @@ const preparePrint = async () => {
   isGenerating.value = true
   showPreview.value = true
   qrDataUrls.value = {}
+
+  // ✅ 1. ประกาศตัวแปร baseUrl ก่อน (ดึงค่า URL ของเว็บปัจจุบัน)
+  const baseUrl = window.location.origin 
+
   for (const loc of selectedLocationsFull.value) {
     try {
-      const qrContent = `${baseUrl}/scan/${loc.locations_id}`
-      qrDataUrls.value[loc.locations_id] = await QRCode.toDataURL(qrContent, { width: 400, margin: 1, color: { dark: '#000000', light: '#ffffff' }, errorCorrectionLevel: 'H' })
+      // ✅ 2. เปลี่ยนการสร้าง Link:
+      // - ใช้ baseUrl ที่ประกาศไว้ข้างบน
+      // - เปลี่ยนจาก id เป็น token (เพื่อให้สแกนแล้วปลอดภัย เดาเลขไม่ได้)
+      const qrContent = `${baseUrl}/scan/${loc.token}`
+      
+      qrDataUrls.value[loc.locations_id] = await QRCode.toDataURL(qrContent, { 
+        width: 400, 
+        margin: 1, 
+        color: { dark: '#000000', light: '#ffffff' }, 
+        errorCorrectionLevel: 'H' 
+      })
     } catch (err) { console.error(err) }
   }
   isGenerating.value = false

@@ -1,15 +1,16 @@
 <script setup>
+import { computed } from "vue"; // Import computed
 import { useRoute } from "vue-router";
-import { useFeedbackLogic } from "@/composables/useFeedbackLogic"; // Import Logic ที่เราสร้าง
+import { useFeedbackLogic } from "@/composables/useFeedbackLogic";
 import {
-  Star, Loader2, MapPin, ChevronRight, ChevronLeft, Send, CheckCircle2, UserCog, Heart, RefreshCw
+  Star, Loader2, MapPin, ChevronRight, ChevronLeft, Send, CheckCircle2, UserCog, Heart, RefreshCw, Calculator
 } from "lucide-vue-next";
 
-// 1. รับ ID จาก URL
+// 1. Receive ID from URL
 const route = useRoute();
 const locationId = route.params.id;
 
-// 2. เรียกใช้ Logic ทั้งหมดจากไฟล์แยก (Destructuring)
+// 2. Destructure logic from composable
 const {
   loading,
   submitting,
@@ -30,6 +31,25 @@ const {
   submitFeedback,
   resetForm
 } = useFeedbackLogic(locationId);
+
+// --- New Logic: Calculate Overall Average Rating ---
+const overallAverage = computed(() => {
+  if (!feedbackTopics.value.length) return "0.0";
+  
+  let totalScore = 0;
+  let count = 0;
+
+  feedbackTopics.value.forEach(t => {
+    const rating = answers.value[t.id]?.rating || 0;
+    if (rating > 0) {
+      totalScore += rating;
+      count++;
+    }
+  });
+
+  if (count === 0) return "0.0";
+  return (totalScore / count).toFixed(1); // Return 1 decimal place (e.g., 4.5)
+});
 </script>
 
 <template>
@@ -126,9 +146,16 @@ const {
             ></textarea>
 
             <div class="bg-indigo-50 p-4 rounded-xl text-left">
-              <h4 class="text-xs font-bold text-gray-500 uppercase mb-2">
-                สรุปคะแนนของคุณ
-              </h4>
+              <div class="flex items-center justify-between mb-3">
+                 <h4 class="text-xs font-bold text-gray-500 uppercase">
+                  สรุปคะแนนของคุณ
+                </h4>
+                <div class="flex items-center gap-1 bg-white px-2 py-1 rounded-md shadow-sm">
+                   <Calculator class="w-3 h-3 text-indigo-500" />
+                   <span class="text-xs font-bold text-indigo-700">เฉลี่ย: {{ overallAverage }}</span>
+                </div>
+              </div>
+             
               <div class="grid grid-cols-2 gap-2">
                 <div
                   v-for="t in feedbackTopics"
@@ -142,6 +169,15 @@ const {
                   </div>
                 </div>
               </div>
+
+               <div class="mt-3 pt-2 border-t border-indigo-100 flex justify-between items-center">
+                  <span class="text-xs font-bold text-gray-600">คะแนนรวมเฉลี่ย</span>
+                   <div class="flex items-center gap-1">
+                    <Star class="w-4 h-4 text-yellow-500 fill-yellow-500" />
+                    <span class="text-sm font-bold text-gray-800">{{ overallAverage }} / 5.0</span>
+                  </div>
+               </div>
+
             </div>
           </div>
         </Transition>

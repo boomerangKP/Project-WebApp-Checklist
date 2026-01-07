@@ -1,11 +1,14 @@
 <script setup>
-import { LogOut, Star } from 'lucide-vue-next' // (แถม) เอาไอคอนดาวมาใส่ให้ดูโปร
+import { LogOut } from 'lucide-vue-next'
+// ❌ ลบ import SweetAlert2 ทิ้งไปเลย ไม่ใช้ในนี้
+// import Swal from 'sweetalert2' 
 
 defineProps({
   user: Object
 })
 
-defineEmits(['logout'])
+// ประกาศว่า component นี้จะส่งสัญญาณชื่อ 'logout' ออกไป
+const emit = defineEmits(['logout'])
 
 const getRoleLabel = (role) => {
   if (role === "maid") return "พนักงานทำความสะอาด";
@@ -38,7 +41,7 @@ const getRoleLabel = (role) => {
     </div>
 
     <button
-      @click="$emit('logout')"
+      @click="$emit('logout')" 
       class="p-2.5 rounded-xl bg-gray-50 text-gray-400 hover:bg-red-50 hover:text-red-500 transition-all active:scale-95 border border-transparent hover:border-red-100 relative z-10"
     >
       <LogOut class="w-5 h-5" />

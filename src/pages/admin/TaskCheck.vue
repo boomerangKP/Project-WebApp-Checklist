@@ -15,7 +15,11 @@ const {
   loading, activeTab, searchQuery, selectedMaid,
   currentPage, itemsPerPage, isSelectionMode, selectedIds, isBulkSubmitting,
   uniqueMaids, filteredTasks, paginatedTasks, totalPages, startEntry, endEntry, waitingCount, isAllSelected,
-  fetchTasks, changePage, toggleSelection, toggleSelectAll, handleBulkApprove
+  fetchTasks, changePage, toggleSelection, toggleSelectAll, handleBulkApprove,
+  
+  // ✅ 1. เพิ่มการดึงตัวแปรวันที่ออกมาใช้งาน
+  startDate, 
+  endDate
 } = useTaskLogic()
 
 const openTaskDetail = (id) => router.push({ path: `/admin/check/${id}` })
@@ -35,6 +39,10 @@ const openTaskDetail = (id) => router.push({ path: `/admin/check/${id}` })
           v-model:activeTab="activeTab"
           v-model:searchQuery="searchQuery"
           v-model:selectedMaid="selectedMaid"
+          
+          v-model:startDate="startDate"
+          v-model:endDate="endDate"
+
           :maids="uniqueMaids"
           :isSelectionMode="isSelectionMode"
           :isAllSelected="isAllSelected"

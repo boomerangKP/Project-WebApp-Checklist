@@ -3,10 +3,15 @@ import { supabase } from '@/lib/supabase'
 import Swal from 'sweetalert2'
 
 export function useTaskLogic() {
+  // --- State ---
   const tasks = ref([])
   const loading = ref(true)
   const timeSlots = ref([])
-  
+
+  // ✅ 1. เพิ่ม State สำหรับเลือกวัน (เริ่มต้นเป็น "วันนี้")
+  const startDate = ref(new Date().toISOString().split('T')[0])
+  const endDate = ref(new Date().toISOString().split('T')[0])
+
   // Filter State
   const activeTab = ref('waiting')
   const searchQuery = ref('')
@@ -37,21 +42,25 @@ export function useTaskLogic() {
     return match ? match.time_slots_name : 'นอกเวลาทำการ'
   }
 
-  // --- Fetch Data ---
+  // --- Fetch Data (Logic ใหม่: รองรับ Date Range) ---
   const fetchTasks = async () => {
     loading.value = true
     try {
-      if (timeSlots.value.length === 0) await fetchTimeSlots()
+      // โหลดรอบเวลาถ้ายังไม่มี
+      if (timeSlots.value.length === 0) {
+        await fetchTimeSlots()
+      }
 
-      const d = new Date()
-      const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-
-      const { data, error } = await supabase.from('check_sessions').select(`
+      // 🔥 แก้ไข Query: ใช้ startDate และ endDate
+      const { data, error } = await supabase
+        .from('check_sessions')
+        .select(`
           check_sessions_id, check_sessions_date, check_sessions_time_start, check_sessions_status, created_at,
           employees ( employees_firstname, employees_lastname, employees_photo, role ),
           locations ( locations_name, locations_building, locations_floor )
         `)
-        .eq('check_sessions_date', today)
+        .gte('check_sessions_date', startDate.value) // ✅ ตั้งแต่วันที่...
+        .lte('check_sessions_date', endDate.value)   // ✅ ถึงวันที่...
         .order('created_at', { ascending: false })
 
       if (error) throw error
@@ -71,13 +80,14 @@ export function useTaskLogic() {
           location: item.locations?.locations_name || 'ไม่ระบุสถานที่',
           floor: item.locations ? `${item.locations.locations_building} ชั้น ${item.locations.locations_floor}` : '-',
           date: new Date(item.check_sessions_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }),
-          time: getSlotName(item.created_at),
+          time: getSlotName(item.created_at), // ใช้ getSlotName ที่ประกาศไว้ข้างบน
           status: mappedStatus,
-          originalStatus: s
+          originalStatus: s,
+          rawDate: item.check_sessions_date
         }
       })
     } catch (err) {
-      console.error(err)
+      console.error('Fetch Error:', err)
       Swal.fire('Error', 'ไม่สามารถโหลดข้อมูลได้', 'error')
     } finally {
       loading.value = false
@@ -86,15 +96,15 @@ export function useTaskLogic() {
 
   // --- Filter & Pagination ---
   const uniqueMaids = computed(() => [...new Set(tasks.value.map(t => t.maidName))])
-  
+
   const filteredTasks = computed(() => tasks.value.filter(t => {
     return (activeTab.value === 'all' || t.status === activeTab.value) &&
-           (t.maidName.includes(searchQuery.value) || t.location.includes(searchQuery.value)) &&
-           (selectedMaid.value === 'all' || t.maidName === selectedMaid.value)
+      (t.maidName.includes(searchQuery.value) || t.location.includes(searchQuery.value)) &&
+      (selectedMaid.value === 'all' || t.maidName === selectedMaid.value)
   }))
 
   const totalPages = computed(() => Math.ceil(filteredTasks.value.length / itemsPerPage.value) || 1)
-  
+
   const paginatedTasks = computed(() => {
     const start = (currentPage.value - 1) * itemsPerPage.value
     const end = start + itemsPerPage.value
@@ -105,6 +115,8 @@ export function useTaskLogic() {
   const endEntry = computed(() => Math.min(currentPage.value * itemsPerPage.value, filteredTasks.value.length))
 
   const waitingCount = computed(() => tasks.value.filter(t => t.status === 'waiting').length)
+
+  const isAllSelected = computed(() => paginatedTasks.value.length > 0 && paginatedTasks.value.every(t => selectedIds.value.includes(t.id)))
 
   // --- Actions ---
   const changePage = (page) => {
@@ -129,8 +141,6 @@ export function useTaskLogic() {
       selectedIds.value = [...selectedIds.value, ...newIds]
     }
   }
-  
-  const isAllSelected = computed(() => paginatedTasks.value.length > 0 && paginatedTasks.value.every(t => selectedIds.value.includes(t.id)))
 
   // --- Bulk Approve ---
   const handleBulkApprove = async () => {
@@ -157,27 +167,63 @@ export function useTaskLogic() {
         selectedIds.value = []
         isSelectionMode.value = false
         Swal.fire({ icon: 'success', title: 'เรียบร้อย!', timer: 1500, showConfirmButton: false })
-      } catch (err) { Swal.fire('Error', err.message, 'error') } 
-      finally { isBulkSubmitting.value = false }
+      } catch (err) {
+        Swal.fire('Error', err.message, 'error')
+      } finally {
+        isBulkSubmitting.value = false
+      }
     }
   }
 
-  // --- Lifecycle ---
+  // --- Lifecycle & Watchers ---
+  
+  // 1. รีเซ็ตหน้าเมื่อเปลี่ยน Filter
   watch([activeTab, itemsPerPage, searchQuery, selectedMaid], () => {
-    currentPage.value = 1; selectedIds.value = []; isSelectionMode.value = false
+    currentPage.value = 1
+    selectedIds.value = []
+    isSelectionMode.value = false
+  })
+
+  // 2. 🔥 เพิ่ม: โหลดข้อมูลใหม่เมื่อเปลี่ยนวันที่
+  watch([startDate, endDate], () => {
+    fetchTasks()
   })
 
   onMounted(() => {
-    fetchTimeSlots(); fetchTasks()
+    fetchTimeSlots()
+    fetchTasks()
     realtimeSubscription = supabase.channel('realtime').on('postgres_changes', { event: '*', schema: 'public', table: 'check_sessions' }, fetchTasks).subscribe()
   })
-  
-  onUnmounted(() => { if (realtimeSubscription) supabase.removeChannel(realtimeSubscription) })
+
+  onUnmounted(() => {
+    if (realtimeSubscription) supabase.removeChannel(realtimeSubscription)
+  })
 
   return {
-    tasks, loading, activeTab, searchQuery, selectedMaid,
-    currentPage, itemsPerPage, isSelectionMode, selectedIds, isBulkSubmitting,
-    uniqueMaids, filteredTasks, paginatedTasks, totalPages, startEntry, endEntry, waitingCount, isAllSelected,
-    fetchTasks, changePage, toggleSelection, toggleSelectAll, handleBulkApprove
+    tasks,
+    loading,
+    activeTab,
+    searchQuery,
+    selectedMaid,
+    startDate, // ✅ ส่งออก
+    endDate,   // ✅ ส่งออก
+    currentPage,
+    itemsPerPage,
+    isSelectionMode,
+    selectedIds,
+    isBulkSubmitting,
+    uniqueMaids,
+    filteredTasks,
+    paginatedTasks,
+    totalPages,
+    startEntry,
+    endEntry,
+    waitingCount,
+    isAllSelected,
+    fetchTasks,
+    changePage,
+    toggleSelection,
+    toggleSelectAll,
+    handleBulkApprove
   }
 }

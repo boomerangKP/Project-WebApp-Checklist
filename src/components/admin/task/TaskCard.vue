@@ -1,5 +1,6 @@
 <script setup>
-import { Clock, CheckCircle2, Edit3, Calendar, MapPin, CheckSquare } from 'lucide-vue-next'
+// ✅ เพิ่ม Building เข้าไปใน import
+import { Clock, CheckCircle2, Edit3, Calendar, MapPin, CheckSquare, Building } from 'lucide-vue-next'
 
 defineProps({
   task: Object,
@@ -44,11 +45,15 @@ defineEmits(['click', 'toggleSelect'])
 
       <div class="flex-1 w-full space-y-2">
         <div class="text-xl font-bold text-gray-800">{{ task.location }}</div>
+        
         <div class="flex items-center gap-4 text-gray-500 text-sm">
           <div class="flex items-center gap-1"><Calendar class="w-4 h-4" /> {{ task.date }}</div>
           <div class="flex items-center gap-1"><Clock class="w-4 h-4" /> {{ task.time }}</div>
         </div>
-        <div class="flex items-center gap-1 text-gray-500 text-sm"><MapPin class="w-4 h-4" />อาคาร {{ task.floor }}</div>
+        
+        <div class="flex items-center gap-1 text-gray-500 text-sm">
+            <Building class="w-4 h-4" /> {{ task.floor }}
+        </div>
       </div>
 
       <div class="w-full md:w-auto flex flex-col items-end gap-2" @click.stop>
