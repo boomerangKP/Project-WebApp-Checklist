@@ -1,3 +1,8 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ใส่ใน style.css หรือ App.vue */
+.swal2-container {
+  z-index: 20000 !important;
+}

@@ -1,68 +1,70 @@
 <script setup>
-import { useRouter } from 'vue-router'
+import { computed } from 'vue'
+import { useRoute } from 'vue-router' // ✅ เรียกใช้ route เพื่อดูว่าอยู่หน้าไหน
 import { supabase } from '@/lib/supabase'
 import { useUserStore } from '@/stores/user'
-import { Search } from 'lucide-vue-next'
 import Notification from '@/components/admin/NotificationBell.vue'
-
-// ✅ 1. Import useSwal เข้ามา
 import { useSwal } from '@/composables/useSwal'
+import { Menu } from 'lucide-vue-next' // เผื่อใช้ปุ่ม Menu บนมือถือ
 
-const router = useRouter()
+const route = useRoute()
 const userStore = useUserStore()
+const { swalConfirm } = useSwal()
 
-// ✅ 2. เรียกใช้ฟังก์ชันจาก useSwal
-const { swalConfirm, swalSuccess } = useSwal()
+// ✅ Logic การแสดงชื่อหน้า (Breadcrumb แบบง่าย)
+// ตรวจสอบจาก route.name หรือกำหนดเอง
+const pageTitle = computed(() => {
+  const name = route.name || ''
 
-// ✅ 3. รวม Logic การ Logout ไว้ในฟังก์ชันเดียว
+  // แปลงชื่อ Route เป็นภาษาไทย (ถ้า Route name คุณตั้งเป็นภาษาอังกฤษ)
+  // หรือถ้า Route name เป็นไทยอยู่แล้วก็ใช้ name ได้เลย
+  switch (name) {
+    case 'admin-dashboard': return 'แดชบอร์ด'
+    case 'check-tasks': return 'ตรวจสอบงาน'
+    case 'admin-employees': return 'ข้อมูลพนักงาน'
+    case 'admin-report': return 'รายงานผล'
+    case 'admin-locations': return 'จัดการข้อมูล'
+    case 'admin-checklists': return 'จัดการข้อมูล'
+    case 'admin-qrcodeprinter': return 'จัดการข้อมูล'
+    case 'report-satisfaction': return 'รายงานผล'
+    case 'admin-editfeedback': return 'จัดการข้อมูล'
+    // ... เพิ่ม case ตามชื่อ route ใน router/index.js ของคุณ
+    default: return 'ระบบจัดการแม่บ้าน'
+  }
+})
+
+// --- 🚪 Logout Logic ---
 const onLogoutClick = async () => {
-  // เรียก SweetAlert ถามยืนยัน
   const isConfirmed = await swalConfirm(
-    'ยืนยันการออกจากระบบ?',       // Title
-    'คุณต้องการออกจากระบบใช่หรือไม่', // Text
-    'ออกจากระบบ',                 // Button Text
-    'warning'                     // Icon สีเหลือง/แดง
+    'ยืนยันการออกจากระบบ?',
+    'คุณต้องการออกจากระบบใช่หรือไม่',
+    'ออกจากระบบ',
+    'warning'
   )
 
   if (isConfirmed) {
     try {
-      // สั่ง Logout ที่ Supabase
       await supabase.auth.signOut()
     } catch (error) {
       console.error('Logout error:', error)
     }
-
-    // 🔥🔥🔥 ไม้ตาย: ล้างความจำ Browser ทิ้งให้เกลี้ยง! 🔥🔥🔥
-    // แก้ปัญหา Chrome จำแม่นจนเด้งกลับหน้าเดิม
     localStorage.clear()
     sessionStorage.clear()
-
-    // เคลียร์ Session ใน Store ของเรา
     userStore.clearSession()
-
-    // แจ้งเตือนสวยๆ ก่อนไป (await เพื่อให้ User เห็นข้อความก่อน)
-    // await swalSuccess('ออกจากระบบเรียบร้อย')
-
-    // 🔥 ใช้ window.location.replace เพื่อบังคับรีโหลดใหม่
     window.location.replace('/login')
   }
 }
 </script>
 
 <template>
-  <header class="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 shadow-sm z-index">
+  <header class="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 shadow-sm z-30 relative transition-all">
 
-    <div class="flex-1 max-w-md">
-      <div class="relative">
-        <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-          <Search class="h-5 w-5 text-gray-400" />
-        </span>
-        <input
-          type="text"
-          class="block w-full pl-10 pr-3 py-2 border border-gray-200 rounded-lg leading-5 bg-gray-100 placeholder-gray-400 focus:outline-none focus:bg-white focus:ring-1 focus:ring-indigo-500 sm:text-sm transition-all"
-          placeholder="ค้นหา...."
-        />
-      </div>
+    <div class="flex items-center gap-4">
+      <div>
+        <h1 class="text-xl font-bold text-gray-800 tracking-tight">
+          {{ pageTitle }}
+        </h1>
+        </div>
     </div>
 
     <div class="flex items-center space-x-6">
@@ -79,7 +81,7 @@ const onLogoutClick = async () => {
           </button>
         </div>
 
-        <div class="h-10 w-10 rounded-full bg-yellow-100 flex items-center justify-center overflow-hidden border border-gray-200">
+        <div class="h-10 w-10 rounded-full bg-yellow-100 flex items-center justify-center overflow-hidden border border-gray-200 shadow-sm">
           <img
             v-if="userStore.profile?.employees_photo"
             :src="userStore.profile.employees_photo"
