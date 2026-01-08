@@ -1,16 +1,16 @@
 <script setup>
-import { computed } from "vue"; // Import computed
+import { computed } from "vue";
 import { useRoute } from "vue-router";
 import { useFeedbackLogic } from "@/composables/useFeedbackLogic";
 import {
-  Star, Loader2, MapPin, ChevronRight, ChevronLeft, Send, CheckCircle2, UserCog, Heart, RefreshCw, Calculator
+  Star, Loader2, MapPin, ChevronRight, ChevronLeft, Send, CheckCircle2, UserCog, Heart, RefreshCw, Calculator, Tag
 } from "lucide-vue-next";
 
-// 1. Receive ID from URL
+// 1. รับ ID
 const route = useRoute();
 const locationId = route.params.id;
 
-// 2. Destructure logic from composable
+// 2. ดึง Logic
 const {
   loading,
   submitting,
@@ -32,7 +32,7 @@ const {
   resetForm
 } = useFeedbackLogic(locationId);
 
-// --- New Logic: Calculate Overall Average Rating ---
+// คำนวณคะแนนเฉลี่ย
 const overallAverage = computed(() => {
   if (!feedbackTopics.value.length) return "0.0";
   
@@ -48,7 +48,7 @@ const overallAverage = computed(() => {
   });
 
   if (count === 0) return "0.0";
-  return (totalScore / count).toFixed(1); // Return 1 decimal place (e.g., 4.5)
+  return (totalScore / count).toFixed(1);
 });
 </script>
 
@@ -94,16 +94,22 @@ const overallAverage = computed(() => {
 
       <div class="flex-1 relative p-6 flex flex-col justify-center">
         <Transition name="slide-fade" mode="out-in">
+          
           <div v-if="!isCompleted" :key="currentStep" class="w-full">
             <div class="text-center mb-8 animate-in zoom-in duration-300">
-              <span class="text-6xl mb-4 block">🤔</span>
-              <h2 class="text-2xl font-bold text-gray-800 mb-2">
+              
+              <div class="inline-flex items-center gap-1.5 bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full text-xs font-bold mb-4">
+                <Tag class="w-3 h-3" />
+                {{ currentTopic.category || 'ทั่วไป' }}
+              </div>
+
+              <h2 class="text-xl font-bold text-gray-800 mb-2 leading-relaxed">
                 {{ currentTopic.name }}
               </h2>
-              <p class="text-gray-500">{{ currentTopic.description }}</p>
+              <p class="text-sm text-gray-500 px-4">{{ currentTopic.description }}</p>
             </div>
 
-            <div class="flex justify-center gap-2 mb-8">
+            <div class="flex justify-center gap-2 mb-4">
               <button
                 v-for="i in 5"
                 :key="i"
@@ -117,25 +123,18 @@ const overallAverage = computed(() => {
               </button>
             </div>
 
-            <div
-              v-if="answers[currentTopic.id].rating > 0 && answers[currentTopic.id].rating < 5"
-              class="animate-in slide-in-from-bottom-2 fade-in"
-            >
-              <p class="text-sm text-gray-600 mb-2 text-center">เกิดปัญหาอะไรขึ้นครับ?</p>
-              <textarea
-                v-model="answers[currentTopic.id].comment"
-                rows="2"
-                class="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
-                placeholder="เช่น เหม็นมาก, น้ำเจิ่งนอง..."
-              ></textarea>
+            <div class="flex justify-between px-8 text-xs text-gray-400">
+               <span>ไม่พอใจ</span>
+               <span>พอใจมาก</span>
             </div>
-          </div>
+
+            </div>
 
           <div v-else class="w-full text-center">
             <div class="mb-6">
               <CheckCircle2 class="w-20 h-20 text-green-500 mx-auto mb-4" />
               <h2 class="text-2xl font-bold text-gray-800">ประเมินครบแล้ว!</h2>
-              <p class="text-gray-500">มีข้อเสนอแนะเพิ่มเติมไหมครับ?</p>
+              <p class="text-gray-500 text-sm">มีข้อเสนอแนะเพิ่มเติมไหมครับ?</p>
             </div>
 
             <textarea
@@ -155,22 +154,25 @@ const overallAverage = computed(() => {
                    <span class="text-xs font-bold text-indigo-700">เฉลี่ย: {{ overallAverage }}</span>
                 </div>
               </div>
-             
-              <div class="grid grid-cols-2 gap-2">
+              
+              <div class="grid grid-cols-1 gap-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
                 <div
                   v-for="t in feedbackTopics"
                   :key="t.id"
-                  class="text-xs flex items-center justify-between"
+                  class="text-xs flex items-center justify-between py-1 border-b border-indigo-100 last:border-0"
                 >
-                  <span class="text-gray-600 truncate mr-2">{{ t.name }}</span>
-                  <div class="flex items-center gap-1">
+                  <div class="flex flex-col flex-1 mr-2 overflow-hidden">
+                    <span class="text-[10px] text-indigo-400 font-bold mb-0.5">{{ t.category }}</span>
+                    <span class="text-gray-600 truncate">{{ t.name }}</span>
+                  </div>
+                  <div class="flex items-center gap-1 shrink-0">
                     <Star class="w-3 h-3 text-yellow-500 fill-yellow-500" />
                     <span class="font-bold">{{ answers[t.id].rating }}</span>
                   </div>
                 </div>
               </div>
 
-               <div class="mt-3 pt-2 border-t border-indigo-100 flex justify-between items-center">
+               <div class="mt-3 pt-2 border-t border-indigo-200 flex justify-between items-center">
                   <span class="text-xs font-bold text-gray-600">คะแนนรวมเฉลี่ย</span>
                    <div class="flex items-center gap-1">
                     <Star class="w-4 h-4 text-yellow-500 fill-yellow-500" />
@@ -282,5 +284,19 @@ const overallAverage = computed(() => {
 .slide-fade-leave-to {
   opacity: 0;
   transform: translateX(-20px);
+}
+/* Scrollbar สวยๆ */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #f1f1f1; 
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #c7c7c7; 
+  border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8; 
 }
 </style>

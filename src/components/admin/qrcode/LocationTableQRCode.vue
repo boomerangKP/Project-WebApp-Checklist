@@ -36,7 +36,7 @@ const visiblePages = computed(() => {
   const pages = []
   const total = totalPages.value
   const current = currentPage.value
-  
+
   if (total <= 7) {
     for (let i = 1; i <= total; i++) pages.push(i)
   } else {
@@ -59,14 +59,14 @@ const changePage = (page) => {
 }
 
 const isAllSelected = computed(() => {
-  return props.locations.length > 0 && 
+  return props.locations.length > 0 &&
          props.locations.every(l => props.selectedIds.has(l.locations_id))
 })
 </script>
 
 <template>
   <div class="flex-1 bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden flex flex-col h-full">
-    
+
     <div class="grid grid-cols-12 gap-4 px-6 py-3 bg-gray-50 border-b border-gray-200 text-xs font-bold text-gray-500 uppercase tracking-wider items-center flex-shrink-0">
       <div class="col-span-1 flex justify-center">
         <button @click="$emit('toggle-all')" class="hover:text-indigo-600 transition-colors" title="เลือกทั้งหมด">
@@ -91,18 +91,18 @@ const isAllSelected = computed(() => {
       </div>
 
       <div v-else>
-        <div 
-          v-for="loc in paginatedLocations" 
+        <div
+          v-for="loc in paginatedLocations"
           :key="loc.locations_id"
           @click="$emit('toggle', loc.locations_id)"
           class="grid grid-cols-12 gap-4 px-6 py-4 border-b border-gray-100 hover:bg-indigo-50/50 cursor-pointer transition-colors items-center group"
           :class="selectedIds.has(loc.locations_id) ? 'bg-indigo-50/80' : ''"
         >
           <div class="col-span-1 flex justify-center">
-            <component 
-              :is="selectedIds.has(loc.locations_id) ? CheckSquare : Square" 
+            <component
+              :is="selectedIds.has(loc.locations_id) ? CheckSquare : Square"
               class="w-5 h-5 transition-colors"
-              :class="selectedIds.has(loc.locations_id) ? 'text-indigo-600' : 'text-gray-300 group-hover:text-indigo-400'" 
+              :class="selectedIds.has(loc.locations_id) ? 'text-indigo-600' : 'text-gray-300 group-hover:text-indigo-400'"
             />
           </div>
           <div class="col-span-2 font-mono text-xs font-bold text-gray-500 bg-gray-100 px-2 py-1 rounded w-fit group-hover:bg-white group-hover:text-indigo-600 transition-colors">
@@ -122,17 +122,17 @@ const isAllSelected = computed(() => {
     </div>
 
     <div class="border-t border-gray-200 bg-white flex-shrink-0 z-10 py-2 px-4 flex flex-col sm:flex-row items-center justify-between gap-4 select-none" v-if="locations.length > 0">
-      
+
       <div class="flex flex-wrap items-center gap-4 text-sm text-gray-600">
         <span class="whitespace-nowrap">
-          แสดง <span class="font-bold text-gray-900">{{ startItem }}</span> 
-          ถึง <span class="font-bold text-gray-900">{{ endItem }}</span> 
+          แสดง <span class="font-bold text-gray-900">{{ startItem }}</span>
+          ถึง <span class="font-bold text-gray-900">{{ endItem }}</span>
           จาก <span class="font-bold text-gray-900">{{ locations.length }}</span> รายการ
         </span>
-        
+
         <div class="flex items-center gap-2">
           <span>แสดง:</span>
-          <select 
+          <select
             v-model="itemsPerPage"
             @change="currentPage = 1"
             class="border border-gray-300 rounded-md py-1 px-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none cursor-pointer bg-white text-gray-900 shadow-sm min-w-[60px]"
@@ -147,22 +147,22 @@ const isAllSelected = computed(() => {
       </div>
 
       <div class="flex items-center gap-1">
-        <button 
-          @click="changePage(currentPage - 1)" 
+        <button
+          @click="changePage(currentPage - 1)"
           :disabled="currentPage === 1"
           class="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
         >
           <ChevronLeft class="w-4 h-4" />
         </button>
 
-        <button 
-          v-for="(page, index) in visiblePages" 
+        <button
+          v-for="(page, index) in visiblePages"
           :key="index"
           @click="changePage(page)"
           class="w-9 h-9 flex items-center justify-center rounded-lg text-sm font-medium transition-all"
           :class="[
-            page === currentPage 
-              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200 border border-indigo-600' 
+            page === currentPage
+              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200 border border-indigo-600'
               : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50 hover:border-gray-300',
             page === '...' ? 'border-none bg-transparent cursor-default text-gray-400 hover:bg-transparent' : ''
           ]"
@@ -170,8 +170,8 @@ const isAllSelected = computed(() => {
           {{ page }}
         </button>
 
-        <button 
-          @click="changePage(currentPage + 1)" 
+        <button
+          @click="changePage(currentPage + 1)"
           :disabled="currentPage === totalPages"
           class="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
         >

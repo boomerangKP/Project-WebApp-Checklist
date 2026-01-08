@@ -1,6 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { supabase } from '@/lib/supabase'
-// 👇 1. Import Store (แต่ยังไม่เรียกใช้ข้างนอกนะ)
 import { useUserStore } from '@/stores/user'
 
 const router = createRouter({
@@ -18,7 +17,7 @@ const router = createRouter({
     {
       path: '/admin',
       component: () => import('../layouts/AdminLayout.vue'),
-      meta: { requiresAuth: true, role: 'admin' }, // 👈 ระบุว่าต้องเป็น admin เท่านั้น
+      meta: { requiresAuth: true, role: 'admin' },
       children: [
         {
           path: '',
@@ -35,43 +34,40 @@ const router = createRouter({
           name: 'task-detail',
           component: () => import('../pages/admin/TaskDetail.vue')
         },
-        // 🔥🔥🔥 เพิ่มส่วนนี้ครับ (หน้ารายงาน) 🔥🔥🔥
         {
-          path: 'report', // ตรงกับใน Sidebar เป๊ะ
+          path: 'report',
           name: 'admin-report',
           component: () => import('../pages/admin/Reports.vue')
         },
-        // 🔥🔥🔥 จบส่วนที่เพิ่ม 🔥🔥🔥
         {
           path: 'employees',
           name: 'admin-employees',
           component: () => import('../pages/admin/EmployeeList.vue')
         },
-        // 🔥 เปลี่ยนจาก path: 'settings' เป็น 2 อันนี้แทน
         {
-          path: 'locations',  // ตรงกับ Sidebar ที่ตั้งไว้
+          path: 'locations',
           name: 'admin-locations',
           component: () => import('../pages/admin/LocationManagement.vue')
         },
         {
-          path: 'checklists', // ตรงกับ Sidebar ที่ตั้งไว้
+          path: 'checklists',
           name: 'admin-checklists',
           component: () => import('../pages/admin/Checklists.vue')
         },
         {
-          path: 'qrcodeprinter', // Printer
+          path: 'qrcodeprinter',
           name: 'admin-qrcodeprinter',
           component: () => import('../pages/admin/QRCodePrinter.vue')
         },
         {
-          path: 'editfeedback', // Printer
+          path: 'editfeedback',
           name: 'admin-editfeedback',
           component: () => import('../pages/admin/EditFeedback.vue')
         },
         {
           path: 'satisfaction',
           name: 'report-satisfaction',
-          component: () => import('../pages/admin/ReportSatisfaction.vue') // ต้องสร้างไฟล์นี้
+          component: () => import('../pages/admin/ReportSatisfaction.vue')
         }
       ]
     },
@@ -80,7 +76,7 @@ const router = createRouter({
     {
       path: '/maid',
       component: () => import('../layouts/MaidLayout.vue'),
-      meta: { requiresAuth: true, role: 'maid' }, // 👈 ระบุว่าต้องเป็น maid เท่านั้น
+      meta: { requiresAuth: true, role: 'maid' },
       children: [
         {
           path: 'home',
@@ -107,65 +103,59 @@ const router = createRouter({
           redirect: { name: 'maid-home' }
         },
         {
-          path: '/maid/scan', // สำหรับปุ่มสแกน
+          path: '/maid/scan',
           name: 'maid-scan',
           component: () => import('@/pages/maid/ScanQR.vue')
-        },
-        // ใน children ของ path: '/admin'
-
+        }
+        // ❌ เอา /scan/:token ออกจากตรงนี้ เพราะตรงนี้บังคับ Login
       ]
     },
 
-    // --- 4. Root Redirect ---
+    // --- 🔥 4. Public Routes (Scan Handler) ---
+    // ✅ ย้ายมาไว้ตรงนี้ เพื่อให้ใครก็เข้าได้ (แล้วค่อยไปเช็ค Role ข้างในไฟล์)
+    {
+      path: '/scan/:token',
+      name: 'scan-handler',
+      component: () => import('@/pages/maid/ScanHandler.vue'),
+      meta: { requiresAuth: false } // เปิด Public
+    },
+
+    // --- 5. อื่นๆ ---
     {
       path: '/',
       redirect: '/login'
     },
-
-    // --- 5. NotFound ---
+    {
+      path: '/feedback/:id',
+      name: 'feedback',
+      component: () => import('@/pages/customer/Feedback.vue')
+    },
+    {
+      path: '/maid/job/:id',
+      name: 'maid-job',
+      component: () => import('@/pages/maid/JobSubmit.vue'),
+      meta: { requiresAuth: true }
+    },
     {
       path: '/:pathMatch(.*)*',
       name: 'NotFound',
       component: () => import('../pages/NotFound.vue'),
       meta: { requiresAuth: false }
-    },
-    {
-      path: '/scan/:id',
-      name: 'scan-dispatcher',
-      // ❌ ลบอันนี้: component: () => import('@/pages/customer/ScanDispatcher.vue')
-      // ✅ ใช้อันนี้แทน:
-      component: () => import('@/pages/ScanDispatcher.vue')
-    },
-    {
-      path: '/feedback/:id',
-      name: 'feedback',
-      // เช็คอันนี้ด้วยครับ ว่าสร้างไว้ที่ไหน ถ้าไว้ข้างนอกก็แก้เป็น
-      component: () => import('@/pages/customer/Feedback.vue')
-    },
-
-
-    {
-      path: '/maid/job/:id',
-      name: 'maid-job',
-      component: () => import('@/pages/maid/JobSubmit.vue'),
-      meta: { requiresAuth: true } // (Optional) บังคับว่าต้อง Login ก่อนถึงจะเข้าหน้านี้ได้
-    },
-
+    }
   ]
 })
 
-// --- 🔥 Logic ยามเฝ้าประตู (Navigation Guard) ---
 router.beforeEach(async (to, from, next) => {
   const userStore = useUserStore()
   const { data: { session } } = await supabase.auth.getSession()
 
-  // 1. ไม่มี Session -> ดีดไป Login
+  // 1. ไม่มี Session -> ดีดไป Login (ยกเว้นหน้าที่เปิด Public)
   if (!session) {
     if (to.meta.requiresAuth) return next('/login')
     return next()
   }
 
-  // 2. มี Session -> เช็ค Role ใน Store
+  // 2. มี Session -> เช็ค Role
   let role = userStore.profile?.role
 
   if (!role) {
@@ -185,14 +175,12 @@ router.beforeEach(async (to, from, next) => {
     }
   }
 
-  // 3. ป้องกันกลับไปหน้า Login ซ้ำ
   if (to.path === '/login') {
     if (role === 'admin') return next('/admin')
     if (role === 'maid') return next('/maid/home')
     return next('/')
   }
 
-  // 4. ป้องกันข้ามสายงาน (Role Guard)
   if (to.meta.role && to.meta.role !== role) {
     if (role === 'admin') return next('/admin')
     if (role === 'maid') return next('/maid/home')

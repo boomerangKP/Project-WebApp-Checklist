@@ -1,10 +1,15 @@
 <script setup>
 import AdminSidebar from '@/components/admin/AdminSidebar.vue'
 import AdminHeader from '@/components/admin/AdminHeader.vue'
+// 👇 1. นำเข้า Component ตัวบล็อก
+import MobileBlocker from '@/components/admin/MobileBlocker.vue'
 </script>
 
 <template>
-  <div class="flex h-screen bg-gray-100 font-sans">
+  <div class="flex h-screen bg-gray-100 font-sans relative">
+    
+    <MobileBlocker />
+
     <AdminSidebar />
 
     <div class="flex-1 flex flex-col overflow-hidden">
