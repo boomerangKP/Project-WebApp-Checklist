@@ -29,30 +29,23 @@ const config = {
   aspectRatio: undefined
 }
 
+// 🔥 แก้ไขฟังก์ชันนี้: เปลี่ยนวิธีเรียกกล้อง
 const startScanner = async () => {
   try {
+    // เช็คก่อนว่ามีกล้องไหม (แต่ยังไม่ต้องเลือก ID)
     const devices = await Html5Qrcode.getCameras()
 
     if (devices && devices.length) {
       hasPermission.value = true
       html5QrCode = new Html5Qrcode("qr-reader")
 
-      // 🔍 Logic เลือกกล้อง
-      let selectedCameraId = devices[0].id
-
-      const backCamera = devices.find(device =>
-        device.label.toLowerCase().includes('back') ||
-        device.label.toLowerCase().includes('rear') ||
-        device.label.toLowerCase().includes('environment')
-      );
-
-      if (backCamera) {
-        selectedCameraId = backCamera.id;
-      }
+      // ✅ วิธีแก้: ไม่ต้องหา ID จากชื่อแล้ว ให้ใช้ Config บังคับ "กล้องหลัง" (environment) เลย
+      // แบบนี้ชัวร์กว่าสำหรับมือถือครับ
+      const cameraConfig = { facingMode: "environment" };
 
       // เริ่มสแกน
       await html5QrCode.start(
-        selectedCameraId,
+        cameraConfig, // ส่ง object นี้ไปแทน ID
         config,
         onScanSuccess,
         onScanFailure
@@ -70,28 +63,23 @@ const startScanner = async () => {
   }
 }
 
-// 🔥 จุดที่แก้ไข: รองรับ Token และ URL
 const onScanSuccess = (decodedText, decodedResult) => {
   if (!isScanning.value) return
   isScanning.value = false
 
   if (navigator.vibrate) navigator.vibrate(200);
 
-  // ตรวจสอบว่าสแกนได้ URL หรือ Token เพียวๆ
   let token = decodedText;
 
-  // ถ้ามีคำว่า /scan/ ให้ตัดเอาข้างหลังมาใช้ (กรณีสแกน URL เต็ม)
   if (decodedText.includes('/scan/')) {
     const parts = decodedText.split('/scan/');
     if (parts.length > 1) {
-      token = parts[1]; // ได้ค่า UUID ออกมา
+      token = parts[1];
     }
   }
 
   stopCamera().then(() => {
     console.log(`Scan Token: ${token}`)
-
-    // ส่ง Token ไปให้หน้า Handler ตรวจสอบ
     router.push({
       name: 'scan-handler',
       params: { token: token }
