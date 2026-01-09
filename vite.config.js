@@ -5,6 +5,7 @@ import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
 // 👇 1. นำเข้า Plugin PWA
 import { VitePWA } from 'vite-plugin-pwa'
+import { visualizer } from "rollup-plugin-visualizer"
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -46,7 +47,13 @@ export default defineConfig({
       devOptions: {
         enabled: true
       }
-    })
+    }),
+    visualizer({
+      open: true,
+      filename: "stats.html",
+      gzipSize: true,
+      brotliSize: true,
+    }),
   ],
   resolve: {
     alias: {

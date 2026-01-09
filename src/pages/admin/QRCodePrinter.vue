@@ -9,7 +9,6 @@ import Swal from 'sweetalert2'
 import LocationFilter from '@/components/admin/qrcode/LocationFilter.vue'
 import LocationTableQRCode from '@/components/admin/qrcode/LocationTableQRCode.vue'
 import PrintPreviewModal from '@/components/admin/qrcode/PrintPreviewModal.vue'
-import PrintStickerLayout from '@/components/admin/qrcode/PrintStickerLayout.vue'
 
 // --- State ---
 const loading = ref(true)
@@ -156,11 +155,6 @@ onMounted(() => fetchLocations())
       :qrDataUrls="qrDataUrls"
       @close="showPreview = false"
       @confirm="handlePrint"
-    />
-
-    <PrintStickerLayout 
-      :selectedLocations="selectedLocationsFull"
-      :qrDataUrls="qrDataUrls"
     />
 
   </div>
