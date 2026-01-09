@@ -11,17 +11,105 @@ defineProps({
   trendData: Object,
   topicData: Object
 });
+
+// --- ฟังก์ชันตัดคำภาษาไทย (ไม่ให้คำฉีก) ---
+const formatTooltipTitle = (tooltipItems) => {
+  const text = tooltipItems[0].label;
+  const maxLength = 35; // ความยาวต่อบรรทัด (ตัวอักษร)
+
+  // ถ้า Browser รองรับการตัดคำไทย (Modern Browsers)
+  if (typeof Intl !== 'undefined' && Intl.Segmenter) {
+    const segmenter = new Intl.Segmenter('th', { granularity: 'word' });
+    const words = [...segmenter.segment(text)].map(s => s.segment);
+    
+    let lines = [];
+    let currentLine = '';
+
+    for (const word of words) {
+      if ((currentLine + word).length > maxLength) {
+        if (currentLine) lines.push(currentLine);
+        currentLine = word;
+      } else {
+        currentLine += word;
+      }
+    }
+    if (currentLine) lines.push(currentLine);
+    return lines;
+  }
+
+  // Fallback: ถ้า Browser รุ่นเก่ามาก ไม่รองรับ ให้ตัดตามยาวเหมือนเดิมไปก่อน
+  const chunks = [];
+  for (let i = 0; i < text.length; i += maxLength) {
+    chunks.push(text.slice(i, i + maxLength));
+  }
+  return chunks;
+};
+
+// --- ตั้งค่ากราฟเส้น (Trend) ---
+const trendOptions = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: { display: false },
+    tooltip: {
+      callbacks: {
+        label: (ctx) => ` คะแนนเฉลี่ย: ${ctx.formattedValue}`
+      }
+    }
+  },
+  scales: {
+    y: { beginAtZero: true, max: 5 },
+    x: { grid: { display: false } }
+  }
+};
+
+// --- ตั้งค่ากราฟแท่ง (Topic) ---
+const topicOptions = {
+  indexAxis: 'y', // แนวนอน
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: { display: false },
+    tooltip: {
+      callbacks: {
+        // ✅ ใช้ฟังก์ชันตัดคำแบบใหม่ (คำไม่ฉีก)
+        title: formatTooltipTitle,
+        label: (ctx) => ` คะแนน: ${ctx.formattedValue}`
+      }
+    }
+  },
+  scales: {
+    x: { beginAtZero: true, max: 5 },
+    y: {
+      ticks: {
+        autoSkip: false,
+        // ตัดชื่อแกน Y ให้สั้นลง ใส่ ...
+        callback: function(val) {
+          const label = this.getLabelForValue(val);
+          return label.length > 15 ? label.substr(0, 15) + '...' : label;
+        }
+      }
+    }
+  }
+};
 </script>
 
 <template>
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    
     <div class="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
       <h3 class="font-bold text-gray-800 mb-4 flex items-center gap-2">
         <TrendingUp class="w-5 h-5 text-indigo-500" /> แนวโน้มคะแนนความพึงพอใจ
       </h3>
       <div class="h-64">
-        <Line v-if="trendData.labels.length" :data="trendData" :options="{ responsive: true, maintainAspectRatio: false }" />
-        <div v-else class="h-full flex items-center justify-center text-gray-400">ไม่มีข้อมูลสำหรับกราฟ</div>
+        <Line 
+          v-if="trendData && trendData.labels && trendData.labels.length" 
+          :data="trendData" 
+          :options="trendOptions" 
+        />
+        <div v-else class="h-full flex items-center justify-center text-gray-400 text-sm">
+          ไม่มีข้อมูลสำหรับกราฟ
+        </div>
       </div>
     </div>
 
@@ -30,9 +118,16 @@ defineProps({
         <Filter class="w-5 h-5 text-indigo-500" /> คะแนนรายหัวข้อ
       </h3>
       <div class="h-64">
-        <Bar v-if="topicData.labels.length" :data="topicData" :options="{ indexAxis: 'y', responsive: true, maintainAspectRatio: false }" />
-        <div v-else class="h-full flex items-center justify-center text-gray-400">ไม่มีข้อมูลสำหรับกราฟ</div>
+        <Bar 
+          v-if="topicData && topicData.labels && topicData.labels.length" 
+          :data="topicData" 
+          :options="topicOptions" 
+        />
+        <div v-else class="h-full flex items-center justify-center text-gray-400 text-sm">
+          ไม่มีข้อมูลสำหรับกราฟ
+        </div>
       </div>
     </div>
+    
   </div>
 </template>

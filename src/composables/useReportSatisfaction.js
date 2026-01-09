@@ -1,326 +1,267 @@
-import { ref, watch, onMounted } from 'vue'
-import { supabase } from '@/lib/supabase'
-import ExcelJS from 'exceljs'
-import { saveAs } from 'file-saver'
-import Swal from 'sweetalert2'
+import { ref, computed, watch, onMounted } from "vue";
+import { supabase } from "@/lib/supabase";
+import * as XLSX from "xlsx";
+import Swal from "sweetalert2";
 
 export function useReportSatisfaction() {
-  const loading = ref(true)
-  const feedbacks = ref([])
-  const dateFilter = ref("month")
-  
+  // --- State ---
+  const loading = ref(false);
+  const feedbacks = ref([]);
+  const dateFilter = ref("today"); // today, week, month, all
+  const topicsMap = ref({});
+
   const stats = ref({
     totalReviews: 0,
-    averageRating: 0,
-    starDistribution: { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 },
+    averageRating: "0.0",
     topTopic: "-",
+    topScore: "0.0",
     lowTopic: "-",
-  })
+    lowScore: "0.0",
+  });
 
-  const trendChartData = ref({ labels: [], datasets: [] })
-  const topicChartData = ref({ labels: [], datasets: [] })
+  // --- Chart Data State ---
+  const trendChartData = ref({ labels: [], datasets: [] });
+  const topicChartData = ref({ labels: [], datasets: [] });
 
-  // --- Helpers ---
+  // --- Helper: Get Date Range ---
   const getDateRange = (filter) => {
     const now = new Date();
-    if (filter === "today") return new Date(now.setHours(0, 0, 0, 0)).toISOString();
-    if (filter === "week") {
-      const d = new Date(); d.setDate(d.getDate() - 7); return d.toISOString();
+    const start = new Date();
+    
+    if (filter === 'today') {
+      start.setHours(0, 0, 0, 0);
+    } else if (filter === 'week') {
+      const day = start.getDay() || 7; 
+      if (day !== 1) start.setHours(-24 * (day - 1));
+      start.setHours(0, 0, 0, 0);
+    } else if (filter === 'month') {
+      start.setDate(1);
+      start.setHours(0, 0, 0, 0);
+    } else {
+      return null;
     }
-    if (filter === "month") {
-      const d = new Date(); d.setMonth(d.getMonth() - 1); return d.toISOString();
-    }
-    if (filter === "year") {
-      const d = new Date(); d.setFullYear(d.getFullYear() - 1); return d.toISOString();
-    }
-    return null;
+    
+    return start.toISOString();
   };
 
-  // --- Fetch & Calculate ---
+  // --- 1. Fetch Topics ---
+  const fetchTopics = async () => {
+    const { data } = await supabase.from('feedback_topics').select('id, name');
+    if (data) {
+      topicsMap.value = data.reduce((acc, curr) => {
+        acc[curr.id] = curr.name;
+        return acc;
+      }, {});
+    }
+  };
+
+  // --- 2. Fetch Data ---
   const fetchData = async () => {
     loading.value = true;
     try {
-      let query = supabase.from("feedbacks")
-        .select(`
-          *, 
-          locations (locations_name, locations_building, locations_floor), 
-          feedback_details (
-            rating, 
-            comment, 
-            feedback_topics (name, ordering)
-          )
-        `)
+      let query = supabase
+        .from("feedbacks")
+        .select("*, locations(locations_name)")
         .order("created_at", { ascending: false });
 
       const startDate = getDateRange(dateFilter.value);
-      if (startDate) query = query.gte("created_at", startDate);
+      if (startDate) {
+        query = query.gte("created_at", startDate);
+      }
 
       const { data, error } = await query;
       if (error) throw error;
 
-      feedbacks.value = data || [];
+      feedbacks.value = data;
       calculateStats(data);
-      prepareCharts(data);
+      generateCharts(data);
+
     } catch (err) {
-      console.error("Error fetching report:", err);
+      console.error(err);
+      Swal.fire("Error", "ดึงข้อมูลไม่สำเร็จ", "error");
     } finally {
       loading.value = false;
     }
   };
 
+  // --- 3. Calculate Stats ---
   const calculateStats = (data) => {
-    if (!data || !data.length) {
-      // ค่าเริ่มต้น (Default)
-      stats.value = { 
-        totalReviews: 0, 
-        averageRating: 0, 
-        topTopic: "-", 
-        topScore: 0, // ✅ เพิ่มตัวแปรเก็บคะแนน
-        lowTopic: "-",
-        lowScore: 0  // ✅ เพิ่มตัวแปรเก็บคะแนน
-      };
+    if (!data.length) {
+      stats.value = { totalReviews: 0, averageRating: "0.0", topTopic: "-", topScore: "0.0", lowTopic: "-", lowScore: "0.0" };
       return;
     }
 
-    const total = data.length;
-    const sumRating = data.reduce((acc, cur) => acc + cur.rating, 0);
-    const avg = sumRating / total;
-
-    // Topic Analysis
+    let sumRating = 0;
     const topicScores = {};
-    data.forEach((f) => {
-      f.feedback_details?.forEach((d) => {
-        // ดึงชื่อหัวข้อ ถ้าไม่มีให้ใช้ ID แทน
-        const name = d.feedback_topics?.name || `หัวข้อ ${d.topic_id}`;
-        
-        if (!topicScores[name]) topicScores[name] = { sum: 0, count: 0 };
-        topicScores[name].sum += d.rating;
-        topicScores[name].count++;
-      });
+
+    data.forEach((item) => {
+      sumRating += Number(item.rating || 0);
+      if (item.answers) {
+        Object.entries(item.answers).forEach(([key, val]) => {
+          const score = Number(val.rating || val);
+          if (score > 0) {
+            if (!topicScores[key]) topicScores[key] = { sum: 0, count: 0 };
+            topicScores[key].sum += score;
+            topicScores[key].count += 1;
+          }
+        });
+      }
     });
 
-    // หามากสุด / น้อยสุด
-    let bestTopic = { name: "-", avg: -1 };
-    let worstTopic = { name: "-", avg: 6 }; // ตั้งไว้ 6 เพื่อให้ค่าแรกที่เข้ามาต่ำกว่าเสมอ
+    const avg = (sumRating / data.length).toFixed(1);
+    
+    let max = -1;
+    let min = 6;
+    let topName = "-";
+    let lowName = "-";
 
-    for (const [name, val] of Object.entries(topicScores)) {
-      const topicAvg = val.sum / val.count;
-      
-      // หา Top (ต้องมากกว่าเดิม หรือถ้าเท่ากันให้เอาอันใหม่)
-      if (topicAvg >= bestTopic.avg) {
-        bestTopic = { name, avg: topicAvg };
-      }
-      // หา Low (ต้องน้อยกว่าเดิม)
-      if (topicAvg <= worstTopic.avg) {
-        worstTopic = { name, avg: topicAvg };
-      }
+    for (const [id, obj] of Object.entries(topicScores)) {
+      const topicAvg = obj.sum / obj.count;
+      const name = topicsMap.value[id] || `หัวข้อ ${id}`;
+
+      if (topicAvg > max) { max = topicAvg; topName = name; }
+      if (topicAvg < min) { min = topicAvg; lowName = name; }
     }
 
-    // กรณีข้อมูลน้อย หรือคะแนนเท่ากันหมด ให้จัดการค่า Default
-    if (bestTopic.avg === -1) bestTopic = { name: "ยังไม่มีข้อมูล", avg: 0 };
-    if (worstTopic.avg === 6) worstTopic = { name: "-", avg: 0 };
-
     stats.value = {
-      totalReviews: total,
-      averageRating: avg.toFixed(1),
-      // ✅ ส่งแยกกัน Name ส่วน Name, Score ส่วน Score
-      topTopic: bestTopic.name,
-      topScore: bestTopic.avg.toFixed(1),
-      lowTopic: worstTopic.name,
-      lowScore: worstTopic.avg.toFixed(1),
+      totalReviews: data.length,
+      averageRating: avg,
+      topTopic: max > -1 ? topName : "-",
+      topScore: max > -1 ? max.toFixed(1) : "0.0",
+      lowTopic: min < 6 ? lowName : "-",
+      lowScore: min < 6 ? min.toFixed(1) : "0.0",
     };
   };
 
-  const prepareCharts = (data) => {
-    // 1. Line Chart
+  // --- 4. Generate Charts ---
+  const generateCharts = (data) => {
     const dateMap = {};
-    data.forEach((f) => {
-      const d = new Date(f.created_at).toLocaleDateString("th-TH", { day: "numeric", month: "short" });
-      if (!dateMap[d]) dateMap[d] = { sum: 0, count: 0 };
-      dateMap[d].sum += f.rating; dateMap[d].count++;
+    data.forEach(item => {
+      const date = new Date(item.created_at).toLocaleDateString("th-TH", { day: '2-digit', month: 'short' });
+      if (!dateMap[date]) dateMap[date] = { sum: 0, count: 0 };
+      dateMap[date].sum += Number(item.rating);
+      dateMap[date].count += 1;
     });
+
     const labels = Object.keys(dateMap).reverse();
-    const trendData = labels.map((d) => (dateMap[d].sum / dateMap[d].count).toFixed(1));
+    const values = labels.map(date => (dateMap[date].sum / dateMap[date].count).toFixed(2));
 
     trendChartData.value = {
-      labels: labels,
+      labels,
       datasets: [{
-        label: "คะแนนความพึงพอใจเฉลี่ย",
-        data: trendData,
-        borderColor: "#4f46e5",
-        backgroundColor: "rgba(79, 70, 229, 0.1)",
-        fill: true,
+        label: 'คะแนนเฉลี่ย',
+        data: values,
+        borderColor: '#6366f1',
+        backgroundColor: 'rgba(99, 102, 241, 0.1)',
         tension: 0.4,
-      }],
+        fill: true
+      }]
     };
 
-    // 2. Bar Chart
-    const topicMap = {};
-    data.forEach((f) => {
-      f.feedback_details?.forEach((d) => {
-        const name = d.feedback_topics?.name;
-        if (name) {
-          if (!topicMap[name]) topicMap[name] = { sum: 0, count: 0 };
-          topicMap[name].sum += d.rating; topicMap[name].count++;
-        }
-      });
+    const topicScores = {};
+    data.forEach(item => {
+      if (item.answers) {
+        Object.entries(item.answers).forEach(([key, val]) => {
+          const score = Number(val.rating || val);
+          if (score > 0) {
+            if (!topicScores[key]) topicScores[key] = { sum: 0, count: 0 };
+            topicScores[key].sum += score;
+            topicScores[key].count += 1;
+          }
+        });
+      }
     });
-    const topicLabels = Object.keys(topicMap);
-    const topicScores = topicLabels.map((t) => (topicMap[t].sum / topicMap[t].count).toFixed(1));
+
+    const topicLabels = [];
+    const topicValues = [];
+
+    Object.keys(topicsMap.value).forEach(id => {
+       if (topicScores[id]) {
+         topicLabels.push(topicsMap.value[id]);
+         topicValues.push((topicScores[id].sum / topicScores[id].count).toFixed(2));
+       }
+    });
 
     topicChartData.value = {
       labels: topicLabels,
       datasets: [{
-        label: "คะแนนเฉลี่ยรายหัวข้อ",
-        data: topicScores,
-        backgroundColor: topicScores.map((s) => s >= 4 ? "#10b981" : s >= 3 ? "#f59e0b" : "#ef4444"),
-        borderRadius: 6,
-      }],
+        label: 'คะแนนเฉลี่ย',
+        data: topicValues,
+        backgroundColor: '#10b981',
+        borderRadius: 6
+      }]
     };
   };
 
-  // ✅ ฟังก์ชัน Export Excel (ปรับปรุง: เอา Preview ตารางออก เหลือแค่ถามยืนยัน)
-  const exportToExcel = async () => {
-    if (!feedbacks.value.length) {
-      return Swal.fire("แจ้งเตือน", "ไม่มีข้อมูลสำหรับดาวน์โหลด", "warning");
-    }
-
-    // 1. หาหัวข้อประเมินทั้งหมด + เก็บ Ordering (เพื่อเรียงคอลัมน์ให้ถูก)
-    const topicMap = new Map(); 
-    feedbacks.value.forEach(item => {
-      item.feedback_details?.forEach(d => {
-        const t = d.feedback_topics;
-        if(t?.name) {
-             if (!topicMap.has(t.name)) {
-                 topicMap.set(t.name, t.ordering || 999);
-             }
-        }
-      });
-    });
-    
-    // เรียงคอลัมน์ตาม Ordering
-    const topicColumns = Array.from(topicMap.keys()).sort((a, b) => {
-        return topicMap.get(a) - topicMap.get(b);
-    });
-
-    // 2. ❌ ลบส่วน HTML Table Preview ออกตามที่ขอ
-
-    // 3. ถามยืนยันด้วย SweetAlert แบบเรียบง่าย
-    const result = await Swal.fire({
-      title: 'ดาวน์โหลดรายงาน?',
-      text: `พบข้อมูลทั้งหมด ${feedbacks.value.length} รายการ ต้องการสร้างไฟล์ Excel หรือไม่?`,
-      icon: 'question',
-      showCancelButton: true,
-      confirmButtonColor: '#10b981',
-      cancelButtonColor: '#9ca3af',
-      confirmButtonText: 'ดาวน์โหลด',
-      cancelButtonText: 'ยกเลิก'
-    });
-
-    // 4. ถ้ากดยืนยัน -> สร้างไฟล์ (Logic เดิม)
-    if (result.isConfirmed) {
-      try {
-        Swal.fire({ title: 'กำลังสร้างไฟล์...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-
-        const workbook = new ExcelJS.Workbook();
-        const sheet = workbook.addWorksheet('Feedback Report');
-
-        // A. กำหนด Columns
-        const columns = [
-          { header: 'วันที่', key: 'date' },
-          { header: 'เวลา', key: 'time' },
-          { header: 'สถานที่', key: 'location' },
-          { header: 'อาคาร', key: 'building' },
-          { header: 'ชั้น', key: 'floor' },
-          { header: 'คะแนนรวม', key: 'total_rating' },
-          { header: 'คอมเมนต์หลัก', key: 'comment' },
-        ];
-
-        // เพิ่มคอลัมน์หัวข้อย่อย
-        topicColumns.forEach(topic => {
-            columns.push({ header: `หัวข้อ: ${topic}`, key: `topic_${topic}` });
+  // --- 5. Export Excel (ปรับปรุงใหม่: Auto Width) ---
+  const exportToExcel = () => {
+    // 1. เตรียมข้อมูล
+    const rows = feedbacks.value.map(f => {
+      const row = {
+        'วันที่': new Date(f.created_at).toLocaleString('th-TH'),
+        'สถานที่': f.locations?.locations_name || '-',
+        'คะแนนรวม': f.rating,
+        'ข้อเสนอแนะ': f.comment || '-'
+      };
+      
+      if (f.answers) {
+        Object.entries(f.answers).forEach(([key, val]) => {
+          const topicName = topicsMap.value[key] || `ข้อ ${key}`;
+          row[topicName] = Number(val.rating || val);
         });
-
-        sheet.columns = columns;
-
-        // B. แต่งหัวตาราง
-        const headerRow = sheet.getRow(1);
-        headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-        headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F46E5' } };
-        headerRow.alignment = { horizontal: 'center', vertical: 'middle' };
-        headerRow.height = 30;
-
-        // C. ใส่ข้อมูล
-        feedbacks.value.forEach(item => {
-            const dateObj = new Date(item.created_at);
-            
-            const rowData = {
-                date: dateObj.toLocaleDateString("th-TH", { year: 'numeric', month: '2-digit', day: '2-digit' }),
-                time: dateObj.toLocaleTimeString("th-TH", { hour: '2-digit', minute: '2-digit' }),
-                location: item.locations?.locations_name || "-",
-                building: item.locations?.locations_building || "-",
-                floor: Number(item.locations?.locations_floor) || item.locations?.locations_floor,
-                total_rating: item.rating,
-                comment: item.comment || "-"
-            };
-
-            // ใส่คอมเมนต์ในข้อย่อย
-            item.feedback_details?.forEach(d => {
-                const topicName = d.feedback_topics?.name;
-                if(topicName) {
-                    if (d.comment && d.comment.trim() !== "") {
-                        rowData[`topic_${topicName}`] = `${d.rating} \n(${d.comment})`; 
-                    } else {
-                        rowData[`topic_${topicName}`] = d.rating;
-                    }
-                }
-            });
-
-            const row = sheet.addRow(rowData);
-            
-            // จัดกึ่งกลาง + เปิด Wrap Text
-            row.eachCell((cell, colNumber) => {
-                cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
-                
-                if (columns[colNumber-1].key === 'comment' || columns[colNumber-1].key.startsWith('topic_')) {
-                    cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-                } else {
-                    cell.alignment = { horizontal: 'center', vertical: 'middle' };
-                }
-            });
-            
-            // สีคะแนนรวม
-            const ratingCell = row.getCell('total_rating');
-            if(item.rating >= 5) ratingCell.font = { color: { argb: 'FF166534' }, bold: true };
-            else if(item.rating <= 2) ratingCell.font = { color: { argb: 'FF991B1B' }, bold: true };
-        });
-
-        // D. Auto Width
-        sheet.columns.forEach(column => {
-            let maxLength = 0;
-            column.eachCell({ includeEmpty: true }, cell => {
-                const valStr = cell.value ? cell.value.toString() : "";
-                const lines = valStr.split('\n');
-                const maxLineLen = Math.max(...lines.map(l => l.length));
-                if (maxLineLen > maxLength) maxLength = maxLineLen;
-            });
-            column.width = Math.min(Math.max(maxLength + 4, 12), 50);
-        });
-
-        const buffer = await workbook.xlsx.writeBuffer();
-        saveAs(new Blob([buffer]), `Satisfaction_Report_${new Date().toISOString().slice(0,10)}.xlsx`);
-        
-        Swal.close();
-
-      } catch (err) {
-        console.error(err);
-        Swal.fire('Error', 'เกิดข้อผิดพลาดในการสร้างไฟล์', 'error');
       }
+      return row;
+    });
+
+    // 2. สร้าง Worksheet
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+
+    // 🔥 3. คำนวณความกว้างคอลัมน์อัตโนมัติ (Auto Width)
+    if (rows.length > 0) {
+      // ดึง Header ทั้งหมด
+      const headers = Object.keys(rows[0]);
+      
+      const columnWidths = headers.map(key => {
+        // เริ่มต้นความกว้างด้วยความยาวของ Header
+        let maxLength = key.length;
+
+        // วนลูปเช็คข้อมูลในคอลัมน์นั้น ว่าอันไหนยาวสุด
+        rows.forEach(row => {
+          const cellValue = row[key] ? String(row[key]) : "";
+          if (cellValue.length > maxLength) {
+            maxLength = cellValue.length;
+          }
+        });
+
+        // เผื่อพื้นที่ให้อีกนิดหน่อย (+5 ตัวอักษร)
+        return { wch: maxLength + 5 };
+      });
+
+      // ตั้งค่าความกว้างให้ Worksheet
+      worksheet['!cols'] = columnWidths;
     }
+
+    // 4. สร้าง Workbook และบันทึก
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Feedback Report");
+    XLSX.writeFile(workbook, `Feedback_Report_${new Date().toISOString().slice(0,10)}.xlsx`);
   };
 
+  // Watchers & Lifecycle
   watch(dateFilter, () => fetchData());
-  onMounted(fetchData);
+  
+  onMounted(async () => {
+    await fetchTopics();
+    await fetchData();
+  });
 
-  return { loading, feedbacks, dateFilter, stats, trendChartData, topicChartData, exportToExcel, fetchData };
+  return {
+    loading,
+    feedbacks,
+    dateFilter,
+    stats,
+    trendChartData,
+    topicChartData,
+    exportToExcel
+  };
 }

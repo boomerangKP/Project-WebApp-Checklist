@@ -1,4 +1,3 @@
-// src/composables/useFeedbackLogic.js
 import { ref, computed, onMounted } from "vue";
 import { supabase } from "@/lib/supabase";
 import Swal from "sweetalert2";
@@ -85,39 +84,38 @@ export function useFeedbackLogic(locationId) {
     }
   };
 
-  // --- Actions: Submit ---
+  // --- Actions: Submit (แก้ไขใหม่ทั้งหมดตรงนี้) ---
   const submitFeedback = async () => {
     try {
       submitting.value = true;
       
-      // Calculate Average Rating
-      let totalScore = 0;
-      let count = 0;
+      // 1. ดึงคะแนนรายข้อออกมาคำนวณ
+      const scores = [];
       for (const topicId in answers.value) {
         if (answers.value[topicId].rating > 0) {
-          totalScore += answers.value[topicId].rating;
-          count++;
+          scores.push(Number(answers.value[topicId].rating));
         }
       }
-      const finalRating = count > 0 ? Math.round(totalScore / count) : 0;
 
-      // Insert Parent
-      const { data: parentData, error: parentError } = await supabase
+      // 2. คำนวณค่าเฉลี่ย (ทศนิยม 1 ตำแหน่ง เช่น 3.4)
+      let avgRating = 0;
+      if (scores.length > 0) {
+        const totalScore = scores.reduce((a, b) => a + b, 0);
+        avgRating = (totalScore / scores.length).toFixed(1); // ✅ แก้เป็นทศนิยมตามที่ขอ
+      }
+
+      // 3. Insert ลงตารางแม่ (feedbacks) ทีเดียวจบ
+      const { error } = await supabase
         .from("feedbacks")
-        .insert({ location_id: locationId, rating: finalRating, issues: [], comment: mainComment.value, status: "pending" })
-        .select()
-        .single();
-      if (parentError) throw parentError;
+        .insert({ 
+          location_id: locationId, 
+          rating: avgRating,      // ✅ ส่ง 3.4
+          answers: answers.value, // ✅ ส่ง JSONB คำตอบทั้งหมด
+          comment: mainComment.value, 
+          status: "pending" 
+        });
 
-      // Insert Details
-      const detailsToInsert = feedbackTopics.value.map((topic) => ({
-        feedback_id: parentData.id,
-        topic_id: topic.id,
-        rating: answers.value[topic.id].rating,
-        comment: answers.value[topic.id].comment,
-      }));
-      const { error: childError } = await supabase.from("feedback_details").insert(detailsToInsert);
-      if (childError) throw childError;
+      if (error) throw error;
 
       isSubmittedSuccess.value = true;
     } catch (err) {
@@ -137,7 +135,6 @@ export function useFeedbackLogic(locationId) {
     if (locationId) fetchData();
   });
 
-  // Return everything needed for the template
   return {
     loading,
     submitting,

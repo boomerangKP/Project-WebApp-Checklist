@@ -40,10 +40,34 @@ const formatDate = (dateString) => {
     day: "2-digit", month: "short", year: "2-digit", hour: "2-digit", minute: "2-digit"
   });
 };
+
+// 🔥 ฟังก์ชันคำนวณคะแนนเฉลี่ยจริง (Real-time Calculation)
+const calculateRealAverage = (item) => {
+  // 1. เช็คว่ามีข้อมูล answers และเป็น Object ไหม
+  if (item.answers && typeof item.answers === 'object') {
+    // ดึงเฉพาะคะแนนออกมาเป็น Array
+    const scores = Object.values(item.answers).map(a => Number(a.rating || a) || 0);
+    
+    // กรองเอาเฉพาะที่มีคะแนน (>0)
+    const validScores = scores.filter(s => s > 0);
+
+    // ถ้ามีคะแนน ให้คำนวณค่าเฉลี่ย
+    if (validScores.length > 0) {
+      const total = validScores.reduce((sum, score) => sum + score, 0);
+      
+      // ✅ แก้ตรงนี้: คืนค่าทศนิยม 1 ตำแหน่ง (เช่น 3.9)
+      return (total / validScores.length).toFixed(1); 
+    }
+  }
+
+  // 2. ถ้าไม่มี answers ให้ใช้ rating เดิมจาก DB
+  // ✅ แก้ตรงนี้: คืนค่าทศนิยม 1 ตำแหน่ง
+  return Number(item.rating || 0).toFixed(1);
+};
 </script>
 
 <template>
-  <div class="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col h-full">
+  <div class="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col h-screen">
     
     <div class="p-6 border-b border-gray-50 flex justify-between items-center shrink-0">
       <div class="flex items-center gap-2">
@@ -86,12 +110,17 @@ const formatDate = (dateString) => {
               <div class="text-sm font-bold text-gray-800">{{ item.locations?.locations_name }}</div>
               <div class="text-xs text-gray-500">{{ item.locations?.locations_building }} ชั้น {{ item.locations?.locations_floor }}</div>
             </td>
+            
             <td class="px-6 py-4 text-center">
               <div class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold"
-                :class="item.rating >= 4 ? 'bg-green-50 text-green-600' : item.rating >= 3 ? 'bg-yellow-50 text-yellow-600' : 'bg-red-50 text-red-600'">
-                <Star class="w-3 h-3 fill-current" /> {{ item.rating }}
+                :class="calculateRealAverage(item) >= 4 ? 'bg-green-50 text-green-600' : calculateRealAverage(item) >= 3 ? 'bg-yellow-50 text-yellow-600' : 'bg-red-50 text-red-600'">
+                
+                <Star class="w-3 h-3 fill-current" /> 
+                {{ calculateRealAverage(item) }}
+                
               </div>
             </td>
+
             <td class="px-6 py-4 text-sm text-gray-600">
               <p v-if="item.comment" class="line-clamp-2 min-w-[200px]">"{{ item.comment }}"</p>
               <span v-else class="text-gray-300">-</span>
