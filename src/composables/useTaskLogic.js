@@ -52,16 +52,24 @@ export function useTaskLogic() {
       }
 
       // 🔥 แก้ไข Query: ใช้ startDate และ endDate
-      const { data, error } = await supabase
+      let query = supabase
         .from('check_sessions')
         .select(`
-          check_sessions_id, check_sessions_date, check_sessions_time_start, check_sessions_status, created_at,
+          check_sessions_id, check_sessions_date, check_sessions_time_start, check_sessions_status, created_at, checked_at,
           employees ( employees_firstname, employees_lastname, employees_photo, role ),
           locations ( locations_name, locations_building, locations_floor )
         `)
-        .gte('check_sessions_date', startDate.value) // ✅ ตั้งแต่วันที่...
-        .lte('check_sessions_date', endDate.value)   // ✅ ถึงวันที่...
         .order('created_at', { ascending: false })
+
+      // กรองวันที่
+      if (startDate.value) {
+        query = query.gte('check_sessions_date', startDate.value)
+      }
+      if (endDate.value) {
+        query = query.lte('check_sessions_date', endDate.value)
+      }
+
+      const { data, error } = await query
 
       if (error) throw error
 
@@ -80,10 +88,12 @@ export function useTaskLogic() {
           location: item.locations?.locations_name || 'ไม่ระบุสถานที่',
           floor: item.locations ? `${item.locations.locations_building} ชั้น ${item.locations.locations_floor}` : '-',
           date: new Date(item.check_sessions_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }),
-          time: getSlotName(item.created_at), // ใช้ getSlotName ที่ประกาศไว้ข้างบน
+          time: getSlotName(item.created_at),
           status: mappedStatus,
           originalStatus: s,
-          rawDate: item.check_sessions_date
+          rawDate: item.check_sessions_date,
+          // ✅ เก็บ checked_at ไว้ด้วยเผื่อเอาไปใช้
+          checkedAt: item.checked_at
         }
       })
     } catch (err) {
@@ -145,13 +155,13 @@ export function useTaskLogic() {
   // --- Bulk Approve ---
   const handleBulkApprove = async () => {
     const result = await Swal.fire({
-      title: `ยืนยันอนุมัติ ${selectedIds.value.length} รายการ?`,
-      text: 'รายการที่เลือกทั้งหมดจะถูกเปลี่ยนสถานะเป็น "อนุมัติ"',
+      title: `ยืนยันการตรวจสอบ ${selectedIds.value.length} รายการ?`,
+      text: 'รายการที่เลือกทั้งหมดจะถูกเปลี่ยนสถานะเป็น "ตรวจแล้ว"',
       icon: 'question',
       showCancelButton: true,
       confirmButtonColor: '#10b981',
       cancelButtonColor: '#9ca3af',
-      confirmButtonText: 'ยืนยันอนุมัติ',
+      confirmButtonText: 'ยืนยันการตรวจสอบ',
       cancelButtonText: 'ยกเลิก'
     })
 
@@ -160,8 +170,14 @@ export function useTaskLogic() {
       Swal.fire({ title: 'กำลังประมวลผล...', didOpen: () => Swal.showLoading() })
       try {
         const { error } = await supabase.from('check_sessions')
-          .update({ check_sessions_status: 'approved', updated_at: new Date() })
+          .update({
+            check_sessions_status: 'approved',
+            updated_at: new Date(),
+            // ✅ เพิ่มการบันทึกเวลาตรวจตรงนี้ครับ (Bulk Approve)
+            checked_at: new Date().toISOString()
+          })
           .in('check_sessions_id', selectedIds.value)
+
         if (error) throw error
         await fetchTasks()
         selectedIds.value = []
@@ -176,7 +192,7 @@ export function useTaskLogic() {
   }
 
   // --- Lifecycle & Watchers ---
-  
+
   // 1. รีเซ็ตหน้าเมื่อเปลี่ยน Filter
   watch([activeTab, itemsPerPage, searchQuery, selectedMaid], () => {
     currentPage.value = 1

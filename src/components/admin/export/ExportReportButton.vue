@@ -187,7 +187,7 @@ const handleExport = async () => {
 };
 
 const translateStatus = (status) => {
-  const map = { pass: 'อนุมัติ', approved: 'อนุมัติ', fail: 'แก้ไข', rejected: 'แก้ไข', fixed: 'แก้ไขแล้ว', waiting: 'รอตรวจ' };
+  const map = { pass: 'ตรวจแล้ว', approved: 'ตรวจแล้ว', fail: 'แก้ไข', rejected: 'แก้ไข', fixed: 'แก้ไขแล้ว', waiting: 'รอตรวจ' };
   return map[status] || status;
 };
 </script>

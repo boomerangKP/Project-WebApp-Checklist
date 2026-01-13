@@ -78,7 +78,7 @@ const copyToClipboard = async (text, id) => {
         <thead class="sticky top-0 z-10 bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-500 font-semibold tracking-wider shadow-sm">
           <tr>
             <th class="px-6 py-4 whitespace-nowrap min-w-[150px]">Code</th> 
-            <th class="px-6 py-4 whitespace-nowrap">ชื่อจุดตรวจ / ห้อง</th>
+            <th class="px-6 py-4 whitespace-nowrap">ชื่อจุดตรวจ </th>
             <th class="px-6 py-4 text-center">อาคาร</th>
             <th class="px-6 py-4 text-center">ชั้น</th>
             <th class="px-6 py-4 text-center">ประเภท</th>
@@ -137,14 +137,14 @@ const copyToClipboard = async (text, id) => {
             </td>
 
             <td class="px-6 py-4 text-center">
-              <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-gray-50 text-gray-600 text-xs border border-gray-100">
-                <Building class="w-3 h-3 text-gray-400" />
+              <div class="inline-flex items-center gap-1.5 px-2.5 py-1  text-gray-600 text-xs ">
+                
                 {{ item.locations_building }}
               </div>
             </td>
 
             <td class="px-6 py-4 text-center">
-                <span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-white border border-gray-200 text-xs font-bold text-gray-700 shadow-sm">
+                <span class="inline-flex items-center justify-center  text-xs font-bold text-gray-700 ">
                   {{ item.locations_floor }}
                 </span>
             </td>

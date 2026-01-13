@@ -61,12 +61,12 @@ const fetchTaskDetail = async () => {
 const handleApprove = async () => {
   const result = await Swal.fire({
     title: 'ยืนยันการตรวจสอบ?',
-    text: "งานนี้จะได้รับการอนุมัติว่าเรียบร้อยแล้ว",
+    text: "งานนี้จะได้รับการตรวจสอบว่าตรวจแล้วเรียบร้อย",
     icon: 'question',
     showCancelButton: true,
     confirmButtonColor: '#22c55e', // สีเขียว
     cancelButtonColor: '#9ca3af',  // สีเทา
-    confirmButtonText: 'ยืนยัน, อนุมัติเลย!',
+    confirmButtonText: 'ยืนยันการตรวจสอบ',
     cancelButtonText: 'ยกเลิก',
     reverseButtons: true
   })
@@ -152,7 +152,8 @@ const updateStatusInDB = async (status, reasonInput) => {
   try {
     const updates = {
       check_sessions_status: status,
-      updated_at: new Date()
+      updated_at: new Date(),
+      checked_at: new Date().toISOString()
     }
 
     // ถ้า Reject ให้บันทึกเหตุผล
@@ -212,8 +213,8 @@ onMounted(() => { if (taskId) fetchTaskDetail() })
             <h3 class="text-lg font-bold text-gray-800">{{ session.locations?.locations_name || 'ไม่ระบุสถานที่' }}</h3>
             <div class="flex flex-wrap gap-3 text-gray-500 text-sm">
               <div class="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded"><Calendar class="w-4 h-4"/> {{ formatDate(session.check_sessions_date) }}</div>
-              <div class="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded"><Clock class="w-4 h-4"/> {{ session.check_sessions_time_start?.substring(0,5) }} น.</div>
-              <div class="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded"><Building class="w-4 h-4"/> {{ session.locations?.locations_building || '-' }}</div>
+              <div class="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded"><Clock class="w-4 h-4"/>ส่งเมื่อเวลา: {{ session.check_sessions_time_start?.substring(0,5) }} น.</div>
+              <div class="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded"><Building class="w-4 h-4"/>อาคาร {{ session.locations?.locations_building || '-' }}</div>
               <div class="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded"><MapPin class="w-4 h-4"/> ชั้น {{ session.locations?.locations_floor || '-' }}</div>
             </div>
           </div>
@@ -224,7 +225,7 @@ onMounted(() => { if (taskId) fetchTaskDetail() })
               'bg-green-500': session.check_sessions_status === 'approved', 
               'bg-red-400': session.check_sessions_status === 'rejected'
             }">
-            {{ session.check_sessions_status === 'approved' ? 'อนุมัติแล้ว' : (session.check_sessions_status === 'rejected' ? 'ส่งแก้ไข' : 'รอตรวจสอบ') }}
+            {{ session.check_sessions_status === 'approved' ? 'ตรวจแล้ว' : (session.check_sessions_status === 'rejected' ? 'ส่งแก้ไข' : 'รอตรวจสอบ') }}
           </div>
         </div>
 

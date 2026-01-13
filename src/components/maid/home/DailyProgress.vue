@@ -170,7 +170,7 @@ const widthWaiting = computed(() => {
         <div class="text-lg font-bold text-amber-600 leading-none mb-1">
           {{ stats.waiting }}
         </div>
-        <div class="text-[10px] text-amber-600">กำลังทำ/รอตรวจ</div>
+        <div class="text-[10px] text-amber-600">รอตรวจ</div>
       </div>
 
       <div class="bg-emerald-50 rounded-xl p-2 border border-emerald-100 flex flex-col items-center justify-center min-h-[80px]">
@@ -178,7 +178,7 @@ const widthWaiting = computed(() => {
         <div class="text-lg font-bold text-emerald-600 leading-none mb-1">
           {{ stats.completed }}
         </div>
-        <div class="text-[10px] text-emerald-600">เสร็จสิ้น</div>
+        <div class="text-[10px] text-emerald-600">ตรวจแล้ว</div>
       </div>
 
     </div>

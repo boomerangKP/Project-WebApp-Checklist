@@ -1,8 +1,8 @@
 <script setup>
 import { ref } from 'vue'
-import { 
-  Edit, Trash2, Loader2, AlertCircle, Copy, Check, 
-  X, FileText, Info, CheckCircle, XCircle 
+import {
+  Edit, Trash2, Loader2, AlertCircle, Copy, Check,
+  X, FileText, Info, CheckCircle, XCircle
 } from 'lucide-vue-next'
 
 defineProps({
@@ -26,7 +26,7 @@ const copyToClipboard = async (text, id) => {
 }
 
 // --- Side Drawer Logic ---
-const selectedItem = ref(null) 
+const selectedItem = ref(null)
 const openDrawer = (item) => {
   selectedItem.value = item
 }
@@ -37,7 +37,7 @@ const closeDrawer = () => {
 
 <template>
   <div class="bg-white border border-gray-200 rounded-xl shadow-sm flex flex-col h-[calc(100vh-220px)] overflow-hidden font-noto relative">
-    
+
     <div class="flex-1 overflow-y-auto custom-scrollbar">
       <table class="w-full text-left border-collapse">
         <thead class="sticky top-0 z-10 bg-gray-50 border-b border-gray-200 shadow-sm">
@@ -51,33 +51,33 @@ const closeDrawer = () => {
             <th class="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right w-24">จัดการ</th>
           </tr>
         </thead>
-        
+
         <tbody class="divide-y divide-gray-100 bg-white">
           <tr v-if="loading">
             <td colspan="7" class="px-6 py-20 text-center">
               <div class="flex flex-col items-center justify-center gap-2 text-gray-400">
-                <Loader2 class="w-8 h-8 animate-spin text-indigo-500" /> 
+                <Loader2 class="w-8 h-8 animate-spin text-indigo-500" />
                 <span class="text-sm">กำลังโหลดข้อมูล...</span>
               </div>
             </td>
           </tr>
-          
+
           <tr v-else-if="items.length === 0">
             <td colspan="7" class="px-6 py-20 text-center text-gray-400 bg-gray-50/30 text-sm">
               ไม่พบรายการตรวจสอบในระบบ
             </td>
           </tr>
 
-          <tr v-else v-for="item in items" :key="item.check_items_id" 
+          <tr v-else v-for="item in items" :key="item.check_items_id"
               class="hover:bg-gray-50 transition-colors group cursor-pointer"
               @click="openDrawer(item)"
           >
             <td class="px-6 py-4 whitespace-nowrap align-top" @click.stop>
-              <button 
+              <button
                 @click="copyToClipboard(item.check_items_code, item.check_items_id)"
                 class="group/btn flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all duration-200 bg-white shadow-sm hover:shadow-md w-full max-w-[140px]"
-                :class="copiedId === item.check_items_id 
-                  ? 'border-emerald-200 text-emerald-700 bg-emerald-50' 
+                :class="copiedId === item.check_items_id
+                  ? 'border-emerald-200 text-emerald-700 bg-emerald-50'
                   : 'border-gray-200 text-gray-600 hover:border-indigo-300 hover:text-indigo-600'"
               >
                 <span class="font-mono text-xs font-bold tracking-wide truncate flex-1 text-left">
@@ -106,22 +106,20 @@ const closeDrawer = () => {
 
             <td class="px-6 py-4 text-center align-top pt-5">
                <div v-if="item.check_items_is_required" class="flex justify-center" title="จำเป็นต้องระบุ">
-                  <div class="p-1 bg-orange-50 rounded-full text-orange-500">
-                    <AlertCircle class="w-4 h-4" />
-                  </div>
+                    <AlertCircle class="w-4 h-4 text-red-500" />
                </div>
                <span v-else class="text-gray-300 text-xs">-</span>
             </td>
 
             <td class="px-6 py-4 text-center align-top pt-4">
-              <div class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-white border border-gray-200 text-sm font-bold text-gray-600 shadow-sm">
+              <div class="inline-flex items-center justify-center text-sm font-bold text-gray-600 ">
                 {{ item.check_items_order }}
               </div>
             </td>
 
             <td class="px-6 py-4 text-center align-top pt-5">
               <div class="flex items-center justify-center gap-1.5">
-                <div class="w-2 h-2 rounded-full" 
+                <div class="w-2 h-2 rounded-full"
                      :class="item.check_items_status === 'active' ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.4)]' : 'bg-gray-300'">
                 </div>
                 <span class="text-sm font-medium text-gray-700">
@@ -153,7 +151,7 @@ const closeDrawer = () => {
        <div class="absolute inset-0 bg-black/20 backdrop-blur-sm transition-opacity" @click="closeDrawer"></div>
 
        <div class="relative w-full max-w-md bg-white h-full shadow-2xl animate-in slide-in-from-right duration-300 flex flex-col border-l border-gray-200">
-          
+
           <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
              <h3 class="font-bold text-lg text-gray-800 flex items-center gap-2">
                <FileText class="w-5 h-5 text-indigo-600" /> รายละเอียด
@@ -164,7 +162,7 @@ const closeDrawer = () => {
           </div>
 
           <div class="p-6 overflow-y-auto flex-1 space-y-6">
-              
+
               <div>
                  <label class="text-xs font-bold text-gray-400 uppercase tracking-wider">ชื่อรายการตรวจสอบ</label>
                  <h2 class="text-xl font-bold text-gray-900 mt-1">{{ selectedItem.check_items_name }}</h2>

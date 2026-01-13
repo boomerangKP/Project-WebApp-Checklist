@@ -1,4 +1,4 @@
-import { ref, computed, watch, onMounted } from "vue";
+import { ref, watch, onMounted, onUnmounted } from "vue";
 import { supabase } from "@/lib/supabase";
 import * as XLSX from "xlsx";
 import Swal from "sweetalert2";
@@ -9,6 +9,9 @@ export function useReportSatisfaction() {
   const feedbacks = ref([]);
   const dateFilter = ref("today"); // today, week, month, all
   const topicsMap = ref({});
+
+  // ตัวแปรสำหรับเก็บช่องสัญญาณ Realtime
+  const realtimeChannel = ref(null);
 
   const stats = ref({
     totalReviews: 0,
@@ -27,11 +30,11 @@ export function useReportSatisfaction() {
   const getDateRange = (filter) => {
     const now = new Date();
     const start = new Date();
-    
+
     if (filter === 'today') {
       start.setHours(0, 0, 0, 0);
     } else if (filter === 'week') {
-      const day = start.getDay() || 7; 
+      const day = start.getDay() || 7;
       if (day !== 1) start.setHours(-24 * (day - 1));
       start.setHours(0, 0, 0, 0);
     } else if (filter === 'month') {
@@ -40,13 +43,22 @@ export function useReportSatisfaction() {
     } else {
       return null;
     }
-    
+
     return start.toISOString();
+  };
+
+  // ✅ Helper: Format Date for Excel Header
+  const formatDateTH = (date) => {
+    return new Date(date).toLocaleDateString("th-TH", {
+      day: "numeric",
+      month: "long",
+      year: "numeric"
+    });
   };
 
   // --- 1. Fetch Topics ---
   const fetchTopics = async () => {
-    const { data } = await supabase.from('feedback_topics').select('id, name');
+    const { data } = await supabase.from('feedback_topics').select('id, name').order('id'); // order by id เพื่อให้เรียงตาม 1-13
     if (data) {
       topicsMap.value = data.reduce((acc, curr) => {
         acc[curr.id] = curr.name;
@@ -57,11 +69,21 @@ export function useReportSatisfaction() {
 
   // --- 2. Fetch Data ---
   const fetchData = async () => {
-    loading.value = true;
+    // โหลดหมุนติ้วๆ เฉพาะตอนแรกที่ยังไม่มีข้อมูล
+    if (feedbacks.value.length === 0) loading.value = true;
+
     try {
+      // ✅ คงไว้: locations_building และ locations_floor
       let query = supabase
         .from("feedbacks")
-        .select("*, locations(locations_name)")
+        .select(`
+          *, 
+          locations (
+            locations_name,
+            locations_building,
+            locations_floor
+          )
+        `)
         .order("created_at", { ascending: false });
 
       const startDate = getDateRange(dateFilter.value);
@@ -77,7 +99,7 @@ export function useReportSatisfaction() {
       generateCharts(data);
 
     } catch (err) {
-      console.error(err);
+      console.error(err); // เก็บ error log ไว้ดูเวลาพังจริงเท่านั้น
       Swal.fire("Error", "ดึงข้อมูลไม่สำเร็จ", "error");
     } finally {
       loading.value = false;
@@ -109,7 +131,7 @@ export function useReportSatisfaction() {
     });
 
     const avg = (sumRating / data.length).toFixed(1);
-    
+
     let max = -1;
     let min = 6;
     let topName = "-";
@@ -193,66 +215,118 @@ export function useReportSatisfaction() {
     };
   };
 
-  // --- 5. Export Excel (ปรับปรุงใหม่: Auto Width) ---
+  // --- 5. ✅ Export Excel (Updated Layout) ---
   const exportToExcel = () => {
-    // 1. เตรียมข้อมูล
-    const rows = feedbacks.value.map(f => {
+    // 5.1 เตรียมข้อมูลหัวข้อรายงาน
+    const now = new Date();
+    const startDate = getDateRange(dateFilter.value) ? new Date(getDateRange(dateFilter.value)) : null; // ถ้าเป็น all จะเป็น null หรือต้องกำหนด logic เอง
+    
+    // Logic หา Start Date สำหรับการแสดงผล (ถ้าเลือก All อาจจะหา min date จาก data)
+    let displayStartDate = startDate;
+    if (!displayStartDate && feedbacks.value.length > 0) {
+       displayStartDate = new Date(feedbacks.value[feedbacks.value.length - 1].created_at);
+    }
+    
+    const dateRangeStr = displayStartDate 
+      ? `ประจำวันที่ ${formatDateTH(displayStartDate)} - ${formatDateTH(now)}`
+      : `ข้อมูลทั้งหมด ณ วันที่ ${formatDateTH(now)}`;
+
+    const reportTitle = [
+      ["รายงานคะแนนแบบประเมินความพึงพอใจการบริการด้านความสะอาด"],
+      [dateRangeStr],
+      [""] // เว้นบรรทัด
+    ];
+
+    // 5.2 เตรียมข้อมูล Rows
+    const dataRows = feedbacks.value.map(f => {
+      // เรียงคอลัมน์ตามที่ต้องการ
       const row = {
-        'วันที่': new Date(f.created_at).toLocaleString('th-TH'),
         'สถานที่': f.locations?.locations_name || '-',
+        'อาคาร': f.locations?.locations_building || '-', 
+        'ชั้น': f.locations?.locations_floor || '-',     
         'คะแนนรวม': f.rating,
         'ข้อเสนอแนะ': f.comment || '-'
       };
+
+      // เพิ่มหัวข้อประเมิน 1-13 (เรียงตาม ID)
+      // สมมติว่า topicsMap มี ID ครบ 1-13 หรือตาม Database
+      const sortedTopicIds = Object.keys(topicsMap.value).sort((a, b) => Number(a) - Number(b));
       
-      if (f.answers) {
-        Object.entries(f.answers).forEach(([key, val]) => {
-          const topicName = topicsMap.value[key] || `ข้อ ${key}`;
-          row[topicName] = Number(val.rating || val);
-        });
-      }
+      sortedTopicIds.forEach(id => {
+        const topicName = topicsMap.value[id];
+        // เช็คว่ามีคำตอบในข้อนี้ไหม ถ้ามีดึงคะแนนมาใส่
+        const score = f.answers && f.answers[id] ? Number(f.answers[id].rating || f.answers[id]) : '-';
+        row[topicName] = score;
+      });
+
       return row;
     });
 
-    // 2. สร้าง Worksheet
-    const worksheet = XLSX.utils.json_to_sheet(rows);
+    // 5.3 สร้าง Worksheet
+    const worksheet = XLSX.utils.json_to_sheet([]); // สร้าง sheet เปล่าก่อน
 
-    // 🔥 3. คำนวณความกว้างคอลัมน์อัตโนมัติ (Auto Width)
-    if (rows.length > 0) {
-      // ดึง Header ทั้งหมด
-      const headers = Object.keys(rows[0]);
-      
+    // ใส่ Title
+    XLSX.utils.sheet_add_aoa(worksheet, reportTitle, { origin: "A1" });
+
+    // ใส่ Data ต่อจาก Title (เริ่มบรรทัดที่ 4)
+    XLSX.utils.sheet_add_json(worksheet, dataRows, { origin: "A4" });
+
+    // 5.4 จัดความกว้างคอลัมน์ (Auto Width)
+    if (dataRows.length > 0) {
+      const headers = Object.keys(dataRows[0]);
       const columnWidths = headers.map(key => {
-        // เริ่มต้นความกว้างด้วยความยาวของ Header
-        let maxLength = key.length;
-
-        // วนลูปเช็คข้อมูลในคอลัมน์นั้น ว่าอันไหนยาวสุด
-        rows.forEach(row => {
+        let maxLength = key.length; // ความยาว Header
+        dataRows.forEach(row => {
           const cellValue = row[key] ? String(row[key]) : "";
           if (cellValue.length > maxLength) {
             maxLength = cellValue.length;
           }
         });
-
-        // เผื่อพื้นที่ให้อีกนิดหน่อย (+5 ตัวอักษร)
-        return { wch: maxLength + 5 };
+        return { wch: maxLength + 2 }; // เผื่อที่นิดหน่อย
       });
-
-      // ตั้งค่าความกว้างให้ Worksheet
       worksheet['!cols'] = columnWidths;
     }
 
-    // 4. สร้าง Workbook และบันทึก
+    // สร้าง Workbook และ Save
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Feedback Report");
     XLSX.writeFile(workbook, `Feedback_Report_${new Date().toISOString().slice(0,10)}.xlsx`);
   };
 
+  // 🔥🔥🔥 Realtime Subscription Logic (Clean Version) 🔥🔥🔥
+  const subscribeRealtime = () => {
+    // ล้าง Channel เก่าทิ้งก่อน (ถ้ามี)
+    if (realtimeChannel.value) supabase.removeChannel(realtimeChannel.value);
+
+    // สร้าง Channel ใหม่
+    realtimeChannel.value = supabase
+      .channel('public:feedbacks')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'feedbacks' },
+        () => {
+          // เมื่อได้รับข้อมูลใหม่ สั่งดึงข้อมูลทันที (ไม่ต้อง log อะไร)
+          fetchData();
+        }
+      )
+      .subscribe();
+  };
+
   // Watchers & Lifecycle
   watch(dateFilter, () => fetchData());
-  
+
   onMounted(async () => {
     await fetchTopics();
     await fetchData();
+    // เริ่มฟัง Realtime
+    subscribeRealtime();
+  });
+
+  // ยกเลิกการฟังเมื่อปิดหน้าเว็บ
+  onUnmounted(() => {
+    if (realtimeChannel.value) {
+        supabase.removeChannel(realtimeChannel.value);
+    }
   });
 
   return {

@@ -1,7 +1,7 @@
 <script setup>
 import { useRouter } from 'vue-router'
 import { Loader2 } from 'lucide-vue-next'
-import { useTaskLogic } from '@/composables/useTaskLogic' 
+import { useTaskLogic } from '@/composables/useTaskLogic'
 
 // Components
 import TaskFilter from '@/components/admin/task/TaskFilter.vue'
@@ -11,14 +11,15 @@ import BulkActionBar from '@/components/admin/task/BulkActionBar.vue'
 
 const router = useRouter()
 
+// ดึงตัวแปรและฟังก์ชันทั้งหมดมาจาก useTaskLogic
 const {
   loading, activeTab, searchQuery, selectedMaid,
   currentPage, itemsPerPage, isSelectionMode, selectedIds, isBulkSubmitting,
   uniqueMaids, filteredTasks, paginatedTasks, totalPages, startEntry, endEntry, waitingCount, isAllSelected,
   fetchTasks, changePage, toggleSelection, toggleSelectAll, handleBulkApprove,
-  
-  // ✅ 1. เพิ่มการดึงตัวแปรวันที่ออกมาใช้งาน
-  startDate, 
+
+  // ✅ 1. ดึง startDate และ endDate มาใช้
+  startDate,
   endDate
 } = useTaskLogic()
 
@@ -27,19 +28,19 @@ const openTaskDetail = (id) => router.push({ path: `/admin/check/${id}` })
 
 <template>
   <div class="space-y-6 flex-1 flex flex-col">
-    
+
     <div class="shrink-0 flex items-center justify-between">
       <h1 class="text-2xl font-bold text-gray-800">รายการตรวจสอบงาน</h1>
     </div>
 
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-[calc(100vh-220px)] relative">
-      
+
       <div class="p-4 border-b border-gray-100 shrink-0 bg-white z-5">
         <TaskFilter
           v-model:activeTab="activeTab"
           v-model:searchQuery="searchQuery"
           v-model:selectedMaid="selectedMaid"
-          
+
           v-model:startDate="startDate"
           v-model:endDate="endDate"
 
@@ -54,7 +55,7 @@ const openTaskDetail = (id) => router.push({ path: `/admin/check/${id}` })
       </div>
 
       <div class="flex-1 overflow-y-auto p-4 bg-gray-50/50 custom-scrollbar relative">
-        
+
         <div v-if="loading" class="flex justify-center py-20 h-full items-center">
           <Loader2 class="w-10 h-10 text-gray-400 animate-spin" />
         </div>
@@ -94,7 +95,7 @@ const openTaskDetail = (id) => router.push({ path: `/admin/check/${id}` })
     <BulkActionBar
       :count="selectedIds.length"
       :loading="isBulkSubmitting"
-      @confirm="handleBulkApprove" 
+      @confirm="handleBulkApprove"
       @cancel="selectedIds = []"
     />
   </div>

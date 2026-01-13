@@ -28,7 +28,7 @@ const getStatusConfig = (status) => {
     case 'pass':
     case 'fixed':
     case 'approved':
-      return { bg: 'bg-green-100 text-green-700', border: 'border-green-200', icon: CheckCircle2, text: 'ผ่านแล้ว' }
+      return { bg: 'bg-green-100 text-green-700', border: 'border-green-200', icon: CheckCircle2, text: 'ตรวจแล้ว' }
     case 'fail':
     case 'rejected':
       return { bg: 'bg-red-100 text-red-700', border: 'border-red-200', icon: AlertCircle, text: 'ต้องแก้ไข' }
@@ -97,7 +97,7 @@ onMounted(fetchData)
             <h2 class="font-bold text-gray-800 text-xl leading-tight">{{ session.locations?.locations_name }}</h2>
             <div class="text-gray-500 text-sm mt-1 flex items-center gap-1">
                <MapPin class="w-3.5 h-3.5" />
-               {{ session.locations?.locations_building }} ชั้น {{ session.locations?.locations_floor }}
+               ตึก {{ session.locations?.locations_building }} ชั้น {{ session.locations?.locations_floor }}
             </div>
             <div class="text-indigo-600 text-sm font-medium mt-1">
                {{ session.restroom_types?.restroom_types_name }}
@@ -159,7 +159,7 @@ onMounted(fetchData)
                     :class="item.check_results_status === 'fail' ? 'text-red-700' : 'text-gray-800'">
                   {{ index + 1 }}. {{ item.check_items?.check_items_name }}
                </div>
-               <div class="text-xs text-gray-400 mt-0.5 line-clamp-1">
+               <div class="text-xs text-gray-400 mt-0.5">
                   {{ item.check_items?.check_items_description }}
                </div>
             </div>

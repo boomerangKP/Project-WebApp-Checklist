@@ -70,7 +70,7 @@ const applyFilter = () => {
                @click="selectedStatus = 'pass'"
                class="px-4 py-2 rounded-lg text-sm font-medium transition-colors border flex items-center gap-1"
                :class="selectedStatus === 'pass' ? 'bg-green-600 text-white border-green-600' : 'bg-white text-gray-600 border-gray-200'"
-             >ผ่าน</button>
+             >ตรวจแล้ว</button>
 
              <button
                @click="selectedStatus = 'waiting'"

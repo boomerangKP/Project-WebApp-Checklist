@@ -3,7 +3,7 @@ import { computed } from "vue";
 import { useRoute } from "vue-router";
 import { useFeedbackLogic } from "@/composables/useFeedbackLogic";
 import {
-  Star, Loader2, MapPin, ChevronRight, ChevronLeft, Send, CheckCircle2, UserCog, Heart, RefreshCw, Calculator, Tag
+  Star, Loader2, MapPin, ChevronRight, ChevronLeft, Send, CheckCircle2, UserCog, Heart, Calculator, Tag
 } from "lucide-vue-next";
 
 // นำเข้ารูปโลโก้
@@ -34,7 +34,7 @@ const {
   resetForm
 } = useFeedbackLogic(locationId);
 
-// คำนวณคะแนนเฉลี่ยเพื่อแสดงผล (Logic คำนวณจริงตอนบันทึกจะอยู่ที่ useFeedbackLogic)
+// คำนวณคะแนนเฉลี่ยเพื่อแสดงผล
 const overallAverage = computed(() => {
   if (!feedbackTopics.value.length) return "0.0";
   let totalScore = 0;
@@ -204,28 +204,34 @@ const overallAverage = computed(() => {
 
     <div v-else-if="isSubmittedSuccess" class="flex-1 flex flex-col max-w-md mx-auto w-full bg-white shadow-2xl min-h-screen relative animate-in fade-in zoom-in duration-500">
       <div class="flex-1 flex flex-col items-center justify-center p-8 text-center">
+        
+        <img 
+          :src="logoHeader" 
+          alt="Logo" 
+          class="w-48 h-auto object-contain mb-8 filter grayscale opacity-80" 
+        />
+
         <div class="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mb-6 shadow-sm">
           <Heart class="w-12 h-12 text-green-600 fill-green-600 animate-bounce" />
         </div>
+        
         <h2 class="text-3xl font-bold text-gray-800 mb-2">ขอบคุณครับ/ค่ะ!</h2>
         <p class="text-gray-500 mb-8 leading-relaxed">
           ขอบคุณที่ไว้วางใจใช้บริการ<br>
           <span class="text-indigo-600 font-bold">โรงพยาบาลพริ้นซ์ อุบลราชธานี</span><br>
           คำแนะนำของท่านคือกำลังใจสำคัญของเรา
         </p>
+        
         <div class="bg-gray-50 rounded-xl p-4 w-full mb-8 border border-gray-100">
            <p class="text-xs text-gray-400 mb-1">สถานที่ที่ท่านรีวิว</p>
            <div class="flex items-center justify-center gap-2 font-bold text-gray-700">
              <MapPin class="w-4 h-4 text-indigo-500" /> {{ location?.locations_name }}
            </div>
-           <p class="text-xs text-gray-500 mt-1">{{ location?.locations_building }} • ชั้น {{ location?.locations_floor }}</p>
+           <p class="text-xs text-gray-500 mt-1">อาคาร {{ location?.locations_building }} • ชั้น {{ location?.locations_floor }}</p>
         </div>
-        <div class="w-full space-y-3">
-          <button @click="resetForm" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl py-3.5 flex items-center justify-center gap-2 shadow-lg shadow-indigo-200 active:scale-95 transition-all">
-            <RefreshCw class="w-5 h-5" /> ประเมินอีกครั้ง
-          </button>
+
         </div>
-      </div>
+      
       <div class="p-4 text-center text-[10px] text-gray-300">
         Prince Hospital Ubon Ratchathani
       </div>
