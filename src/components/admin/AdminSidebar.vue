@@ -11,7 +11,7 @@ import {
 const route = useRoute()
 const isCollapsed = ref(false) // เริ่มต้นแบบกางออก
 // ✅ แก้จุดที่ 1: เปลี่ยนชื่อ Key ให้ตรงกับชื่อเมนูใหม่ ('จัดการข้อมูล')
-const expandedMenus = ref({ 'จัดการข้อมูล': true })
+const expandedMenus = ref({})
 
 const handleMenuClick = (item) => {
   if (isCollapsed.value) {
