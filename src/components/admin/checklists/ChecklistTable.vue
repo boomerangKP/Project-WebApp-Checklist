@@ -2,7 +2,7 @@
 import { ref } from 'vue'
 import {
   Edit, Trash2, Loader2, AlertCircle, Copy, Check,
-  X, FileText, Info, CheckCircle, XCircle
+  X, FileText, Info, ChevronRight
 } from 'lucide-vue-next'
 
 defineProps({
@@ -42,9 +42,8 @@ const closeDrawer = () => {
       <table class="w-full text-left border-collapse">
         <thead class="sticky top-0 z-10 bg-gray-50 border-b border-gray-200 shadow-sm">
           <tr>
-            <th class="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-40">Code</th>
-            <th class="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider min-w-[200px]">รายการตรวจสอบ</th>
-            <th class="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center w-32">หมวดหมู่</th>
+            <th class="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-32">Code</th>
+            <th class="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-auto">รายการตรวจสอบ</th>
             <th class="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center w-24">จำเป็น</th>
             <th class="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center w-24">ลำดับ</th>
             <th class="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center w-28">สถานะ</th>
@@ -54,7 +53,7 @@ const closeDrawer = () => {
 
         <tbody class="divide-y divide-gray-100 bg-white">
           <tr v-if="loading">
-            <td colspan="7" class="px-6 py-20 text-center">
+            <td colspan="6" class="px-6 py-20 text-center">
               <div class="flex flex-col items-center justify-center gap-2 text-gray-400">
                 <Loader2 class="w-8 h-8 animate-spin text-indigo-500" />
                 <span class="text-sm">กำลังโหลดข้อมูล...</span>
@@ -63,7 +62,7 @@ const closeDrawer = () => {
           </tr>
 
           <tr v-else-if="items.length === 0">
-            <td colspan="7" class="px-6 py-20 text-center text-gray-400 bg-gray-50/30 text-sm">
+            <td colspan="6" class="px-6 py-20 text-center text-gray-400 bg-gray-50/30 text-sm">
               ไม่พบรายการตรวจสอบในระบบ
             </td>
           </tr>
@@ -90,18 +89,12 @@ const closeDrawer = () => {
 
             <td class="px-6 py-4 align-top">
               <div class="flex flex-col">
-                <span class="text-sm font-bold text-gray-900">{{ item.check_items_name }}</span>
-                <span class="text-xs text-gray-400 mt-0.5 line-clamp-1" :title="item.check_items_description">
-                  {{ item.check_items_description || '-' }}
-                </span>
+                <span class="text-sm font-bold text-gray-900 line-clamp-2">{{ item.check_items_name }}</span>
+                <div class="flex items-center gap-1 mt-1 text-xs text-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                   <span>คลิกเพื่อดูรายละเอียด</span>
+                   <ChevronRight class="w-3 h-3" />
+                </div>
               </div>
-            </td>
-
-            <td class="px-6 py-4 text-center align-top pt-5">
-              <span v-if="item.check_items_category" class="inline-flex px-3 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">
-                {{ item.check_items_category }}
-              </span>
-              <span v-else class="text-gray-300">-</span>
             </td>
 
             <td class="px-6 py-4 text-center align-top pt-5">
@@ -147,79 +140,82 @@ const closeDrawer = () => {
         <div>แสดงทั้งหมด <span class="font-bold text-gray-700">{{ items.length }}</span> รายการ</div>
     </div>
 
-    <div v-if="selectedItem" class="absolute inset-0 z-50 flex justify-end" role="dialog">
-       <div class="absolute inset-0 bg-black/20 backdrop-blur-sm transition-opacity" @click="closeDrawer"></div>
+    <Teleport to="body">
+      <div v-if="selectedItem" class="fixed inset-0 z-[9999] flex items-center justify-center p-4" role="dialog">
+         
+         <div class="absolute inset-0 bg-black/30 backdrop-blur-sm transition-opacity" @click="closeDrawer"></div>
 
-       <div class="relative w-full max-w-md bg-white h-full shadow-2xl animate-in slide-in-from-right duration-300 flex flex-col border-l border-gray-200">
+         <div class="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh] overflow-hidden">
 
-          <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
-             <h3 class="font-bold text-lg text-gray-800 flex items-center gap-2">
-               <FileText class="w-5 h-5 text-indigo-600" /> รายละเอียด
-             </h3>
-             <button @click="closeDrawer" class="p-2 text-gray-400 hover:text-gray-600 hover:bg-white rounded-full transition-all">
-               <X class="w-5 h-5" />
-             </button>
-          </div>
+           <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50">
+               <h3 class="font-bold text-lg text-gray-800 flex items-center gap-2">
+                 <FileText class="w-5 h-5 text-indigo-600" /> รายละเอียด
+               </h3>
+               <button @click="closeDrawer" class="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded-full transition-all">
+                 <X class="w-5 h-5" />
+               </button>
+           </div>
 
-          <div class="p-6 overflow-y-auto flex-1 space-y-6">
+           <div class="p-6 overflow-y-auto flex-1 space-y-6 custom-scrollbar">
 
-              <div>
-                 <label class="text-xs font-bold text-gray-400 uppercase tracking-wider">ชื่อรายการตรวจสอบ</label>
-                 <h2 class="text-xl font-bold text-gray-900 mt-1">{{ selectedItem.check_items_name }}</h2>
-              </div>
+               <div>
+                   <label class="text-xs font-bold text-gray-400 uppercase tracking-wider">ชื่อรายการตรวจสอบ</label>
+                   <h2 class="text-xl font-bold text-gray-900 mt-1">{{ selectedItem.check_items_name }}</h2>
+               </div>
 
-              <div class="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
-                 <label class="text-xs font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1 mb-2">
-                    <Info class="w-3 h-3" /> วิธีการตรวจสอบ / คำอธิบาย
-                 </label>
-                 <p class="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
-                    {{ selectedItem.check_items_description || 'ไม่มีคำอธิบาย' }}
-                 </p>
-              </div>
+               <div class="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
+                   <label class="text-xs font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1 mb-2">
+                      <Info class="w-3 h-3" /> วิธีการตรวจสอบ / คำอธิบาย
+                   </label>
+                   <p class="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
+                      {{ selectedItem.check_items_description || 'ไม่มีคำอธิบาย' }}
+                   </p>
+               </div>
 
-              <div class="grid grid-cols-2 gap-4">
-                 <div class="p-3 border border-gray-100 rounded-lg">
-                    <label class="text-xs text-gray-400">รหัส (Code)</label>
-                    <div class="font-mono text-sm font-semibold text-gray-700 mt-0.5">{{ selectedItem.check_items_code || '-' }}</div>
-                 </div>
-                 <div class="p-3 border border-gray-100 rounded-lg">
-                    <label class="text-xs text-gray-400">หมวดหมู่</label>
-                    <div class="text-sm font-semibold text-blue-600 mt-0.5">{{ selectedItem.check_items_category || '-' }}</div>
-                 </div>
-                 <div class="p-3 border border-gray-100 rounded-lg">
-                    <label class="text-xs text-gray-400">ลำดับการแสดงผล</label>
-                    <div class="text-sm font-semibold text-gray-700 mt-0.5">{{ selectedItem.check_items_order }}</div>
-                 </div>
-                 <div class="p-3 border border-gray-100 rounded-lg">
-                    <label class="text-xs text-gray-400">สถานะ</label>
-                    <div class="flex items-center gap-2 mt-0.5">
-                       <div class="w-2 h-2 rounded-full" :class="selectedItem.check_items_status === 'active' ? 'bg-emerald-500' : 'bg-gray-300'"></div>
-                       <span class="text-sm font-medium">{{ selectedItem.check_items_status === 'active' ? 'ใช้งานปกติ' : 'ปิดใช้งาน' }}</span>
-                    </div>
-                 </div>
-              </div>
+               <div class="grid grid-cols-2 gap-4">
+                   <div class="p-3 border border-gray-100 rounded-lg">
+                      <label class="text-xs text-gray-400">รหัส (Code)</label>
+                      <div class="font-mono text-sm font-semibold text-gray-700 mt-0.5 break-all">{{ selectedItem.check_items_code || '-' }}</div>
+                   </div>
+                   <div class="p-3 border border-gray-100 rounded-lg">
+                      <label class="text-xs text-gray-400">หมวดหมู่</label>
+                      <div class="text-sm font-semibold text-blue-600 mt-0.5">{{ selectedItem.check_items_category || '-' }}</div>
+                   </div>
+                   <div class="p-3 border border-gray-100 rounded-lg">
+                      <label class="text-xs text-gray-400">ลำดับการแสดงผล</label>
+                      <div class="text-sm font-semibold text-gray-700 mt-0.5">{{ selectedItem.check_items_order }}</div>
+                   </div>
+                   <div class="p-3 border border-gray-100 rounded-lg">
+                      <label class="text-xs text-gray-400">สถานะ</label>
+                      <div class="flex items-center gap-2 mt-0.5">
+                         <div class="w-2 h-2 rounded-full" :class="selectedItem.check_items_status === 'active' ? 'bg-emerald-500' : 'bg-gray-300'"></div>
+                         <span class="text-sm font-medium">{{ selectedItem.check_items_status === 'active' ? 'ใช้งานปกติ' : 'ปิดใช้งาน' }}</span>
+                      </div>
+                   </div>
+               </div>
 
-              <div v-if="selectedItem.check_items_is_required" class="flex items-start gap-3 p-3 bg-orange-50 border border-orange-100 rounded-lg">
-                 <AlertCircle class="w-5 h-5 text-orange-500 shrink-0 mt-0.5" />
-                 <div>
-                    <h4 class="text-sm font-bold text-orange-700">จำเป็นต้องตรวจสอบ (Required)</h4>
-                    <p class="text-xs text-orange-600 mt-1">รายการนี้แม่บ้านต้องระบุผลการตรวจสอบเสมอ ห้ามข้าม</p>
-                 </div>
-              </div>
+               <div v-if="selectedItem.check_items_is_required" class="flex items-start gap-3 p-3 bg-orange-50 border border-orange-100 rounded-lg">
+                   <AlertCircle class="w-5 h-5 text-orange-500 shrink-0 mt-0.5" />
+                   <div>
+                      <h4 class="text-sm font-bold text-orange-700">จำเป็นต้องตรวจสอบ (Required)</h4>
+                      <p class="text-xs text-orange-600 mt-1">รายการนี้แม่บ้านต้องระบุผลการตรวจสอบเสมอ ห้ามข้าม</p>
+                   </div>
+               </div>
 
-          </div>
+           </div>
 
-          <div class="p-4 border-t border-gray-100 bg-gray-50 flex gap-3">
-              <button @click="$emit('edit', selectedItem); closeDrawer()" class="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium shadow-sm transition-colors">
-                แก้ไขข้อมูล
-              </button>
-              <button @click="closeDrawer" class="flex-1 py-2.5 bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 rounded-lg text-sm font-medium transition-colors">
-                ปิด
-              </button>
-          </div>
+           <div class="p-4 border-t border-gray-100 bg-gray-50 flex gap-3">
+               <button @click="$emit('edit', selectedItem); closeDrawer()" class="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium shadow-sm transition-colors">
+                 แก้ไขข้อมูล
+               </button>
+               <button @click="closeDrawer" class="flex-1 py-2.5 bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 rounded-lg text-sm font-medium transition-colors">
+                 ปิด
+               </button>
+           </div>
 
-       </div>
-    </div>
+         </div>
+      </div>
+    </Teleport>
 
   </div>
 </template>
