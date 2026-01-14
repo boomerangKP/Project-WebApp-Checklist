@@ -71,7 +71,6 @@ const menuItems = [
 
       <div v-show="!isCollapsed" class="leading-tight whitespace-nowrap transition-opacity duration-300">
         <div class="text-xs font-medium text-gray-500 uppercase tracking-wider">ส่วนผู้ดูแล</div>
-        <div class="text-base font-bold text-white tracking-wide">ระบบแม่บ้าน</div>
       </div>
     </div>
 

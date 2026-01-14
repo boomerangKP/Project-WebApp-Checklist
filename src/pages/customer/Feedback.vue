@@ -66,6 +66,7 @@ const overallAverage = computed(() => {
       <div class="bg-white pt-6 pb-2 px-6 sticky top-0 z-20 border-b border-gray-100">
 
         <div class="mb-4 flex flex-col items-center justify-center">
+          <!-- หน้าแบบประเมิน -->
            <img
              :src="logoHeader"
              alt="Princ Hospital Ubon Ratchathani"
@@ -80,7 +81,7 @@ const overallAverage = computed(() => {
               <MapPin class="w-5 h-5 text-indigo-600" /> {{ location.locations_name }}
             </h1>
             <p class="text-xs text-gray-500 pl-7">
-              {{ location.locations_building }} • ชั้น {{ location.locations_floor }}
+              อาคาร {{ location.locations_building }} • ชั้น {{ location.locations_floor }}
             </p>
           </div>
           <div class="text-xs font-bold bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full">
@@ -194,8 +195,8 @@ const overallAverage = computed(() => {
         </div>
 
         <div class="text-center">
-          <router-link :to="`/login?redirect=/maid/job/${locationId}`" class="inline-flex items-center gap-1.5 text-[10px] text-gray-300 hover:text-indigo-600 transition-colors">
-            <UserCog class="w-3 h-3" />
+          <router-link :to="`/login?redirect=/maid/job/${locationId}`" class="inline-flex items-center gap-1.5 text-[15px] text-gray-400 hover:text-indigo-600 transition-colors">
+            <UserCog class="w-3.5 h-3.5" />
             <span>สำหรับพนักงานทำความสะอาด</span>
           </router-link>
         </div>
@@ -204,24 +205,24 @@ const overallAverage = computed(() => {
 
     <div v-else-if="isSubmittedSuccess" class="flex-1 flex flex-col max-w-md mx-auto w-full bg-white shadow-2xl min-h-screen relative animate-in fade-in zoom-in duration-500">
       <div class="flex-1 flex flex-col items-center justify-center p-8 text-center">
-        
-        <img 
-          :src="logoHeader" 
-          alt="Logo" 
-          class="w-48 h-auto object-contain mb-8 filter grayscale opacity-80" 
+        <!-- หน้าขอบคุณ -->
+        <img
+          :src="logoHeader"
+          alt="Logo"
+          class="w-full h-auto object-contain mb-2"
         />
 
-        <div class="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mb-6 shadow-sm">
-          <Heart class="w-12 h-12 text-green-600 fill-green-600 animate-bounce" />
+        <div class="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center mb-6 shadow-sm">
+          <Heart class="w-12 h-12 text-blue-600 fill-blue-600 animate-bounce" />
         </div>
-        
+
         <h2 class="text-3xl font-bold text-gray-800 mb-2">ขอบคุณครับ/ค่ะ!</h2>
         <p class="text-gray-500 mb-8 leading-relaxed">
           ขอบคุณที่ไว้วางใจใช้บริการ<br>
           <span class="text-indigo-600 font-bold">โรงพยาบาลพริ้นซ์ อุบลราชธานี</span><br>
           คำแนะนำของท่านคือกำลังใจสำคัญของเรา
         </p>
-        
+
         <div class="bg-gray-50 rounded-xl p-4 w-full mb-8 border border-gray-100">
            <p class="text-xs text-gray-400 mb-1">สถานที่ที่ท่านรีวิว</p>
            <div class="flex items-center justify-center gap-2 font-bold text-gray-700">
@@ -231,7 +232,7 @@ const overallAverage = computed(() => {
         </div>
 
         </div>
-      
+
       <div class="p-4 text-center text-[10px] text-gray-300">
         Prince Hospital Ubon Ratchathani
       </div>

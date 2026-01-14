@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { useUserStore } from '@/stores/user'
 import Notification from '@/components/admin/NotificationBell.vue'
 import { useSwal } from '@/composables/useSwal'
-import { Menu } from 'lucide-vue-next' // เผื่อใช้ปุ่ม Menu บนมือถือ
+import { Menu, LogOut, } from 'lucide-vue-next' // เผื่อใช้ปุ่ม Menu บนมือถือ
 
 const route = useRoute()
 const userStore = useUserStore()
@@ -29,7 +29,7 @@ const pageTitle = computed(() => {
     case 'report-satisfaction': return 'รายงานผล'
     case 'admin-editfeedback': return 'จัดการข้อมูล'
     // ... เพิ่ม case ตามชื่อ route ใน router/index.js ของคุณ
-    default: return 'ระบบจัดการแม่บ้าน'
+    default: return 'ระบบบริหารจัดการสุขอนามัยอาคาร'
   }
 })
 
@@ -76,9 +76,13 @@ const onLogoutClick = async () => {
           <div class="text-sm font-bold text-gray-800">
             {{ userStore.profile?.employees_firstname || 'Admin' }} {{ userStore.profile?.employees_lastname || '' }}
           </div>
-          <button @click="onLogoutClick" class="text-xs text-red-500 hover:text-red-700 underline flex items-center justify-end w-full gap-1">
-            Logout
-          </button>
+          <button 
+    @click="onLogoutClick" 
+    class="text-xs text-red-500 hover:text-red-700 underline flex items-center justify-end w-full gap-1"
+  >
+    Logout 
+    <LogOut class="w-3 h-3" />
+  </button>
         </div>
 
         <div class="h-10 w-10 rounded-full bg-yellow-100 flex items-center justify-center overflow-hidden border border-gray-200 shadow-sm">

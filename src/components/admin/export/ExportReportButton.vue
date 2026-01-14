@@ -15,7 +15,7 @@ const isExporting = ref(false);
 
 const handleExport = async () => {
   try {
-    // 1. กำหนดช่วงเวลา
+    // 1. กำหนดช่วงเวลา (Validation)
     const start = props.startDate || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
     const end = props.endDate || new Date().toISOString();
 
@@ -41,7 +41,7 @@ const handleExport = async () => {
     const startDateTh = startDateObj.toLocaleDateString('th-TH', { dateStyle: 'long' });
     const endDateTh = endDateObj.toLocaleDateString('th-TH', { dateStyle: 'long' });
 
-    // 2. ดึงข้อมูล
+    // 2. ดึงข้อมูลจาก Supabase
     const { data: rawLogs, error } = await supabase
       .from('check_sessions')
       .select(`*, employees (employees_firstname, employees_lastname), locations (locations_name, locations_building, locations_floor)`)
@@ -55,7 +55,7 @@ const handleExport = async () => {
       return;
     }
 
-    // Process Data
+    // Process Data (จัดกลุ่มข้อมูล)
     const summaryMap = {};
     rawLogs.forEach((log) => {
       const dateRaw = log.check_sessions_date; 
@@ -93,12 +93,12 @@ const handleExport = async () => {
       }
     });
 
-    // 3. สร้าง Excel
+    // 3. เริ่มสร้าง Excel
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('รายงานสรุป');
     const thinBorder = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
 
-    // Header & Subheader
+    // --- Header & Subheader ---
     sheet.mergeCells('A1:M1');
     const titleCell = sheet.getCell('A1');
     titleCell.value = `รายงานสรุปการทำความสะอาด (Maid Report)`;
@@ -113,10 +113,10 @@ const handleExport = async () => {
     subtitleCell.alignment = { horizontal: 'center' };
     subtitleCell.border = thinBorder;
 
-    // Table Header
+    // --- Table Header ---
     sheet.getRow(3).values = ['ลำดับ', 'รหัสงาน', 'วันที่', 'เวลาล่าสุด (เช้า)', 'เวลาล่าสุด (บ่าย)', 'ชื่อพนักงาน', 'อาคาร', 'ชั้น', 'จุดตรวจสอบ', 'สถานะล่าสุด', 'หมายเหตุ', 'เช้า (รอบ)', 'บ่าย (รอบ)'];
     
-    // ✅ เอา width ออกได้เลย เพราะเดี๋ยวเราจะ Auto fit ตอนท้าย
+    // กำหนด Key ให้ Columns เพื่อใช้อ้างอิงตอน Auto Width
     sheet.columns = [
       { key: 'no' }, { key: 'id' }, { key: 'date' }, { key: 'timeMorning' }, { key: 'timeAfternoon' },
       { key: 'name' }, { key: 'building' }, { key: 'floor' }, { key: 'location' },
@@ -124,18 +124,16 @@ const handleExport = async () => {
     ];
 
     const headerRow = sheet.getRow(3);
-    headerRow.font = { bold: true };
+    headerRow.font = { bold: true, name: 'Sarabun' };
     headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEEEEEE' } };
     headerRow.alignment = { horizontal: 'center', vertical: 'middle' };
     headerRow.eachCell((cell) => { cell.border = thinBorder; });
 
-    // Body Row
+    // --- Body Rows ---
     const summaryArray = Object.values(summaryMap);
     summaryArray.forEach((item, index) => {
-      // ✅ แก้เป็น 'numeric' เพื่อให้ได้ปี 4 หลัก (เช่น 06 ม.ค. 2569)
       const dateDisplay = new Date(item.dateRaw).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' });
-      // 🔥 แก้จุดที่ 2: แปลงชั้น (Floor) เป็นตัวเลข (แก้ Number stored as Text)
-      // เช็คก่อนว่าแปลงเป็นตัวเลขได้ไหม (เผื่อชั้นเป็น B1, G) ถ้าได้ให้แปลง ถ้าไม่ได้ให้ใช้ค่าเดิม
+      // แปลงชั้นเป็นตัวเลขถ้าทำได้ เพื่อไม่ให้ Excel แจ้งเตือน Number stored as Text
       const floorValue = isNaN(Number(item.floor)) ? item.floor : Number(item.floor);
 
       const row = sheet.addRow([
@@ -146,32 +144,51 @@ const handleExport = async () => {
         item.morningCount, item.afternoonCount
       ]);
 
+      // จัดสีสถานะ
       const statusCell = row.getCell(10);
       if (['fail', 'rejected'].includes(item.status)) statusCell.font = { color: { argb: 'FFFF0000' }, bold: true };
       else if (['pass', 'approved', 'fixed'].includes(item.status)) statusCell.font = { color: { argb: 'FF008000' }, bold: true };
       else statusCell.font = { color: { argb: 'FFF59E0B' } };
 
-      [1, 2, 3, 4, 5, 7, 8, 12, 13].forEach(colIndex => row.getCell(colIndex).alignment = { horizontal: 'center' });
-      row.eachCell((cell) => { cell.border = thinBorder; });
-    });
-
-    // ✅✅✅ AUTO WIDTH LOGIC ✅✅✅
-    sheet.columns.forEach((column) => {
-      let maxColumnLength = 0;
-      column.eachCell({ includeEmpty: true }, (cell) => {
-        // ข้าม Title Row 1-2 เพราะมันยาวและ Merge อยู่
-        if (cell.row <= 2) return; 
-        
-        const cellValue = cell.value ? cell.value.toString() : '';
-        // ภาษาไทยอาจจะต้องเผื่อที่มากกว่าภาษาอังกฤษนิดหน่อย
-        const len = cellValue.length; 
-        if (len > maxColumnLength) maxColumnLength = len;
+      // จัดกึ่งกลางสำหรับคอลัมน์ทั่วไป
+      [1, 2, 3, 4, 5, 7, 8, 12, 13].forEach(colIndex => row.getCell(colIndex).alignment = { horizontal: 'center', vertical: 'top' });
+      
+      // ตีเส้นขอบทุกเซลล์
+      row.eachCell((cell) => { 
+          cell.border = thinBorder; 
+          cell.font = { ...cell.font, name: 'Sarabun' }; // บังคับ Font
       });
-      // เผื่อ Padding +2 และกำหนดขั้นต่ำ 10
-      column.width = Math.max(maxColumnLength + 2, 10);
     });
 
-    // Save
+    // ✅✅✅ AUTO WIDTH LOGIC (UPDATED) ✅✅✅
+    sheet.columns.forEach((column) => {
+      // 🔥 กรณีพิเศษ: คอลัมน์ "หมายเหตุ"
+      if (column.key === 'remark') {
+        column.width = 50; // กำหนดความกว้างตายตัว
+        column.alignment = { wrapText: true, vertical: 'top', horizontal: 'left' }; // สั่งตัดบรรทัด + ชิดบนซ้าย
+      } 
+      // กรณีทั่วไป: คำนวณความกว้างอัตโนมัติ
+      else {
+        let maxColumnLength = 0;
+        column.eachCell({ includeEmpty: true }, (cell) => {
+          if (cell.row <= 2) return; // ข้าม Header Title
+          
+          const cellValue = cell.value ? cell.value.toString() : '';
+          const len = cellValue.length; 
+          if (len > maxColumnLength) maxColumnLength = len;
+        });
+        
+        // กำหนดความกว้าง (Minimum 10)
+        column.width = Math.max(maxColumnLength + 2, 10);
+        
+        // ถ้าไม่ใช่หมายเหตุ ให้ใช้ alignment มาตรฐาน (ถ้ายังไม่ได้กำหนดไว้)
+        if (!column.alignment) {
+           column.alignment = { vertical: 'top', horizontal: 'left' };
+        }
+      }
+    });
+
+    // 4. Save File
     const buffer = await workbook.xlsx.writeBuffer();
     const fileName = `Maid_Report_${new Date().toISOString().slice(0,10)}.xlsx`;
     saveAs(new Blob([buffer]), fileName);

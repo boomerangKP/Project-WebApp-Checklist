@@ -28,6 +28,7 @@ const emit = defineEmits([
 const isMenuOpen = ref(false)
 const modalRef = ref(null)
 
+
 // ตำแหน่งเริ่มต้น
 const position = reactive({ top: 100, left: 0 })
 let isDragging = false

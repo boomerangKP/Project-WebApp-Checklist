@@ -78,7 +78,7 @@ const preparePrint = async () => {
   qrDataUrls.value = {}
 
   // ✅ 1. ประกาศตัวแปร baseUrl ก่อน (ดึงค่า URL ของเว็บปัจจุบัน)
-  const baseUrl = window.location.origin 
+  const baseUrl = window.location.origin
 
   for (const loc of selectedLocationsFull.value) {
     try {
@@ -86,12 +86,12 @@ const preparePrint = async () => {
       // - ใช้ baseUrl ที่ประกาศไว้ข้างบน
       // - เปลี่ยนจาก id เป็น token (เพื่อให้สแกนแล้วปลอดภัย เดาเลขไม่ได้)
       const qrContent = `${baseUrl}/scan/${loc.token}`
-      
-      qrDataUrls.value[loc.locations_id] = await QRCode.toDataURL(qrContent, { 
-        width: 400, 
-        margin: 1, 
-        color: { dark: '#000000', light: '#ffffff' }, 
-        errorCorrectionLevel: 'H' 
+
+      qrDataUrls.value[loc.locations_id] = await QRCode.toDataURL(qrContent, {
+        width: 400,
+        margin: 1,
+        color: { dark: '#000000', light: '#ffffff' },
+        errorCorrectionLevel: 'H'
       })
     } catch (err) { console.error(err) }
   }
@@ -103,8 +103,8 @@ onMounted(() => fetchLocations())
 </script>
 
 <template>
-  <div class="h-[calc(100vh-9rem)] flex flex-col w-full"> 
-    
+  <div class="h-[calc(100vh-9rem)] flex flex-col w-full">
+
     <div class="flex-none flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
       <div>
         <h1 class="text-2xl font-bold text-gray-800 flex items-center gap-2">
@@ -112,42 +112,42 @@ onMounted(() => fetchLocations())
         </h1>
         <p class="text-gray-500 text-sm mt-1">เลือกสถานที่ที่ต้องการพิมพ์สติ๊กเกอร์ QR Code</p>
       </div>
-      
-      <button 
-        @click="preparePrint" 
-        :disabled="selectedIds.size === 0" 
+
+      <button
+        @click="preparePrint"
+        :disabled="selectedIds.size === 0"
         class="flex-none flex items-center gap-2 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-xl font-bold shadow-sm transition-all active:scale-95 ml-auto"
       >
         <Printer class="w-5 h-5" /> <span>พิมพ์ ({{ selectedIds.size }})</span>
       </button>
     </div>
 
-    <div class="flex-none mb-4">
-      <LocationFilter 
+    <div class="flex-none ">
+      <LocationFilter
         :search="filters.search"
         :building="filters.building"
         :floor="filters.floor"
         :uniqueBuildings="uniqueBuildings"
         :uniqueFloors="uniqueFloors"
         @update:search="filters.search = $event"
-        @update:building="filters.building = $event; filters.floor = ''" 
+        @update:building="filters.building = $event; filters.floor = ''"
         @update:floor="filters.floor = $event"
         @reset="handleResetFilter"
       />
     </div>
 
     <div class="flex-1 min-h-0 relative overflow-hidden flex flex-col">
-      <LocationTableQRCode 
+      <LocationTableQRCode
         class="h-full w-full"
-        :locations="filteredLocations" 
-        :loading="loading" 
-        :selectedIds="selectedIds" 
-        @toggle="toggleSelection" 
-        @toggle-all="toggleSelectAll" 
+        :locations="filteredLocations"
+        :loading="loading"
+        :selectedIds="selectedIds"
+        @toggle="toggleSelection"
+        @toggle-all="toggleSelectAll"
       />
     </div>
 
-    <PrintPreviewModal 
+    <PrintPreviewModal
       :show="showPreview"
       :isGenerating="isGenerating"
       :selectedCount="selectedIds.size"
