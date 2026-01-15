@@ -72,11 +72,11 @@ const router = createRouter({
       ]
     },
 
-    // --- 3. Maid Zone ---
+    // --- 3. Maid Zone (รองรับทั้ง maid และ cleaner) ---
     {
       path: '/maid',
       component: () => import('../layouts/MaidLayout.vue'),
-      meta: { requiresAuth: true, role: 'maid' },
+      meta: { requiresAuth: true, role: 'maid' }, // meta role 'maid' จะถูกเช็คให้ cleaner เข้าได้ใน beforeEach
       children: [
         {
           path: 'home',
@@ -107,17 +107,15 @@ const router = createRouter({
           name: 'maid-scan',
           component: () => import('@/pages/maid/ScanQR.vue')
         }
-        // ❌ เอา /scan/:token ออกจากตรงนี้ เพราะตรงนี้บังคับ Login
       ]
     },
 
-    // --- 🔥 4. Public Routes (Scan Handler) ---
-    // ✅ ย้ายมาไว้ตรงนี้ เพื่อให้ใครก็เข้าได้ (แล้วค่อยไปเช็ค Role ข้างในไฟล์)
+    // --- 4. Public Routes (Scan Handler) ---
     {
       path: '/scan/:token',
       name: 'scan-handler',
       component: () => import('@/pages/maid/ScanHandler.vue'),
-      meta: { requiresAuth: false } // เปิด Public
+      meta: { requiresAuth: false }
     },
 
     // --- 5. อื่นๆ ---
@@ -145,6 +143,7 @@ const router = createRouter({
   ]
 })
 
+// --- Navigation Guard (แก้ไข Logic ให้รองรับ Cleaner) ---
 router.beforeEach(async (to, from, next) => {
   const userStore = useUserStore()
   const { data: { session } } = await supabase.auth.getSession()
@@ -155,7 +154,7 @@ router.beforeEach(async (to, from, next) => {
     return next()
   }
 
-  // 2. มี Session -> เช็ค Role
+  // 2. มี Session -> เช็ค Role (โหลด Profile ถ้ายังไม่มี)
   let role = userStore.profile?.role
 
   if (!role) {
@@ -175,16 +174,27 @@ router.beforeEach(async (to, from, next) => {
     }
   }
 
+  // 3. ถ้าอยู่หน้า Login แล้วมี Session -> ดีดไปหน้าแรกตาม Role
   if (to.path === '/login') {
     if (role === 'admin') return next('/admin')
-    if (role === 'maid') return next('/maid/home')
+    // ✅ แก้ไข: ให้ทั้ง maid และ cleaner ไปหน้า maid-home
+    if (role === 'maid' || role === 'cleaner') return next('/maid/home')
     return next('/')
   }
 
-  if (to.meta.role && to.meta.role !== role) {
-    if (role === 'admin') return next('/admin')
-    if (role === 'maid') return next('/maid/home')
-    return next('/login')
+  // 4. เช็ค Permission ตาม Meta Role ของ Route
+  if (to.meta.role) {
+    // ถ้า Route ต้องการ admin แต่ user ไม่ใช่ admin
+    if (to.meta.role === 'admin' && role !== 'admin') {
+      return next('/login')
+    }
+    
+    // ✅ แก้ไข: ถ้า Route ต้องการ maid (โซนแม่บ้าน) อนุญาตให้ทั้ง maid และ cleaner เข้าได้
+    if (to.meta.role === 'maid') {
+        if (!['maid', 'cleaner'].includes(role)) {
+            return next('/login')
+        }
+    }
   }
 
   next()

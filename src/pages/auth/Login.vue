@@ -21,10 +21,14 @@ const loading = ref(false)
 const errorMsg = ref('')
 
 async function handleLogin() {
+  // ป้องกันการกดรัวๆ
+  if (loading.value) return
+
   loading.value = true
   errorMsg.value = ''
 
   try {
+    // 1. Login
     const { data: { session }, error: authError } = await supabase.auth.signInWithPassword({
       email: email.value,
       password: password.value
@@ -32,6 +36,7 @@ async function handleLogin() {
 
     if (authError) throw authError
 
+    // 2. ดึงข้อมูล
     const { data: employee, error: empError } = await supabase
       .from('employees')
       .select('*')
@@ -48,15 +53,19 @@ async function handleLogin() {
       throw new Error('บัญชีนี้ถูกระงับการใช้งาน')
     }
 
-    // Save to Pinia
-    if (userStore.setSession) userStore.setSession(session)
-    if (userStore.setProfile) userStore.setProfile(employee)
+    // 3. Save to Pinia (ใส่ await เพื่อความชัวร์ว่าข้อมูลมาครบก่อนไปหน้าอื่น)
+    if (userStore.setSession) await userStore.setSession(session)
+    if (userStore.setProfile) await userStore.setProfile(employee)
 
-    // Redirect
-    if (employee.role === 'maid') {
-      router.push({ name: 'maid-home' })
+    // 4. Redirect (แก้ตรงนี้แหละที่ทำให้หายค้าง!)
+    // เช็คทั้ง Maid และ Cleaner ให้ไปหน้าเดียวกัน
+    const role = employee.role ? employee.role.toLowerCase() : 'user'
+
+    if (role === 'maid' || role === 'cleaner') {
+      // ใช้ replace แทน push เพื่อไม่ให้กด Back แล้วกลับมาหน้า Login (เร็วกว่าด้วย)
+      await router.replace({ name: 'maid-home' })
     } else {
-      router.push('/admin')
+      await router.replace('/admin')
     }
 
   } catch (err) {
@@ -68,6 +77,9 @@ async function handleLogin() {
     } else {
       errorMsg.value = err.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่'
     }
+    // ล้างค่าทิ้งถ้าพัง
+    await supabase.auth.signOut()
+    userStore.clearSession()
   } finally {
     loading.value = false
   }
@@ -111,6 +123,7 @@ async function handleLogin() {
                 v-model="email"
                 type="email"
                 required
+                @keyup.enter="handleLogin"
                 class="block w-full pl-11 pr-4 py-3 border border-slate-200 rounded-xl bg-slate-50 text-slate-900 placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-medium"
                 placeholder="user@example.com"
               >
@@ -127,6 +140,7 @@ async function handleLogin() {
                 v-model="password"
                 type="password"
                 required
+                @keyup.enter="handleLogin"
                 class="block w-full pl-11 pr-4 py-3 border border-slate-200 rounded-xl bg-slate-50 text-slate-900 placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-medium"
                 placeholder="••••••••"
               >

@@ -1,7 +1,6 @@
 <script setup>
 import { ref } from "vue";
 import {
-  MoreHorizontal,
   Edit,
   Trash2,
   Mail,
@@ -14,6 +13,9 @@ import {
   Copy,
   Check,
   User,
+  // ✅ เพิ่มไอคอน Role
+  ShieldCheck,
+  SprayCan
 } from "lucide-vue-next";
 
 const props = defineProps({
@@ -33,13 +35,11 @@ const emit = defineEmits(["edit", "delete", "changePage", "update:itemsPerPage"]
 // State สำหรับจัดการ Effect ตอน Copy
 const copiedId = ref(null);
 
-// ฟังก์ชันคัดลอกรหัสพนักงาน
 const copyToClipboard = async (text, id) => {
   if (!text) return;
   try {
     await navigator.clipboard.writeText(text);
     copiedId.value = id;
-    // คืนค่าไอคอนเดิมหลังจาก 2 วินาที
     setTimeout(() => {
       copiedId.value = null;
     }, 2000);
@@ -48,26 +48,56 @@ const copyToClipboard = async (text, id) => {
   }
 };
 
-// Helper Functions
+// Helper: Role (ตำแหน่ง)
 const getRoleLabel = (r) => {
-  switch (r) {
-    case "admin":
-      return "ผู้ดูแลระบบ";
-    case "maid":
-      return "แม่บ้าน";
-    default:
-      return r || "-";
+  if (!r) return "-";
+  switch (r.toLowerCase()) {
+    case "admin": return "ผู้ดูแลระบบ";
+    case "maid": return "แม่บ้าน";
+    case "user": return "พนักงานทั่วไป";
+    case "cleaner": return "พนักงานทำความสะอาด";
+    default: return r || "-";
   }
 };
 
 const getRoleStyle = (r) => {
-  switch (r) {
-    case "admin":
-      return "bg-purple-50 text-purple-700 border-purple-100";
-    case "maid":
-      return "bg-blue-50 text-blue-700 border-blue-100";
+  if (!r) return "bg-gray-50 text-gray-600 border-gray-200";
+  switch (r.toLowerCase()) {
+    case "admin": return "bg-purple-50 text-purple-700 border-purple-100";
+    case "maid": return "bg-blue-50 text-blue-700 border-blue-100";
+    case "user": return "bg-emerald-50 text-emerald-700 border-emerald-100";
+    case "cleaner": return "bg-cyan-50 text-cyan-700 border-cyan-100";
+    default: return "bg-gray-50 text-gray-600 border-gray-200";
+  }
+};
+
+// Helper: Status (สถานะ)
+const getStatusConfig = (status) => {
+  switch (status) {
+    case 'active':
+      return { label: 'ปกติ', textClass: 'text-emerald-700', dotClass: 'bg-emerald-500' };
+    case 'inactive':
+      return { label: 'ไม่เคลื่อนไหว', textClass: 'text-slate-500', dotClass: 'bg-slate-400' };
+    case 'suspended':
+      return { label: 'ระงับ', textClass: 'text-red-600', dotClass: 'bg-red-500' };
     default:
-      return "bg-gray-50 text-gray-600 border-gray-200";
+      return { label: status || '-', textClass: 'text-gray-500', dotClass: 'bg-gray-300' };
+  }
+};
+
+// ✅ Helper: Role Config (Icon/Emoji)
+const getRoleConfig = (role) => {
+  const r = role ? role.toLowerCase() : 'user';
+  switch (r) {
+    case 'admin':
+      return { type: 'icon', icon: ShieldCheck, class: 'bg-purple-100 text-purple-600 border-purple-200' };
+    case 'maid':
+      return { type: 'icon', icon: SprayCan, class: 'bg-rose-100 text-rose-600 border-rose-200' };
+    case 'cleaner':
+      // ✅ Emoji 🧹 พื้นหลังสีเทา
+      return { type: 'emoji', icon: '🧹', class: 'bg-gray-200 text-lg border-transparent' };
+    default:
+      return { type: 'icon', icon: User, class: 'bg-gray-100 text-gray-500 border-gray-200' };
   }
 };
 </script>
@@ -134,19 +164,25 @@ const getRoleStyle = (r) => {
             <td class="px-6 py-4 whitespace-nowrap">
               <div class="flex items-center gap-3">
                 <div
-                  class="h-9 w-9 rounded-full bg-gray-100 overflow-hidden border border-gray-200 flex-shrink-0"
+                  class="h-9 w-9 rounded-full overflow-hidden border border-gray-200 flex-shrink-0"
                 >
                   <img
                     v-if="emp.employees_photo"
                     :src="emp.employees_photo"
                     class="h-full w-full object-cover"
                   />
+                  
                   <div
                     v-else
-                    class="h-full w-full flex items-center justify-center text-xs font-bold text-gray-400 bg-gray-50"
+                    class="h-full w-full flex items-center justify-center border"
+                    :class="getRoleConfig(emp.role).class"
                   >
-                    <User class="w-5 h-5" />
+                     <span v-if="getRoleConfig(emp.role).type === 'emoji'" class="leading-none pt-0.5 text-base">
+                        {{ getRoleConfig(emp.role).icon }}
+                     </span>
+                     <component v-else :is="getRoleConfig(emp.role).icon" class="w-5 h-5" />
                   </div>
+
                 </div>
                 <div class="font-medium text-gray-900 text-sm">
                   {{ emp.employees_firstname }} {{ emp.employees_lastname }}
@@ -187,17 +223,13 @@ const getRoleStyle = (r) => {
             <td class="px-6 py-4 whitespace-nowrap">
               <div
                 class="flex items-center gap-2 text-sm font-medium"
-                :class="
-                  emp.employees_status === 'active' ? 'text-emerald-700' : 'text-gray-500'
-                "
+                :class="getStatusConfig(emp.employees_status).textClass"
               >
                 <span
                   class="w-2 h-2 rounded-full"
-                  :class="
-                    emp.employees_status === 'active' ? 'bg-emerald-500' : 'bg-gray-400'
-                  "
+                  :class="getStatusConfig(emp.employees_status).dotClass"
                 ></span>
-                {{ emp.employees_status === "active" ? "ปกติ" : "ระงับ" }}
+                {{ getStatusConfig(emp.employees_status).label }}
               </div>
             </td>
 

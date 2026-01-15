@@ -1,5 +1,16 @@
 <script setup>
-import { Clock, CheckCircle2, AlertTriangle, MapPin, Building, ChevronRight, UserCheck } from "lucide-vue-next";
+import { 
+  Clock, 
+  CheckCircle2, 
+  AlertTriangle, 
+  MapPin, 
+  Building, 
+  ChevronRight, 
+  UserCheck,
+  ShieldCheck, 
+  SprayCan, 
+  User 
+} from "lucide-vue-next";
 
 defineProps({
   activities: { type: Array, default: () => [] },
@@ -7,32 +18,20 @@ defineProps({
 
 defineEmits(['click']);
 
-// Helper functions
+// Helper functions: Status
 const getStatusBadge = (status) => {
   switch (status) {
     case "pass":
     case "approved":
-      return {
-        color: "bg-green-100 text-green-700 border-green-200",
-        text: "ตรวจแล้ว",
-        icon: CheckCircle2,
-      };
+      return { color: "bg-green-100 text-green-700 border-green-200", text: "ตรวจแล้ว", icon: CheckCircle2 };
     case "fail":
     case "rejected":
-      return {
-        color: "bg-red-100 text-red-700 border-red-200",
-        text: "ส่งแก้ไข",
-        icon: AlertTriangle
-      };
+      return { color: "bg-red-100 text-red-700 border-red-200", text: "ส่งแก้ไข", icon: AlertTriangle };
     case "fixed":
-      return {
-        color: "bg-blue-100 text-blue-700 border-blue-200",
-        text: "แก้ไขแล้ว",
-        icon: CheckCircle2,
-      };
+      return { color: "bg-blue-100 text-blue-700 border-blue-200", text: "แก้ไขแล้ว", icon: CheckCircle2 };
     case "in_progress":
       return { color: "bg-indigo-100 text-indigo-700 border-indigo-200", text: "กำลังทำ", icon: Clock };
-    default: // waiting
+    default:
       return { color: "bg-yellow-100 text-yellow-700 border-yellow-200", text: "รอตรวจ", icon: Clock };
   }
 };
@@ -40,6 +39,22 @@ const getStatusBadge = (status) => {
 const formatTime = (timeStr) => {
   if (!timeStr) return "-";
   return timeStr.substring(0, 5);
+};
+
+// ✅ Helper: Config ตาม Role (จัดให้ตามคำขอ)
+const getRoleConfig = (role) => {
+  const r = role ? role.toLowerCase() : 'user';
+  switch (r) {
+    case 'admin':
+      return { type: 'icon', icon: ShieldCheck, class: 'bg-purple-100 text-purple-600 border-purple-200' };
+    case 'maid':
+      return { type: 'icon', icon: SprayCan, class: 'bg-rose-100 text-rose-600 border-rose-200' };
+    case 'cleaner':
+      // ✅ จัดให้ตามคำขอ: bg-gray-200 และ text-xl
+      return { type: 'emoji', icon: '🧹', class: 'bg-gray-200 text-xl' };
+    default:
+      return { type: 'icon', icon: User, class: 'bg-gray-100 text-gray-500 border-gray-200' };
+  }
 };
 </script>
 
@@ -64,19 +79,36 @@ const formatTime = (timeStr) => {
       >
         <div class="flex items-center gap-4">
           <div class="relative flex-shrink-0">
-            <div class="w-11 h-11 rounded-full bg-gray-50 overflow-hidden border border-gray-100">
-                <img
-                v-if="item.employees?.employees_photo"
-                :src="item.employees.employees_photo"
-                class="w-full h-full object-cover"
-                />
-                <div
-                v-else
-                class="w-full h-full flex items-center justify-center text-gray-400 font-bold bg-indigo-50 text-indigo-400"
-                >
-                {{ item.employees?.employees_firstname?.charAt(0) }}
-                </div>
+            
+            <div class="w-12 h-12 rounded-full overflow-hidden shadow-sm border border-transparent">
+               
+               <img
+                 v-if="item.employees?.employees_photo"
+                 :src="item.employees.employees_photo"
+                 class="w-full h-full object-cover"
+               />
+               
+               <div
+                 v-else
+                 class="w-full h-full flex items-center justify-center border"
+                 :class="getRoleConfig(item.employees?.role).class"
+               >
+                 <span 
+                    v-if="getRoleConfig(item.employees?.role).type === 'emoji'" 
+                    class="leading-none pt-1"
+                 >
+                    {{ getRoleConfig(item.employees?.role).icon }}
+                 </span>
+
+                 <component 
+                   v-else
+                   :is="getRoleConfig(item.employees?.role).icon" 
+                   class="w-6 h-6" 
+                 />
+               </div>
+
             </div>
+
           </div>
 
           <div class="min-w-0"> <p class="text-sm font-bold text-gray-900 leading-tight truncate">

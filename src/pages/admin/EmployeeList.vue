@@ -6,9 +6,8 @@ import { supabase } from "@/lib/supabase";
 import EmployeeToolbar from "@/components/admin/employee/EmployeeToolbar.vue";
 import EmployeeTable from "@/components/admin/employee/EmployeeTable.vue";
 import EmployeeModal from "@/components/admin/EmployeeModal.vue";
-// ลบ ConfirmModal ออก เพราะเราจะใช้ SweetAlert2 แทน
 import ToastNotification from "@/components/ui/ToastNotification.vue";
-import { useSwal } from "@/composables/useSwal"; // นำเข้า useSwal composable
+import { useSwal } from "@/composables/useSwal";
 
 // --- State: Data & UI ---
 const employees = ref([]);
@@ -20,26 +19,20 @@ const searchQuery = ref("");
 const roleFilter = ref("all");
 const statusFilter = ref("all");
 const currentPage = ref(1);
-const itemsPerPage = ref(10); // แก้ให้เป็น ref เพื่อรองรับ v-model
+const itemsPerPage = ref(10);
 
 // --- State: Modals ---
 const showFormModal = ref(false);
 const isEditing = ref(false);
 const selectedEmployee = ref(null);
 
-// ลบ state สำหรับ Delete Modal แบบเก่า
-// const showDeleteModal = ref(false);
-// const employeeToDelete = ref(null);
-
 // --- State: Toast Notification ---
 const toast = ref({ isOpen: false, title: "", message: "", type: "success" });
 
-// Helper: Show Toast
 const showToast = (title, message, type = "success") => {
   toast.value = { isOpen: true, title, message, type };
 };
 
-// ใช้ SweetAlert2
 const { swalConfirm, swalSuccess } = useSwal();
 
 // --- 1. Fetch Data ---
@@ -67,13 +60,11 @@ const filteredEmployees = computed(() => {
     const fullName = `${emp.employees_firstname} ${emp.employees_lastname}`.toLowerCase();
     const search = searchQuery.value.toLowerCase();
 
-    // 2.1 Search Condition
     const matchSearch =
       fullName.includes(search) ||
       (emp.employees_phone && emp.employees_phone.includes(search)) ||
       (emp.employees_code && emp.employees_code.toLowerCase().includes(search));
 
-    // 2.2 Filter Condition
     const matchRole = roleFilter.value === "all" || emp.role === roleFilter.value;
     const matchStatus =
       statusFilter.value === "all" || emp.employees_status === statusFilter.value;
@@ -82,7 +73,6 @@ const filteredEmployees = computed(() => {
   });
 });
 
-// คำนวณหน้า
 const totalPages = computed(() =>
   Math.ceil(filteredEmployees.value.length / itemsPerPage.value)
 );
@@ -108,7 +98,6 @@ const openEdit = (emp) => {
   showFormModal.value = true;
 };
 
-// แก้ไขฟังก์ชัน openDelete เพื่อใช้ SweetAlert2
 const openDelete = async (emp) => {
   const confirm = await swalConfirm(
     "ยืนยันการลบพนักงาน?",
@@ -125,25 +114,25 @@ const openDelete = async (emp) => {
 const handleSave = async (formData) => {
   submitting.value = true;
   try {
-    // เตรียม Payload ให้ครบทุกคอลัมน์ใน DB
+    // เตรียม Payload ให้ครบทุกคอลัมน์ใน DB และ Map ชื่อให้ตรง
     const payload = {
+      employees_code: formData.code,
       employees_firstname: formData.firstname,
       employees_lastname: formData.lastname,
+      employees_status: formData.status,
 
       // Role & Position
-      role: formData.role, // 'admin', 'maid'
-      employees_position: formData.position, // 'ผู้ดูแลระบบ', 'แม่บ้าน'
+      role: formData.role, // ค่า role (admin, maid, etc.)
+      employees_position: formData.position, // ค่า position ภาษาไทยที่ map มาแล้ว
 
       // Details
       employees_department: formData.department,
       employees_gender: formData.gender,
-      employees_phone: formData.phone, // มาแบบมีขีดแล้ว (0xx-xxx-xxxx)
+      employees_phone: formData.phone,
 
-      // Email (Map 2 field)
-      email: formData.email,
-      employees_email: formData.email,
+      // ✅ Email: บังคับเป็นตัวพิมพ์เล็ก (Lowercase) เสมอ
+      email: formData.email ? formData.email.toLowerCase() : "",
 
-      employees_code: formData.code,
       updated_at: new Date(),
     };
 
@@ -155,7 +144,6 @@ const handleSave = async (formData) => {
         .eq("employees_id", selectedEmployee.value.employees_id);
 
       if (error) throw error;
-      // ใช้ swalSuccess แทน showToast เดิมถ้าต้องการ หรือใช้คู่กันก็ได้
       await swalSuccess("บันทึกสำเร็จ!", "แก้ไขข้อมูลพนักงานเรียบร้อยแล้ว");
     } else {
       // --- Insert ---
@@ -183,7 +171,6 @@ const handleSave = async (formData) => {
 };
 
 // --- 5. CRUD: Delete ---
-// ปรับปรุงฟังก์ชันนี้ให้รับ parameter emp โดยตรง
 const handleDeleteConfirm = async (empToDelete) => {
   submitting.value = true;
   try {
@@ -194,15 +181,12 @@ const handleDeleteConfirm = async (empToDelete) => {
 
     if (error) throw error;
 
-    // ลบออกจาก State ทันที (ไม่ต้องโหลดใหม่ให้เสียเวลา)
     employees.value = employees.value.filter(
       (e) => e.employees_id !== empToDelete.employees_id
     );
 
-    // แสดงแจ้งเตือนสำเร็จ
     await swalSuccess("ลบสำเร็จ!", "ข้อมูลพนักงานถูกลบออกจากระบบแล้ว");
 
-    // ตรวจสอบหน้าปัจจุบัน ถ้าข้อมูลหมดหน้านี้ ให้ถอยไปหน้าก่อนหน้า
     if (paginatedEmployees.value.length === 0 && currentPage.value > 1) {
       currentPage.value--;
     }
@@ -226,7 +210,7 @@ onMounted(() => {
     <h1 class="text-2xl font-bold text-gray-800">จัดการพนักงาน</h1>
 
     <div
-      class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden  flex flex-col"
+      class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col"
     >
       <EmployeeToolbar
         v-model:searchQuery="searchQuery"

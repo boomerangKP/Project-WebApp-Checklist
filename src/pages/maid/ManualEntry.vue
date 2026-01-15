@@ -1,9 +1,9 @@
 <script setup>
-import { ref, onMounted, computed, watch, onUnmounted, h, render } from "vue"; // ✅ เพิ่ม h, render
+import { ref, onMounted, computed, watch, onUnmounted, h, render } from "vue";
 import { useRouter } from "vue-router";
 import { useUserStore } from "@/stores/user";
 import { supabase } from "@/lib/supabase";
-import { ArrowLeft, Loader2, Save, CheckCircle2, XCircle } from "lucide-vue-next"; // ✅ เพิ่ม CheckCircle2, XCircle
+import { ArrowLeft, Loader2, Save, CheckCircle2, XCircle } from "lucide-vue-next";
 import Swal from 'sweetalert2';
 
 // Import Components
@@ -73,6 +73,14 @@ const getIconHtml = (component, classes = '') => {
 watch(selectedLocation, (newLocId) => {
   if (newLocId) {
     const targetLoc = locations.value.find((l) => l.locations_id == newLocId);
+
+    // ✅ เพิ่ม Logic: ถ้าเลือกห้องที่ไม่ได้ Active (กันเหนียว) ให้เคลียร์ค่าทิ้ง
+    if (targetLoc && targetLoc.locations_status !== 'active') {
+       selectedLocation.value = "";
+       selectedType.value = "";
+       return;
+    }
+
     if (targetLoc && targetLoc.restroom_types_id) {
       selectedType.value = targetLoc.restroom_types_id;
     } else {
@@ -86,11 +94,13 @@ watch(selectedLocation, (newLocId) => {
 // --- Fetch Data ---
 const fetchInitialData = async () => {
   try {
-    loading.value = true;
+    // loading.value = true; // (Optional: อาจจะไม่ต้องโหลดหมุนติ้วถ้าเป็นการ Refresh เงียบๆ)
+
+    // ✅ แก้ไขจุดที่ 1: ดึงมาทุกสถานะ และเพิ่ม locations_status
     const { data: locs } = await supabase
       .from("locations")
-      .select("locations_id, locations_name, locations_building, locations_floor, restroom_types_id")
-      .eq("locations_status", "active")
+      .select("locations_id, locations_name, locations_building, locations_floor, restroom_types_id, locations_status")
+      // .eq("locations_status", "active") // ❌ ลบบรรทัดนี้ออก เพื่อให้เห็นห้องที่ปิดปรับปรุงด้วย
       .order("locations_name");
     locations.value = locs || [];
 
@@ -100,18 +110,20 @@ const fetchInitialData = async () => {
       .eq("restroom_types_status", "active");
     restroomTypes.value = types || [];
 
-    const { data: items } = await supabase
-      .from("check_items")
-      .select("*")
-      .eq("check_items_status", "active")
-      .order("check_items_order");
+    // เช็ค Items โหลดครั้งเดียวพอ (ถ้า checkListItems ว่างค่อยโหลด)
+    if (checkListItems.value.length === 0) {
+        const { data: items } = await supabase
+          .from("check_items")
+          .select("*")
+          .eq("check_items_status", "active")
+          .order("check_items_order");
 
-    // ✅ เพิ่ม detail: "" เพื่อรองรับช่องหมายเหตุ
-    checkListItems.value = items.map((item) => ({
-      ...item,
-      status: "pass",
-      detail: ""
-    })) || [];
+        checkListItems.value = items.map((item) => ({
+          ...item,
+          status: "pass",
+          detail: ""
+        })) || [];
+    }
   } catch (error) {
     console.error(error);
   } finally {
@@ -171,18 +183,18 @@ const onRequestSubmit = () => {
           employees_id: userStore.profile.employees_id,
           check_sessions_date: localDate,
           check_sessions_time_start: new Date().toLocaleTimeString("en-GB"),
-          check_sessions_status: summaryStats.value.fail > 0 ? "fail" : "pass", // อาจจะแก้เป็น 'waiting' ถ้าต้องรอตรวจ
+          check_sessions_status: summaryStats.value.fail > 0 ? "fail" : "pass",
         };
 
         const { data: session, error: sessErr } = await supabase.from("check_sessions").insert(sessionData).select().single();
         if (sessErr) throw new Error(sessErr.message);
 
-        // 2. Insert Results (✅ รวม check_results_detail ไปด้วย)
+        // 2. Insert Results
         const resultsData = checkListItems.value.map((item) => ({
           check_sessions_id: session.check_sessions_id,
           check_items_id: item.check_items_id,
           check_results_status: item.status,
-          check_results_detail: item.detail || null // 👈 บันทึกหมายเหตุ
+          check_results_detail: item.detail || null
         }));
 
         const { error: resErr } = await supabase.from("check_results").insert(resultsData);
@@ -233,6 +245,7 @@ onUnmounted(() => clearInterval(timerInterval));
     </div>
 
     <main v-else class="p-4 space-y-6 pt-20">
+
       <LocationSelector
         :locations="locations"
         :restroomTypes="restroomTypes"
@@ -241,6 +254,7 @@ onUnmounted(() => clearInterval(timerInterval));
         :currentDate="currentDate"
         :currentTime="currentTime"
         :disabledType="!!selectedLocation"
+        @refresh-locations="fetchInitialData"
       />
 
       <CheckList

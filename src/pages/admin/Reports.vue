@@ -25,7 +25,7 @@ const getDateString = (date) => {
   return `${y}-${m}-${d}`
 }
 
-// ✅ 1. เพิ่มฟังก์ชันแปลงสถานะ (อันที่ Error ว่าหาไม่เจอ)
+// ✅ 1. เพิ่มฟังก์ชันแปลงสถานะ
 const getStatusLabel = (status) => {
   const map = { 
     pass: 'เรียบร้อย', 
@@ -80,8 +80,23 @@ const fetchData = async (rangeObj = currentRange.value) => {
   try {
     const { start, end } = getQueryDates(rangeObj)
     
+    // ✅ เพิ่ม role เข้าไปในคำสั่ง select
     let query = supabase.from('check_sessions')
-      .select(`*, employees (employees_firstname, employees_lastname, employees_photo), locations (locations_name, locations_building, locations_floor)`)
+      .select(`
+        *, 
+        employees (
+          employees_firstname, 
+          employees_lastname, 
+          employees_photo, 
+          role 
+        ), 
+        locations (
+          locations_name, 
+          locations_building, 
+          locations_floor
+        ),
+        restroom_types (restroom_types_name)
+      `)
       .order('created_at', { ascending: false })
 
     if (rangeObj.type === 'today' || rangeObj.type === 'yesterday') {
@@ -114,7 +129,7 @@ const filteredLogs = computed(() => {
   )
 })
 
-// ✅ ฟังก์ชัน Export (ตอนนี้ใช้งานได้แล้วเพราะมี getStatusLabel)
+// ✅ ฟังก์ชัน Export
 const handleExport = () => {
   if (!logs.value || logs.value.length === 0) {
     return Swal.fire('ไม่มีข้อมูล', 'กรุณาเลือกช่วงเวลาที่มีข้อมูลก่อน Export', 'warning')
@@ -124,15 +139,16 @@ const handleExport = () => {
     'รหัสงาน': `#${item.check_sessions_id}`,
     'วันที่และเวลา': formatThaiDate(item.created_at),
     'ชื่อพนักงาน': `${item.employees?.employees_firstname || ''} ${item.employees?.employees_lastname || ''}`.trim() || 'ไม่ระบุ',
+    'ตำแหน่ง': item.employees?.role || '-', // เพิ่มตำแหน่งใน Export ด้วยเผื่ออยากดู
     'อาคาร': item.locations?.locations_building || '-',
     'ชั้น': item.locations?.locations_floor || '-',
     'จุดตรวจสอบ': item.locations?.locations_name || '-',
-    'สถานะ': getStatusLabel(item.check_sessions_status), // ✅ เรียกใช้ได้แล้ว
+    'สถานะ': getStatusLabel(item.check_sessions_status),
     'หมายเหตุ': item.check_sessions_note || '-'
   }))
 
   const worksheet = XLSX.utils.json_to_sheet(rows)
-  worksheet['!cols'] = [{ wch: 10 }, { wch: 22 }, { wch: 25 }, { wch: 10 }, { wch: 8 }, { wch: 25 }, { wch: 15 }, { wch: 30 }]
+  worksheet['!cols'] = [{ wch: 10 }, { wch: 22 }, { wch: 25 }, { wch: 15 }, { wch: 10 }, { wch: 8 }, { wch: 25 }, { wch: 15 }, { wch: 30 }]
   
   const workbook = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(workbook, worksheet, "Reports")

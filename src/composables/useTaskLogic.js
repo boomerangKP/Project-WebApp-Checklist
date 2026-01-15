@@ -83,7 +83,10 @@ export function useTaskLogic() {
         return {
           id: item.check_sessions_id,
           maidName: item.employees ? `${item.employees.employees_firstname} ${item.employees.employees_lastname}` : 'ไม่ระบุชื่อ',
-          maidRole: item.employees?.role === 'maid' ? 'พนักงานทำความสะอาด' : 'พนักงาน',
+          
+          // ✅ ปรับตรงนี้: ส่ง Role ไปตรงๆ (admin, maid, cleaner) ให้ Frontend จัดการเรื่องชื่อ/ไอคอนเอง
+          maidRole: item.employees?.role || 'user', 
+          
           maidPhoto: item.employees?.employees_photo,
           location: item.locations?.locations_name || 'ไม่ระบุสถานที่',
           floor: item.locations ? `${item.locations.locations_building} ชั้น ${item.locations.locations_floor}` : '-',

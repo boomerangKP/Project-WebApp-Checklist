@@ -15,14 +15,26 @@ const emit = defineEmits(['close', 'save'])
 
 const { swalError } = useSwal()
 
+// State สำหรับแจ้งเตือน Error ของ Email
+const emailError = ref('')
+
+// Map สำหรับแปลง Role เป็น Position อัตโนมัติ
+const roleToPositionMap = {
+  'admin': 'ผู้ดูแลระบบ',
+  'maid': 'แม่บ้าน',
+  'user': 'พนักงานทั่วไป',
+  'cleaner': 'พนักงานทำความสะอาด'
+}
+
 const form = ref({
   code: '',
   firstname: '',
   lastname: '',
   gender: '',
   department: '',
-  position: 'แม่บ้าน',
   role: 'maid',
+  // ✅ 1. เพิ่ม State Status
+  status: 'active',
   phone: '',
   email: '',
 })
@@ -36,11 +48,13 @@ const resetForm = () => {
     lastname: '',
     gender: '',
     department: '',
-    position: 'แม่บ้าน',
     role: 'maid',
+    // ✅ 2. Reset Status เป็น active เสมอ
+    status: 'active',
     phone: '',
     email: '',
   }
+  emailError.value = ''
 }
 
 const generateNextCode = async () => {
@@ -69,6 +83,16 @@ const generateNextCode = async () => {
   }
 }
 
+const handleEmailInput = (e) => {
+  const value = e.target.value
+  form.value.email = value
+  if (/[A-Z]/.test(value)) {
+    emailError.value = 'กรุณากรอกอีเมลด้วยตัวพิมพ์เล็ก (a-z) เท่านั้น'
+  } else {
+    emailError.value = ''
+  }
+}
+
 watch(() => props.employeeData, async (newData) => {
   if (props.isEditing && newData) {
     form.value = {
@@ -77,11 +101,13 @@ watch(() => props.employeeData, async (newData) => {
       lastname: newData.employees_lastname,
       gender: newData.employees_gender || '',
       department: newData.employees_department || '',
-      position: newData.employees_position || 'แม่บ้าน',
-      role: newData.role || 'maid',
+      role: (newData.role || 'maid').toLowerCase(),
+      // ✅ 3. โหลดค่า Status เดิมมาแสดง
+      status: newData.employees_status || 'active',
       phone: newData.employees_phone ? newData.employees_phone.replace(/-/g, '') : '',
       email: newData.employees_email || newData.email,
     }
+    emailError.value = ''
   }
 }, { immediate: true })
 
@@ -105,20 +131,28 @@ const handleSubmit = async () => {
   if (!form.value.lastname.trim()) return swalError('ข้อมูลไม่ครบ', 'กรุณากรอก นามสกุล')
   if (!form.value.gender) return swalError('ข้อมูลไม่ครบ', 'กรุณาเลือก เพศ')
   if (!form.value.department.trim()) return swalError('ข้อมูลไม่ครบ', 'กรุณาเลือก แผนก')
-  if (!form.value.position) return swalError('ข้อมูลไม่ครบ', 'กรุณาเลือก ตำแหน่ง')
   if (!form.value.role) return swalError('ข้อมูลไม่ครบ', 'กรุณาเลือก บทบาท')
+  if (!form.value.status) return swalError('ข้อมูลไม่ครบ', 'กรุณาเลือก สถานะ') // ✅ เช็ค Status
   if (!form.value.email.trim()) return swalError('ข้อมูลไม่ครบ', 'กรุณากรอก อีเมล')
-  if (!form.value.phone.trim()) return swalError('ข้อมูลไม่ครบ', 'กรุณากรอก เบอร์โทรศัพท์')
 
+  if (emailError.value) return swalError('ข้อมูลไม่ถูกต้อง', 'กรุณาแก้ไขรูปแบบอีเมลให้ถูกต้อง')
+
+  if (!form.value.phone.trim()) return swalError('ข้อมูลไม่ครบ', 'กรุณากรอก เบอร์โทรศัพท์')
   if (form.value.phone.length !== 10) {
     return swalError('ข้อมูลไม่ถูกต้อง', 'เบอร์โทรศัพท์ต้องมี 10 หลักถ้วน')
   }
 
+  const finalRole = form.value.role.toLowerCase()
+  const finalPosition = roleToPositionMap[finalRole] || 'พนักงานทั่วไป'
   const formattedPhone = form.value.phone.replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3')
 
   emit('save', {
     ...form.value,
-    phone: formattedPhone
+    role: finalRole,
+    position: finalPosition,
+    phone: formattedPhone,
+    status: form.value.status, // ✅ 4. ส่งค่า Status กลับไปบันทึก
+    email: form.value.email.toLowerCase()
   })
 }
 </script>
@@ -126,11 +160,11 @@ const handleSubmit = async () => {
 <template>
   <div>
     <Teleport to="body">
-      
+
       <div v-if="isOpen" class="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 font-sans">
-        
-        <div 
-          class="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity" 
+
+        <div
+          class="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity"
           @click="$emit('close')"
         ></div>
 
@@ -195,28 +229,38 @@ const handleSubmit = async () => {
 
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div class="space-y-1">
-                  <label class="text-xs font-bold text-gray-500 uppercase">ตำแหน่ง (แสดงผล) <span class="text-red-500">*</span></label>
-                  <select v-model="form.position" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none cursor-pointer bg-white transition-all">
-                    <option value="" disabled>เลือกตำแหน่ง</option>
-                    <option value="ผู้ดูแลระบบ">ผู้ดูแลระบบ</option>
-                    <option value="แม่บ้าน">แม่บ้าน</option>
-                    <option value="พนักงานทั่วไป">พนักงานทั่วไป</option>
-                    <option value="พนักงานทำความสะอาด">พนักงานทำความสะอาด</option>
-                  </select>
-                </div>
-                <div class="space-y-1">
-                  <label class="text-xs font-bold text-gray-500 uppercase">บทบาท (สิทธิ์) <span class="text-red-500">*</span></label>
+                  <label class="text-xs font-bold text-gray-500 uppercase">บทบาท (Role) <span class="text-red-500">*</span></label>
                   <select v-model="form.role" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none cursor-pointer bg-white transition-all">
                     <option value="" disabled>เลือกบทบาท</option>
                     <option value="admin">Admin (ผู้ดูแลระบบ)</option>
-                    <option value="maid">User (ผู้ใช้งานทั่วไป)</option>
+                    <option value="maid">Maid (แม่บ้าน)</option>
+                    <option value="user">General Staff (พนักงานทั่วไป)</option>
+                    <option value="cleaner">Cleaner (พนักงานทำความสะอาด)</option>
+                  </select>
+                </div>
+                <div class="space-y-1">
+                  <label class="text-xs font-bold text-gray-500 uppercase">สถานะ (Status) <span class="text-red-500">*</span></label>
+                  <select v-model="form.status" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none cursor-pointer bg-white transition-all">
+                    <option value="active">ปกติ (Active)</option>
+                    <option value="inactive">ไม่เคลื่อนไหว (Inactive)</option>
+                    <option value="suspended">ระงับ (Suspended)</option>
                   </select>
                 </div>
               </div>
 
               <div class="space-y-1">
                 <label class="text-xs font-bold text-gray-500 uppercase">อีเมล <span class="text-red-500">*</span></label>
-                <input v-model="form.email" type="email" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all" placeholder="example@mail.com">
+                <input
+                  :value="form.email"
+                  @input="handleEmailInput"
+                  type="email"
+                  class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 outline-none transition-all"
+                  :class="emailError ? 'border-red-500 focus:ring-red-200 bg-red-50 text-red-900' : 'border-gray-300 focus:ring-indigo-500'"
+                  placeholder="example@mail.com"
+                >
+                <p v-if="emailError" class="text-xs text-red-500 mt-1 font-medium animate-pulse">
+                  {{ emailError }}
+                </p>
               </div>
 
               <div class="space-y-1">
@@ -250,7 +294,6 @@ const handleSubmit = async () => {
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-/* Custom Scrollbar */
 .custom-scrollbar::-webkit-scrollbar { width: 4px; }
 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
 .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }

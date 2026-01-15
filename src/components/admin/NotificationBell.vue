@@ -30,7 +30,7 @@ const fetchTimeSlots = async () => {
 const getSlotName = (dateString) => {
   if (!dateString) return '-'
   const date = new Date(dateString)
-  const timeStr = date.toLocaleTimeString('en-GB', { hour12: false }) 
+  const timeStr = date.toLocaleTimeString('en-GB', { hour12: false })
   const match = timeSlots.value.find(slot => timeStr >= slot.time_slots_start && timeStr < slot.time_slots_end)
   return match ? match.time_slots_name : dayjs(dateString).format('HH.mm น.')
 }
@@ -51,7 +51,7 @@ const subscribeRealtime = () => {
 }
 
 const handleClick = async (noti) => {
-  showDropdown.value = false 
+  showDropdown.value = false
   if (!noti.is_read) {
     noti.is_read = true
     supabase.from('notifications').update({ is_read: true }).eq('id', noti.id).then()
@@ -70,7 +70,7 @@ const markAllRead = async () => {
 
   // อัปเดตลงฐานข้อมูล
   await supabase.from('notifications').update({ is_read: true }).eq('is_read', false)
-  
+
   // แจ้งเตือนเล็กๆ (Toast)
   const Toast = Swal.mixin({
     toast: true, position: 'top-end', showConfirmButton: false, timer: 1500, timerProgressBar: true
@@ -85,7 +85,7 @@ const deleteAll = async () => {
     text: "ข้อความทั้งหมดจะหายไปและกู้คืนไม่ได้",
     icon: 'warning',
     showCancelButton: true,
-    confirmButtonColor: '#ef4444', 
+    confirmButtonColor: '#ef4444',
     cancelButtonColor: '#9ca3af',
     confirmButtonText: 'ลบเลย',
     cancelButtonText: 'ยกเลิก',
@@ -94,11 +94,11 @@ const deleteAll = async () => {
 
   if (result.isConfirmed) {
     Swal.fire({ title: 'กำลังลบ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() })
-    
+
     try {
       const { error } = await supabase.from('notifications').delete().gt('id', 0)
       if (error) throw error
-      notifications.value = [] 
+      notifications.value = []
       Swal.fire({ icon: 'success', title: 'ลบเรียบร้อย!', timer: 1500, showConfirmButton: false })
     } catch (err) {
       Swal.fire('Error', err.message, 'error')
@@ -126,15 +126,15 @@ const handleScroll = (event) => {
   if (!isScrollingInside) showDropdown.value = false
 }
 
-onMounted(() => { 
+onMounted(() => {
   fetchTimeSlots()
   fetchNotifications()
-  subscribeRealtime() 
+  subscribeRealtime()
   document.addEventListener('click', handleClickOutside)
-  window.addEventListener('scroll', handleScroll, true) 
+  window.addEventListener('scroll', handleScroll, true)
 })
 
-onUnmounted(() => { 
+onUnmounted(() => {
   if (realtimeSubscription) supabase.removeChannel(realtimeSubscription)
   document.removeEventListener('click', handleClickOutside)
   window.removeEventListener('scroll', handleScroll, true)
@@ -154,21 +154,21 @@ onUnmounted(() => {
     </button>
 
     <div v-if="showDropdown" class="absolute right-0 mt-3 w-[400px] bg-white rounded-xl shadow-2xl border border-gray-100 z-[999] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-      
+
       <div class="px-5 py-4 flex justify-between items-center bg-white border-b border-gray-100">
         <h3 class="font-bold text-gray-800 text-lg">การแจ้งเตือน</h3>
-        
+
         <div class="flex items-center gap-2">
-          <button v-if="notifications.length > 0" @click.stop="deleteAll" 
-            class="group flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium text-gray-400 hover:text-red-600 hover:bg-red-50 transition-all" 
+          <button v-if="notifications.length > 0" @click.stop="deleteAll"
+            class="group flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium text-gray-400 hover:text-red-600 hover:bg-red-50 transition-all"
             title="ลบประวัติทั้งหมด">
-             <Trash2 class="w-3.5 h-3.5" /> 
+             <Trash2 class="w-3.5 h-3.5" />
              <span>ล้างประวัติ</span>
           </button>
 
           <div v-if="notifications.length > 0 && unreadCount > 0" class="h-4 w-[1px] bg-gray-200"></div>
 
-          <button v-if="unreadCount > 0" @click.stop="markAllRead" 
+          <button v-if="unreadCount > 0" @click.stop="markAllRead"
             class="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium text-blue-600 hover:bg-blue-50 transition-all">
             <CheckCheck class="w-3.5 h-3.5" />
             <span>อ่านทั้งหมด</span>
@@ -212,7 +212,7 @@ onUnmounted(() => {
                   <span class="flex items-center gap-0.5"><Clock class="w-3 h-3" /> {{ getSlotName(noti.created_at) }}</span>
                </div>
                <div class="flex items-center gap-1 text-[10px] text-gray-400 mt-1 truncate">
-                  <MapPin class="w-3 h-3 flex-shrink-0" /> <span class="truncate">{{ parseMessage(noti.message).detail }}</span>
+                  <MapPin class="w-3 h-3 flex-shrink-0" /> <span class="truncate">อาคาร {{ parseMessage(noti.message).detail }}</span>
                </div>
             </div>
           </div>

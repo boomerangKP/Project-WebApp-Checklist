@@ -42,7 +42,7 @@ watch(() => props.isOpen, (val) => {
         building: item.locations_building,
         floor: item.locations_floor,
         typeId: item.restroom_types_id,
-        status: item.locations_status
+        status: item.locations_status || 'active' // Load status
       })
     } else {
       Object.assign(formData, {
@@ -106,21 +106,41 @@ const createFloor = () => {
 const handleSubmit = () => {
   emit('save', { ...formData })
 }
+
+// Helper แสดงข้อความสถานะ
+const getStatusLabel = (status) => {
+  switch(status) {
+    case 'active': return 'กำลังเปิดใช้งาน (Active)'
+    case 'maintenance': return 'กำลังปิดปรับปรุง (Maintenance)'
+    case 'inactive': return 'ปิดการใช้งานถาวร (Inactive)'
+    default: return status
+  }
+}
+
+// Helper สีข้อความสถานะ
+const getStatusColor = (status) => {
+  switch(status) {
+    case 'active': return 'text-emerald-600'
+    case 'maintenance': return 'text-orange-600'
+    case 'inactive': return 'text-gray-500'
+    default: return 'text-gray-500'
+  }
+}
 </script>
 
 <template>
   <div>
     <Teleport to="body">
-      
+
       <div v-if="isOpen" class="fixed inset-0 z-[9999] flex items-center justify-center p-4">
-        
-        <div 
-          class="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity" 
+
+        <div
+          class="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
           @click="$emit('close')"
         ></div>
 
         <div class="bg-white w-full max-w-lg rounded-2xl shadow-xl overflow-visible animate-in zoom-in-95 relative z-10">
-          
+
           <div v-if="showBuildingDropdown || showFloorDropdown" @click="showBuildingDropdown = false; showFloorDropdown = false" class="fixed inset-0 z-[60] bg-transparent"></div>
 
           <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50 rounded-t-2xl">
@@ -132,7 +152,7 @@ const handleSubmit = () => {
           </div>
 
           <form @submit.prevent="handleSubmit" class="p-6 space-y-5">
-            
+
             <div class="grid grid-cols-2 gap-4">
                <div class="space-y-1">
                  <label class="text-xs font-bold text-gray-500 uppercase">รหัส (Code) <span class="text-red-500">*</span></label>
@@ -153,10 +173,10 @@ const handleSubmit = () => {
             </div>
 
             <div class="grid grid-cols-2 gap-4">
-               
+
                <div class="space-y-1 relative">
                  <label class="text-xs font-bold text-gray-500 uppercase">อาคาร <span class="text-red-500">*</span></label>
-                 <div 
+                 <div
                    @click="showBuildingDropdown = !showBuildingDropdown; showFloorDropdown = false"
                    class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm flex items-center justify-between cursor-pointer hover:bg-white hover:border-emerald-500 transition-colors"
                    :class="{'ring-2 ring-emerald-500 border-emerald-500 bg-white': showBuildingDropdown}"
@@ -186,7 +206,7 @@ const handleSubmit = () => {
 
                <div class="space-y-1 relative">
                  <label class="text-xs font-bold text-gray-500 uppercase">ชั้น <span class="text-red-500">*</span></label>
-                 <div 
+                 <div
                    @click="formData.building ? (showFloorDropdown = !showFloorDropdown, showBuildingDropdown = false) : null"
                    class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm flex items-center justify-between cursor-pointer transition-colors"
                    :class="{
@@ -227,13 +247,22 @@ const handleSubmit = () => {
             <div class="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-200">
               <div class="flex flex-col">
                  <span class="text-sm font-bold text-gray-900">สถานะการใช้งาน</span>
-                 <span class="text-xs text-gray-500">{{ formData.status === 'active' ? 'กำลังเปิดใช้งาน (Active)' : 'ปิดการใช้งานชั่วคราว (Inactive)' }}</span>
+                 <span class="text-xs transition-colors" :class="getStatusColor(formData.status)">
+                   {{ getStatusLabel(formData.status) }}
+                 </span>
               </div>
-              
-              <label class="relative inline-flex items-center cursor-pointer">
-                <input type="checkbox" class="sr-only peer" :checked="formData.status === 'active'" @change="formData.status = $event.target.checked ? 'active' : 'inactive'">
-                <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-emerald-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
-              </label>
+
+              <div class="relative w-40">
+                <select
+                  v-model="formData.status"
+                  class="w-full pl-3 pr-8 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none appearance-none cursor-pointer hover:border-emerald-500 transition-colors"
+                >
+                  <option value="active">🟢 ปกติ</option>
+                  <option value="maintenance">🟠 ปิดปรับปรุง</option>
+                  <option value="inactive">🔴 ปิดใช้งาน</option>
+                </select>
+                <ChevronDown class="w-4 h-4 absolute right-3 top-2.5 text-gray-500 pointer-events-none"/>
+              </div>
             </div>
 
             <div class="pt-4 flex gap-3 border-t border-gray-100 mt-4">

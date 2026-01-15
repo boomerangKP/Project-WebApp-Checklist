@@ -1,23 +1,20 @@
 <script setup>
 import { computed } from 'vue'
-import { useRoute } from 'vue-router' // ✅ เรียกใช้ route เพื่อดูว่าอยู่หน้าไหน
+import { useRoute } from 'vue-router'
 import { supabase } from '@/lib/supabase'
 import { useUserStore } from '@/stores/user'
 import Notification from '@/components/admin/NotificationBell.vue'
 import { useSwal } from '@/composables/useSwal'
-import { Menu, LogOut, } from 'lucide-vue-next' // เผื่อใช้ปุ่ม Menu บนมือถือ
+// ✅ เพิ่ม ShieldCheck เข้ามา
+import { Menu, LogOut, ShieldCheck } from 'lucide-vue-next'
 
 const route = useRoute()
 const userStore = useUserStore()
 const { swalConfirm } = useSwal()
 
 // ✅ Logic การแสดงชื่อหน้า (Breadcrumb แบบง่าย)
-// ตรวจสอบจาก route.name หรือกำหนดเอง
 const pageTitle = computed(() => {
   const name = route.name || ''
-
-  // แปลงชื่อ Route เป็นภาษาไทย (ถ้า Route name คุณตั้งเป็นภาษาอังกฤษ)
-  // หรือถ้า Route name เป็นไทยอยู่แล้วก็ใช้ name ได้เลย
   switch (name) {
     case 'admin-dashboard': return 'แดชบอร์ด'
     case 'check-tasks': return 'ตรวจสอบงาน'
@@ -28,7 +25,6 @@ const pageTitle = computed(() => {
     case 'admin-qrcodeprinter': return 'จัดการข้อมูล'
     case 'report-satisfaction': return 'รายงานผล'
     case 'admin-editfeedback': return 'จัดการข้อมูล'
-    // ... เพิ่ม case ตามชื่อ route ใน router/index.js ของคุณ
     default: return 'ระบบบริหารจัดการสุขอนามัยอาคาร'
   }
 })
@@ -76,24 +72,19 @@ const onLogoutClick = async () => {
           <div class="text-sm font-bold text-gray-800">
             {{ userStore.profile?.employees_firstname || 'Admin' }} {{ userStore.profile?.employees_lastname || '' }}
           </div>
-          <button 
-    @click="onLogoutClick" 
-    class="text-xs text-red-500 hover:text-red-700 underline flex items-center justify-end w-full gap-1"
-  >
-    Logout 
-    <LogOut class="w-3 h-3" />
-  </button>
+          <button
+            @click="onLogoutClick"
+            class="text-xs text-red-500 hover:text-red-700 underline flex items-center justify-end w-full gap-1"
+          >
+            Logout
+            <LogOut class="w-3 h-3" />
+          </button>
         </div>
 
-        <div class="h-10 w-10 rounded-full bg-yellow-100 flex items-center justify-center overflow-hidden border border-gray-200 shadow-sm">
-          <img
-            v-if="userStore.profile?.employees_photo"
-            :src="userStore.profile.employees_photo"
-            alt="Profile"
-            class="h-full w-full object-cover"
-          />
-          <span v-else class="text-xl">🍌</span>
+        <div class="h-10 w-10 rounded-full bg-indigo-50 flex items-center justify-center overflow-hidden border border-indigo-100 shadow-sm">
+           <ShieldCheck class="w-6 h-6 text-indigo-600" />
         </div>
+
       </div>
 
     </div>

@@ -12,7 +12,11 @@ import {
   Building,
   Layers,
   MapPin,
-  Calendar 
+  Calendar,
+  // ✅ เพิ่มไอคอน Role
+  ShieldCheck,
+  SprayCan,
+  User 
 } from "lucide-vue-next";
 
 const props = defineProps(["logs", "loading"]);
@@ -122,6 +126,22 @@ const copyJobId = async (id) => {
     setTimeout(() => (copiedId.value = null), 2000);
   } catch (e) {}
 };
+
+// ✅ Helper: Role Config (Icon/Emoji)
+const getRoleConfig = (role) => {
+  const r = role ? role.toLowerCase() : 'user';
+  switch (r) {
+    case 'admin':
+      return { type: 'icon', icon: ShieldCheck, class: 'bg-purple-100 text-purple-600 border-purple-200' };
+    case 'maid':
+      return { type: 'icon', icon: SprayCan, class: 'bg-rose-100 text-rose-600 border-rose-200' };
+    case 'cleaner':
+      // ✅ Emoji 🧹 พื้นหลังสีเทา
+      return { type: 'emoji', icon: '🧹', class: 'bg-gray-200 text-base border-transparent' };
+    default:
+      return { type: 'icon', icon: User, class: 'bg-gray-100 text-gray-500 border-gray-200' };
+  }
+};
 </script>
 
 <template>
@@ -217,12 +237,26 @@ const copyJobId = async (id) => {
 
             <td class="px-4 py-2.5">
               <div class="flex items-center gap-2">
-                <img
-                  :src="
-                    log.employees?.employees_photo || 'https://via.placeholder.com/40'
-                  "
-                  class="w-7 h-7 rounded-full object-cover border"
-                />
+                
+                <div class="w-7 h-7 rounded-full overflow-hidden border flex-shrink-0">
+                   <img
+                    v-if="log.employees?.employees_photo"
+                    :src="log.employees.employees_photo"
+                    class="w-full h-full object-cover"
+                   />
+                   
+                   <div
+                    v-else
+                    class="w-full h-full flex items-center justify-center border"
+                    :class="getRoleConfig(log.employees?.role).class"
+                   >
+                     <span v-if="getRoleConfig(log.employees?.role).type === 'emoji'" class="leading-none pt-0.5">
+                        {{ getRoleConfig(log.employees?.role).icon }}
+                     </span>
+                     <component v-else :is="getRoleConfig(log.employees?.role).icon" class="w-4 h-4" />
+                   </div>
+                </div>
+
                 <span class="font-medium text-gray-900">{{
                   log.employees?.employees_firstname
                 }}</span>
@@ -236,22 +270,22 @@ const copyJobId = async (id) => {
                   {{ log.locations?.locations_name }}
                 </span>
                 <span v-if="log.restroom_types?.restroom_types_name" class="text-xs text-gray-500 pl-5">
-                   {{ log.restroom_types?.restroom_types_name }}
+                    {{ log.restroom_types?.restroom_types_name }}
                 </span>
               </div>
             </td>
 
             <td class="px-4 py-2.5 text-center">
-               <div class="inline-flex items-center gap-1.5 text-gray-700  px-2 py-1 ">
+                <div class="inline-flex items-center gap-1.5 text-gray-700  px-2 py-1 ">
                   
                   <span class="font-medium">{{ log.locations?.locations_building || '-' }}</span>
-               </div>
+                </div>
             </td>
 
             <td class="px-4 py-2.5 text-center">
-               <div class="inline-flex items-center justify-center min-w-[30px] h-[24px] text-gray-700 text-xs font-bold">
+                <div class="inline-flex items-center justify-center min-w-[30px] h-[24px] text-gray-700 text-xs font-bold">
                   {{ log.locations?.locations_floor || '-' }}
-               </div>
+                </div>
             </td>
 
             <td class="px-4 py-2.5 text-center">
