@@ -1,172 +1,156 @@
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
-import { ArrowLeft, AlertCircle } from 'lucide-vue-next'
-import { useSwal } from '@/composables/useSwal'
+import { ref, onMounted, onUnmounted } from 'vue';
+import { useRouter } from 'vue-router';
+import { BrowserMultiFormatReader, NotFoundException } from '@zxing/library';
+import { ArrowLeft, RefreshCw } from 'lucide-vue-next';
+import Swal from 'sweetalert2';
 
-const router = useRouter()
-const { swalError } = useSwal()
+const router = useRouter();
+const videoRef = ref(null);
+const codeReader = new BrowserMultiFormatReader();
+const isScanning = ref(true);
+const statusMsg = ref('กำลังเตรียมกล้อง...');
 
-// State
-const hasPermission = ref(null)
-const isScanning = ref(true)
-const errorMessage = ref('')
-let html5QrCode = null
-
-// ✅ Config: คำนวณ qrbox ตามขนาดหน้าจอ
-const getQrBoxSize = (viewfinderWidth, viewfinderHeight) => {
-  const minEdgePercentage = 0.70;
-  const minSize = Math.min(viewfinderWidth, viewfinderHeight);
-  const boxSize = Math.floor(minSize * minEdgePercentage);
-  return { width: boxSize, height: boxSize };
-}
-
-// 🔥 ปรับจูนความแรงตรงนี้
-const config = {
-  fps: 20, // 🚀 เพิ่มจาก 10 เป็น 20 ให้สแกนไวขึ้น
-  qrbox: getQrBoxSize,
-  formatsToSupport: [ Html5QrcodeSupportedFormats.QR_CODE ],
-  aspectRatio: 1.0,
-  // ✅ เปิดฟีเจอร์ลับ: ใช้ตัวอ่านของ Browser (เร็วขึ้น 5 เท่า)
-  experimentalFeatures: {
-    useBarCodeDetectorIfSupported: true
-  }
-}
-
-const startScanner = async () => {
+// ฟังก์ชันเริ่มทำงาน
+const startScan = async () => {
   try {
-    // เช็คอุปกรณ์
-    const devices = await Html5Qrcode.getCameras()
-
-    if (devices && devices.length) {
-      hasPermission.value = true
-      html5QrCode = new Html5Qrcode("qr-reader")
-
-      // ✅ บังคับกล้องหลัง + พยายามโฟกัส
-      const cameraConfig = { 
-        facingMode: "environment",
-        focusMode: "continuous" // พยายามโฟกัสตลอดเวลา
-      };
-
-      await html5QrCode.start(
-        cameraConfig, 
-        config,
-        onScanSuccess,
-        onScanFailure
-      )
-
-    } else {
-      hasPermission.value = false
-      errorMessage.value = 'ไม่พบกล้องในอุปกรณ์นี้'
-      swalError('ไม่พบกล้อง', 'อุปกรณ์นี้ไม่มีกล้อง')
+    statusMsg.value = 'กำลังค้นหากล้อง...';
+    
+    // 1. ดึงรายการกล้อง
+    const videoInputDevices = await codeReader.listVideoInputDevices();
+    
+    if (videoInputDevices.length === 0) {
+      throw new Error('NotFound');
     }
+
+    // 2. เลือกกล้องหลัง (Priority: Back > Environment > Rear > ตัวสุดท้าย)
+    let selectedDeviceId = videoInputDevices[0].deviceId; 
+
+    const backCamera = videoInputDevices.find(device => 
+      device.label.toLowerCase().includes('back') || 
+      device.label.toLowerCase().includes('environment') ||
+      device.label.toLowerCase().includes('rear')
+    );
+
+    if (backCamera) {
+      selectedDeviceId = backCamera.deviceId;
+    } else if (videoInputDevices.length > 1) {
+      selectedDeviceId = videoInputDevices[videoInputDevices.length - 1].deviceId;
+    }
+
+    statusMsg.value = 'กำลังเปิดกล้อง...';
+
+    // 3. เริ่มสแกน
+    await codeReader.decodeFromVideoDevice(
+      selectedDeviceId,
+      videoRef.value,
+      (result, err) => {
+        if (result && isScanning.value) {
+          handleResult(result.getText());
+        }
+        // Error ยิบย่อยตอนกำลังสแกน (เช่นภาพเบลอ) ปล่อยผ่าน
+      }
+    );
+    
+    statusMsg.value = 'พร้อมสแกน';
+
   } catch (err) {
-    hasPermission.value = false
-    errorMessage.value = 'กรุณาอนุญาตการเข้าถึงกล้อง'
-    // console.error(err) // ปิด log ตามขอ
+    handleError(err);
   }
-}
+};
 
-const onScanSuccess = (decodedText, decodedResult) => {
-  if (!isScanning.value) return
-  isScanning.value = false // ล็อกไม่ให้สแกนซ้ำ
-
-  // สั่นเมื่อเจอ
+const handleResult = (text) => {
+  isScanning.value = false; // หยุดการทำงานซ้ำ
+  
+  // สั่นแจ้งเตือน
   if (navigator.vibrate) navigator.vibrate(200);
 
-  let token = decodedText;
-
-  // ตัด Token (Logic เดิมของพี่)
-  if (decodedText.includes('/scan/')) {
-    const parts = decodedText.split('/scan/');
-    if (parts.length > 1) {
-      token = parts[1];
-    }
+  // ตัด Token
+  let token = text;
+  if (text.includes('/scan/')) {
+    token = text.split('/scan/')[1];
   }
 
-  // หยุดกล้องแล้วไปต่อ
-  stopCamera().then(() => {
-    // console.log(`Scan Token: ${token}`) // ปิด log
-    router.replace({
-      name: 'scan-handler',
-      params: { token: token }
-    })
-  }).catch(err => {
-    // กรณีหยุดกล้องไม่ทัน ก็ให้ไปต่อเลย
-    router.replace({
-      name: 'scan-handler',
-      params: { token: token }
-    })
-  })
-}
+  // ส่งไปหน้าตรวจสอบ (scan-handler)
+  router.replace({ 
+    name: 'scan-handler', 
+    params: { token: token } 
+  });
+};
 
-const onScanFailure = (error) => {
-  // ไม่ต้องทำอะไร ถ้ายังไม่เจอ
-}
-
-const stopCamera = async () => {
-  if (html5QrCode && html5QrCode.isScanning) {
-    try {
-      await html5QrCode.stop()
-      html5QrCode.clear()
-    } catch (e) {
-      // ignore error on stop
-    }
+const handleError = (err) => {
+  let msg = err.message;
+  let title = 'ไม่สามารถเปิดกล้องได้';
+  
+  // แปลงข้อความ Error ให้ User เข้าใจง่าย
+  if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+    msg = 'กรุณากดอนุญาตให้ใช้งานกล้องที่ตัวเลือกของ Browser';
+    title = 'สิทธิ์ถูกปฏิเสธ';
+  } else if (msg === 'NotFound') {
+    msg = 'ไม่พบอุปกรณ์กล้องในเครื่องนี้';
+  } else if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost') {
+    msg = 'ระบบสแกนต้องใช้งานผ่าน HTTPS เท่านั้น';
+    title = 'ความปลอดภัย';
   }
-}
+
+  // ใช้ SweetAlert2 แจ้งเตือนแล้วดีดกลับ
+  Swal.fire({
+    icon: 'error',
+    title: title,
+    text: msg,
+    confirmButtonText: 'กลับหน้าหลัก',
+    allowOutsideClick: false,
+    confirmButtonColor: '#4f46e5'
+  }).then(() => {
+    router.back();
+  });
+};
+
+const resetScanner = () => {
+    window.location.reload(); 
+};
 
 onMounted(() => {
-  startScanner()
-})
+  setTimeout(() => {
+     startScan();
+  }, 500);
+});
 
 onUnmounted(() => {
-  stopCamera()
-})
+  codeReader.reset();
+});
 </script>
 
 <template>
-  <div class="fixed inset-0 z-50 bg-black flex flex-col overflow-hidden">
-
-    <div class="absolute top-0 left-0 right-0 p-4 pt-safe z-20 flex justify-between items-center bg-gradient-to-b from-black/80 to-transparent">
-      <button @click="router.back()" class="p-3 rounded-full bg-white/10 backdrop-blur-md text-white border border-white/10 hover:bg-white/20 transition-all">
+  <div class="fixed inset-0 bg-black z-50 flex flex-col">
+    
+    <div class="absolute top-0 left-0 right-0 z-20 p-4 pt-safe flex justify-between items-center bg-black/40 backdrop-blur-md">
+      <button @click="router.back()" class="p-3 bg-white/10 rounded-full text-white hover:bg-white/20 transition-all">
         <ArrowLeft class="w-6 h-6" />
       </button>
-      <h1 class="text-white font-bold text-lg drop-shadow-md">สแกน QR Code</h1>
-      <div class="w-12"></div>
+      <h1 class="text-white font-bold text-lg">สแกน QR Code</h1>
+      <button @click="resetScanner" class="p-3 bg-white/10 rounded-full text-white hover:bg-white/20 transition-all">
+        <RefreshCw class="w-6 h-6" />
+      </button>
     </div>
 
-    <div class="flex-1 relative bg-black w-full h-full">
+    <div class="flex-1 bg-black relative flex flex-col justify-center overflow-hidden">
+      
+      <video 
+        ref="videoRef" 
+        class="w-full h-full object-cover"
+      ></video>
 
-      <div id="qr-reader"></div>
-
-      <div v-if="hasPermission" class="absolute inset-0 z-10 pointer-events-none flex flex-col items-center justify-center">
-
-        <div class="relative z-10 rounded-xl shadow-[0_0_0_9999px_rgba(0,0,0,0.6)]"
-             :style="{ width: '70vw', height: '70vw', maxWidth: '300px', maxHeight: '300px' }">
-
-          <div class="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-indigo-400 rounded-tl-xl"></div>
-          <div class="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-indigo-400 rounded-tr-xl"></div>
-          <div class="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-indigo-400 rounded-bl-xl"></div>
-          <div class="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-indigo-400 rounded-br-xl"></div>
-
-          <div class="absolute top-0 left-0 w-full h-0.5 bg-indigo-400 shadow-[0_0_15px_rgba(99,102,241,1)] animate-scan"></div>
+      <div class="absolute inset-0 pointer-events-none flex items-center justify-center">
+        <div class="w-64 h-64 border-4 border-green-500/50 rounded-xl relative shadow-[0_0_0_9999px_rgba(0,0,0,0.5)]">
+           <div class="absolute inset-x-0 top-1/2 h-0.5 bg-green-400 animate-pulse"></div>
         </div>
-
-        <p class="relative z-20 mt-8 text-white/90 text-sm font-medium bg-black/60 px-6 py-2 rounded-full backdrop-blur-md border border-white/10">
-          วาง QR Code ในกรอบ
-        </p>
       </div>
 
-      <div v-if="hasPermission === false" class="absolute inset-0 z-30 flex flex-col items-center justify-center text-white bg-gray-900 p-8 text-center">
-        <div class="w-20 h-20 bg-gray-800 rounded-full flex items-center justify-center mb-6">
-          <AlertCircle class="w-10 h-10 text-red-500" />
-        </div>
-        <h3 class="text-xl font-bold mb-2">เข้าถึงกล้องไม่ได้</h3>
-        <p class="text-gray-400 mb-8">{{ errorMessage }}</p>
-        <button @click="router.back()" class="bg-indigo-600 px-8 py-3 rounded-xl text-white font-bold w-full max-w-xs">
-          กลับหน้าหลัก
-        </button>
+      <div class="absolute bottom-10 left-0 right-0 text-center pointer-events-none">
+         <p class="text-white bg-black/50 px-4 py-2 rounded-full inline-block text-sm backdrop-blur">
+           {{ statusMsg }}
+         </p>
       </div>
 
     </div>
@@ -174,39 +158,7 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-/* CSS เดิมของพี่ (สำคัญมาก ห้ามลบ) */
-:deep(#qr-reader) {
-  width: 100% !important;
-  height: 100% !important;
-  border: none !important;
-  position: absolute;
-  top: 0;
-  left: 0;
-}
-
-:deep(#qr-reader video) {
-  width: 100% !important;
-  height: 100% !important;
-  object-fit: cover !important; /* ทำให้เต็มจอ */
-}
-
-/* ซ่อนปุ่มเดิมของ Library */
-:deep(#qr-reader__dashboard_section_csr),
-:deep(#qr-reader__dashboard_section_swaplink) {
-  display: none !important;
-}
-
 .pt-safe {
   padding-top: max(1rem, env(safe-area-inset-top));
-}
-
-@keyframes scan {
-  0% { top: 0%; opacity: 0; }
-  10% { opacity: 1; }
-  90% { opacity: 1; }
-  100% { top: 100%; opacity: 0; }
-}
-.animate-scan {
-  animation: scan 2s ease-in-out infinite;
 }
 </style>
