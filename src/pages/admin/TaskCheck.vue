@@ -33,7 +33,7 @@ const openTaskDetail = (id) => router.push({ path: `/admin/check/${id}` })
       <h1 class="text-2xl font-bold text-gray-800">รายการตรวจสอบงาน</h1>
     </div>
 
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-[calc(100vh-220px)] relative">
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-[calc(100vh-195px)] relative">
 
       <div class="p-4 border-b border-gray-100 shrink-0 bg-white z-5">
         <TaskFilter

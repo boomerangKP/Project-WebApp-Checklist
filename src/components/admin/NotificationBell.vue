@@ -1,7 +1,18 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { supabase } from '@/lib/supabase'
-import { Bell, Calendar, Clock, MapPin, Trash2, CheckCheck } from 'lucide-vue-next' // ✅ เพิ่มไอคอน CheckCheck
+import {
+  Bell,
+  Calendar,
+  Clock,
+  MapPin,
+  Trash2,
+  CheckCheck,
+  // ✅ เพิ่มไอคอน Role
+  ShieldCheck,
+  SprayCan,
+  User
+} from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
 import Swal from 'sweetalert2'
 import dayjs from 'dayjs'
@@ -35,16 +46,26 @@ const getSlotName = (dateString) => {
   return match ? match.time_slots_name : dayjs(dateString).format('HH.mm น.')
 }
 
+// ✅ แก้ไข fetchNotifications ให้ดึง role มาด้วย
 const fetchNotifications = async () => {
-  const { data } = await supabase.from('notifications').select(`*, employees (employees_photo)`).order('created_at', { ascending: false }).limit(20)
+  const { data } = await supabase
+    .from('notifications')
+    .select(`*, employees (employees_photo, role)`) // เพิ่ม role
+    .order('created_at', { ascending: false })
+    .limit(20)
   if (data) notifications.value = data
 }
 
+// ✅ แก้ไข Realtime ให้ดึง role มาด้วย
 const subscribeRealtime = () => {
   realtimeSubscription = supabase.channel('noti-realtime')
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, async (payload) => {
       const newNoti = payload.new
-      const { data: emp } = await supabase.from('employees').select('employees_photo').eq('employees_id', newNoti.actor_id).single()
+      const { data: emp } = await supabase
+        .from('employees')
+        .select('employees_photo, role') // เพิ่ม role
+        .eq('employees_id', newNoti.actor_id)
+        .single()
       notifications.value.unshift({ ...newNoti, employees: emp })
     })
     .subscribe()
@@ -86,7 +107,7 @@ const deleteAll = async () => {
     icon: 'warning',
     showCancelButton: true,
     confirmButtonColor: '#ef4444',
-    cancelButtonColor: '#9ca3af',
+    confirmButtonColor: '#9ca3af',
     confirmButtonText: 'ลบเลย',
     cancelButtonText: 'ยกเลิก',
     reverseButtons: true
@@ -125,6 +146,21 @@ const handleScroll = (event) => {
   const isScrollingInside = containerRef.value && containerRef.value.contains(event.target)
   if (!isScrollingInside) showDropdown.value = false
 }
+
+// ✅ Helper: Role Config
+const getRoleConfig = (role) => {
+  const r = role ? role.toLowerCase() : 'user';
+  switch (r) {
+    case 'admin':
+      return { type: 'icon', icon: ShieldCheck, class: 'bg-purple-100 text-purple-600' };
+    case 'maid':
+      return { type: 'icon', icon: SprayCan, class: 'bg-rose-100 text-rose-600' };
+    case 'cleaner':
+      return { type: 'emoji', icon: '🧹', class: 'bg-gray-200 text-lg' }; // 🧹 ไม้กวาด
+    default:
+      return { type: 'icon', icon: User, class: 'bg-gray-100 text-gray-500' };
+  }
+};
 
 onMounted(() => {
   fetchTimeSlots()
@@ -195,9 +231,21 @@ onUnmounted(() => {
           <div class="flex gap-4">
             <div class="w-[45%] flex gap-3 items-center border-r border-gray-300/50 pr-2">
                <div class="flex-shrink-0">
-                  <div class="w-12 h-12 rounded-full overflow-hidden border-2 border-white shadow-sm relative">
-                    <img :src="noti.employees?.employees_photo || 'https://via.placeholder.com/150'" class="w-full h-full object-cover" />
-                  </div>
+
+                 <div class="w-12 h-12 rounded-full overflow-hidden border-2 border-white shadow-sm relative">
+                    <img v-if="noti.employees?.employees_photo" :src="noti.employees.employees_photo" class="w-full h-full object-cover" />
+
+                    <div v-else
+                         class="w-full h-full flex items-center justify-center border"
+                         :class="getRoleConfig(noti.employees?.role).class"
+                    >
+                         <span v-if="getRoleConfig(noti.employees?.role).type === 'emoji'" class="leading-none pt-1">
+                            {{ getRoleConfig(noti.employees?.role).icon }}
+                         </span>
+                         <component v-else :is="getRoleConfig(noti.employees?.role).icon" class="w-6 h-6" />
+                    </div>
+                 </div>
+
                </div>
                <div class="min-w-0">
                   <h4 class="font-bold text-gray-900 text-sm truncate">{{ noti.title }}</h4>

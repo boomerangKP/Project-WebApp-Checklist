@@ -10,16 +10,12 @@ const props = defineProps({
 
 const emit = defineEmits(['toggle', 'toggle-all'])
 
-// --- ⚡ ส่วน Pagination State (รวมไว้ที่นี่เลย) ---
+// --- ⚡ ส่วน Pagination State ---
 const currentPage = ref(1)
 const itemsPerPage = ref(10)
 
-// รีเซ็ตหน้าเมื่อข้อมูลเปลี่ยน
-watch(() => props.locations, () => {
-  currentPage.value = 1
-})
+watch(() => props.locations, () => { currentPage.value = 1 })
 
-// --- 🧮 Logic คำนวณการตัดแบ่งหน้า ---
 const totalPages = computed(() => Math.ceil(props.locations.length / itemsPerPage.value) || 1)
 
 const paginatedLocations = computed(() => {
@@ -31,7 +27,7 @@ const paginatedLocations = computed(() => {
 const startItem = computed(() => props.locations.length === 0 ? 0 : (currentPage.value - 1) * itemsPerPage.value + 1)
 const endItem = computed(() => Math.min(currentPage.value * itemsPerPage.value, props.locations.length))
 
-// --- 🔢 Logic สร้างปุ่มตัวเลข (1 ... 4 5 6 ... 10) ---
+// --- 🔢 Logic สร้างปุ่มตัวเลข ---
 const visiblePages = computed(() => {
   const pages = []
   const total = totalPages.value
@@ -74,8 +70,8 @@ const isAllSelected = computed(() => {
         </button>
       </div>
       <div class="col-span-2">รหัสสถานที่</div>
-      <div class="col-span-5">ชื่อจุดตรวจ</div>
-      <div class="col-span-2 text-center">อาคาร</div>
+      <div class="col-span-3">ชื่อจุดตรวจ</div>
+      <div class="col-span-2 text-center">ประเภทห้องน้ำ</div> <div class="col-span-2 text-center">อาคาร</div>
       <div class="col-span-2 text-center">ชั้น</div>
     </div>
 
@@ -108,9 +104,14 @@ const isAllSelected = computed(() => {
           <div class="col-span-2 font-mono text-xs font-bold text-gray-500 bg-gray-100 px-2 py-1 rounded w-fit group-hover:bg-white group-hover:text-indigo-600 transition-colors">
             {{ loc.locations_code }}
           </div>
-          <div class="col-span-5 font-medium text-gray-800">
+          <div class="col-span-3 font-medium text-gray-800 truncate" :title="loc.locations_name">
             {{ loc.locations_name }}
           </div>
+
+          <div class="col-span-2 text-center text-sm text-gray-600">
+             {{ loc.restroom_types?.restroom_types_name || '-' }}
+          </div>
+
           <div class="col-span-2 text-center text-sm text-gray-600">
             {{ loc.locations_building }}
           </div>
@@ -122,21 +123,15 @@ const isAllSelected = computed(() => {
     </div>
 
     <div class="border-t border-gray-200 bg-white flex-shrink-0 z-10 py-2 px-4 flex flex-col sm:flex-row items-center justify-between gap-4 select-none" v-if="locations.length > 0">
-
       <div class="flex flex-wrap items-center gap-4 text-sm text-gray-600">
         <span class="whitespace-nowrap">
           แสดง <span class="font-bold text-gray-900">{{ startItem }}</span>
           ถึง <span class="font-bold text-gray-900">{{ endItem }}</span>
           จาก <span class="font-bold text-gray-900">{{ locations.length }}</span> รายการ
         </span>
-
         <div class="flex items-center gap-2">
           <span>แสดง:</span>
-          <select
-            v-model="itemsPerPage"
-            @change="currentPage = 1"
-            class="border border-gray-300 rounded-md py-1 px-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none cursor-pointer bg-white text-gray-900 shadow-sm min-w-[60px]"
-          >
+          <select v-model="itemsPerPage" @change="currentPage = 1" class="border border-gray-300 rounded-md py-1 px-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none cursor-pointer bg-white text-gray-900 shadow-sm min-w-[60px]">
             <option :value="5">5</option>
             <option :value="10">10</option>
             <option :value="20">20</option>
@@ -145,42 +140,12 @@ const isAllSelected = computed(() => {
           </select>
         </div>
       </div>
-
       <div class="flex items-center gap-1">
-        <button
-          @click="changePage(currentPage - 1)"
-          :disabled="currentPage === 1"
-          class="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-        >
-          <ChevronLeft class="w-4 h-4" />
-        </button>
-
-        <button
-          v-for="(page, index) in visiblePages"
-          :key="index"
-          @click="changePage(page)"
-          class="w-9 h-9 flex items-center justify-center rounded-lg text-sm font-medium transition-all"
-          :class="[
-            page === currentPage
-              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200 border border-indigo-600'
-              : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50 hover:border-gray-300',
-            page === '...' ? 'border-none bg-transparent cursor-default text-gray-400 hover:bg-transparent' : ''
-          ]"
-        >
-          {{ page }}
-        </button>
-
-        <button
-          @click="changePage(currentPage + 1)"
-          :disabled="currentPage === totalPages"
-          class="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-        >
-          <ChevronRight class="w-4 h-4" />
-        </button>
+        <button @click="changePage(currentPage - 1)" :disabled="currentPage === 1" class="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"><ChevronLeft class="w-4 h-4" /></button>
+        <button v-for="(page, index) in visiblePages" :key="index" @click="changePage(page)" class="w-9 h-9 flex items-center justify-center rounded-lg text-sm font-medium transition-all" :class="[page === currentPage ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200 border border-indigo-600' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50 hover:border-gray-300', page === '...' ? 'border-none bg-transparent cursor-default text-gray-400 hover:bg-transparent' : '']">{{ page }}</button>
+        <button @click="changePage(currentPage + 1)" :disabled="currentPage === totalPages" class="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"><ChevronRight class="w-4 h-4" /></button>
       </div>
-
     </div>
-
   </div>
 </template>
 

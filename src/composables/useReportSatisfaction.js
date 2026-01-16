@@ -1,6 +1,7 @@
 import { ref, watch, onMounted, onUnmounted } from "vue";
 import { supabase } from "@/lib/supabase";
-import * as XLSX from "xlsx";
+// ❌ ลบ import XLSX แบบ Static ออก
+// import * as XLSX from "xlsx"; 
 import Swal from "sweetalert2";
 
 export function useReportSatisfaction() {
@@ -215,82 +216,91 @@ export function useReportSatisfaction() {
     };
   };
 
-  // --- 5. ✅ Export Excel (Updated Layout) ---
-  const exportToExcel = () => {
-    // 5.1 เตรียมข้อมูลหัวข้อรายงาน
-    const now = new Date();
-    const startDate = getDateRange(dateFilter.value) ? new Date(getDateRange(dateFilter.value)) : null; // ถ้าเป็น all จะเป็น null หรือต้องกำหนด logic เอง
-    
-    // Logic หา Start Date สำหรับการแสดงผล (ถ้าเลือก All อาจจะหา min date จาก data)
-    let displayStartDate = startDate;
-    if (!displayStartDate && feedbacks.value.length > 0) {
-       displayStartDate = new Date(feedbacks.value[feedbacks.value.length - 1].created_at);
-    }
-    
-    const dateRangeStr = displayStartDate 
-      ? `ประจำวันที่ ${formatDateTH(displayStartDate)} - ${formatDateTH(now)}`
-      : `ข้อมูลทั้งหมด ณ วันที่ ${formatDateTH(now)}`;
+  // --- 5. ✅ Export Excel (Dynamic Import Version) ---
+  const exportToExcel = async () => { // ✅ เพิ่ม async
+    try {
+        // ✅ เพิ่ม Dynamic Import ตรงนี้
+        const XLSX = await import("xlsx");
 
-    const reportTitle = [
-      ["รายงานคะแนนแบบประเมินความพึงพอใจการบริการด้านความสะอาด"],
-      [dateRangeStr],
-      [""] // เว้นบรรทัด
-    ];
+        // 5.1 เตรียมข้อมูลหัวข้อรายงาน
+        const now = new Date();
+        const startDate = getDateRange(dateFilter.value) ? new Date(getDateRange(dateFilter.value)) : null; // ถ้าเป็น all จะเป็น null หรือต้องกำหนด logic เอง
+        
+        // Logic หา Start Date สำหรับการแสดงผล (ถ้าเลือก All อาจจะหา min date จาก data)
+        let displayStartDate = startDate;
+        if (!displayStartDate && feedbacks.value.length > 0) {
+            displayStartDate = new Date(feedbacks.value[feedbacks.value.length - 1].created_at);
+        }
+        
+        const dateRangeStr = displayStartDate 
+            ? `ประจำวันที่ ${formatDateTH(displayStartDate)} - ${formatDateTH(now)}`
+            : `ข้อมูลทั้งหมด ณ วันที่ ${formatDateTH(now)}`;
 
-    // 5.2 เตรียมข้อมูล Rows
-    const dataRows = feedbacks.value.map(f => {
-      // เรียงคอลัมน์ตามที่ต้องการ
-      const row = {
-        'สถานที่': f.locations?.locations_name || '-',
-        'อาคาร': f.locations?.locations_building || '-', 
-        'ชั้น': f.locations?.locations_floor || '-',     
-        'คะแนนรวม': f.rating,
-        'ข้อเสนอแนะ': f.comment || '-'
-      };
+        const reportTitle = [
+            ["รายงานคะแนนแบบประเมินความพึงพอใจการบริการด้านความสะอาด"],
+            [dateRangeStr],
+            [""] // เว้นบรรทัด
+        ];
 
-      // เพิ่มหัวข้อประเมิน 1-13 (เรียงตาม ID)
-      // สมมติว่า topicsMap มี ID ครบ 1-13 หรือตาม Database
-      const sortedTopicIds = Object.keys(topicsMap.value).sort((a, b) => Number(a) - Number(b));
-      
-      sortedTopicIds.forEach(id => {
-        const topicName = topicsMap.value[id];
-        // เช็คว่ามีคำตอบในข้อนี้ไหม ถ้ามีดึงคะแนนมาใส่
-        const score = f.answers && f.answers[id] ? Number(f.answers[id].rating || f.answers[id]) : '-';
-        row[topicName] = score;
-      });
+        // 5.2 เตรียมข้อมูล Rows
+        const dataRows = feedbacks.value.map(f => {
+            // เรียงคอลัมน์ตามที่ต้องการ
+            const row = {
+            'สถานที่': f.locations?.locations_name || '-',
+            'อาคาร': f.locations?.locations_building || '-', 
+            'ชั้น': f.locations?.locations_floor || '-',     
+            'คะแนนรวม': f.rating,
+            'ข้อเสนอแนะ': f.comment || '-'
+            };
 
-      return row;
-    });
+            // เพิ่มหัวข้อประเมิน 1-13 (เรียงตาม ID)
+            // สมมติว่า topicsMap มี ID ครบ 1-13 หรือตาม Database
+            const sortedTopicIds = Object.keys(topicsMap.value).sort((a, b) => Number(a) - Number(b));
+            
+            sortedTopicIds.forEach(id => {
+            const topicName = topicsMap.value[id];
+            // เช็คว่ามีคำตอบในข้อนี้ไหม ถ้ามีดึงคะแนนมาใส่
+            const score = f.answers && f.answers[id] ? Number(f.answers[id].rating || f.answers[id]) : '-';
+            row[topicName] = score;
+            });
 
-    // 5.3 สร้าง Worksheet
-    const worksheet = XLSX.utils.json_to_sheet([]); // สร้าง sheet เปล่าก่อน
-
-    // ใส่ Title
-    XLSX.utils.sheet_add_aoa(worksheet, reportTitle, { origin: "A1" });
-
-    // ใส่ Data ต่อจาก Title (เริ่มบรรทัดที่ 4)
-    XLSX.utils.sheet_add_json(worksheet, dataRows, { origin: "A4" });
-
-    // 5.4 จัดความกว้างคอลัมน์ (Auto Width)
-    if (dataRows.length > 0) {
-      const headers = Object.keys(dataRows[0]);
-      const columnWidths = headers.map(key => {
-        let maxLength = key.length; // ความยาว Header
-        dataRows.forEach(row => {
-          const cellValue = row[key] ? String(row[key]) : "";
-          if (cellValue.length > maxLength) {
-            maxLength = cellValue.length;
-          }
+            return row;
         });
-        return { wch: maxLength + 2 }; // เผื่อที่นิดหน่อย
-      });
-      worksheet['!cols'] = columnWidths;
-    }
 
-    // สร้าง Workbook และ Save
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Feedback Report");
-    XLSX.writeFile(workbook, `Feedback_Report_${new Date().toISOString().slice(0,10)}.xlsx`);
+        // 5.3 สร้าง Worksheet
+        const worksheet = XLSX.utils.json_to_sheet([]); // สร้าง sheet เปล่าก่อน
+
+        // ใส่ Title
+        XLSX.utils.sheet_add_aoa(worksheet, reportTitle, { origin: "A1" });
+
+        // ใส่ Data ต่อจาก Title (เริ่มบรรทัดที่ 4)
+        XLSX.utils.sheet_add_json(worksheet, dataRows, { origin: "A4" });
+
+        // 5.4 จัดความกว้างคอลัมน์ (Auto Width)
+        if (dataRows.length > 0) {
+            const headers = Object.keys(dataRows[0]);
+            const columnWidths = headers.map(key => {
+            let maxLength = key.length; // ความยาว Header
+            dataRows.forEach(row => {
+                const cellValue = row[key] ? String(row[key]) : "";
+                if (cellValue.length > maxLength) {
+                maxLength = cellValue.length;
+                }
+            });
+            return { wch: maxLength + 2 }; // เผื่อที่นิดหน่อย
+            });
+            worksheet['!cols'] = columnWidths;
+        }
+
+        // สร้าง Workbook และ Save
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Feedback Report");
+        XLSX.writeFile(workbook, `Feedback_Report_${new Date().toISOString().slice(0,10)}.xlsx`);
+    
+    } catch (error) {
+        console.error("Export Failed:", error);
+        Swal.fire("Error", "ไม่สามารถดาวน์โหลดไฟล์ได้", "error");
+    }
   };
 
   // 🔥🔥🔥 Realtime Subscription Logic (Clean Version) 🔥🔥🔥

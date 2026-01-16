@@ -29,7 +29,14 @@ const filters = ref({
 const fetchLocations = async () => {
   try {
     loading.value = true
-    const { data, error } = await supabase.from('locations').select('*').eq('locations_status', 'active').order('locations_building').order('locations_floor')
+    // ✅ แก้ไขตรงนี้: เพิ่ม restroom_types(restroom_types_name)
+    const { data, error } = await supabase
+      .from('locations')
+      .select('*, restroom_types(restroom_types_name)') 
+      .eq('locations_status', 'active')
+      .order('locations_building')
+      .order('locations_floor')
+
     if (error) throw error
     locations.value = data
   } catch (err) {

@@ -194,7 +194,7 @@ const getStatusBadge = (status) => {
         </div>
       </div>
       <p v-if="disabledType || disabledLocation" class="text-xs text-indigo-500 flex items-center gap-1 mt-1 animate-in fade-in slide-in-from-top-1">
-         <Lock class="w-3 h-3" /> ระบบระบุข้อมูลให้อัตโนมัติตาม QR Code
+         <Lock class="w-3 h-3" /> ระบบระบุข้อมูลให้อัตโนมัติตาม สถานที่ปฏิบัติงาน
       </p>
     </div>
 
