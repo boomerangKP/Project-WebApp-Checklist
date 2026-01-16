@@ -1,17 +1,20 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { supabase } from '@/lib/supabase'
 import { useUserStore } from '@/stores/user'
+import Swal from 'sweetalert2' // ✅ Import Swal สำหรับแจ้งเตือน
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
-  // ✅ เพิ่มส่วนนี้เข้าไปครับ (Copy ไปแปะได้เลย)
+  
+  // ✅ 1. เพิ่ม Scroll Behavior (แก้ปัญหาจอเลื่อน/ซูมเอง)
   scrollBehavior(to, from, savedPosition) {
     if (savedPosition) {
       return savedPosition
     } else {
-      return { top: 0, behavior: 'smooth' } // สั่งให้เลื่อนไปบนสุดทุกครั้ง (top: 0)
+      return { top: 0, behavior: 'smooth' } // เลื่อนไปบนสุดทุกครั้ง
     }
   },
+
   routes: [
     // --- 1. หน้า Login ---
     {
@@ -84,7 +87,7 @@ const router = createRouter({
     {
       path: '/maid',
       component: () => import('../layouts/MaidLayout.vue'),
-      meta: { requiresAuth: true, role: 'maid' }, // meta role 'maid' จะถูกเช็คให้ cleaner เข้าได้ใน beforeEach
+      meta: { requiresAuth: true, role: 'maid' }, // Cleaner จะเข้าได้ผ่าน Logic ใน beforeEach
       children: [
         {
           path: 'home',
@@ -151,7 +154,7 @@ const router = createRouter({
   ]
 })
 
-// --- Navigation Guard (แก้ไข Logic ให้รองรับ Cleaner) ---
+// --- Navigation Guard ---
 router.beforeEach(async (to, from, next) => {
   const userStore = useUserStore()
   const { data: { session } } = await supabase.auth.getSession()
@@ -182,10 +185,30 @@ router.beforeEach(async (to, from, next) => {
     }
   }
 
-  // 3. ถ้าอยู่หน้า Login แล้วมี Session -> ดีดไปหน้าแรกตาม Role
+  // 3. ถ้าอยู่หน้า Login แล้วมี Session -> แจ้งเตือน + ดีดไปหน้าแรกตาม Role
   if (to.path === '/login') {
+    // ✅ 2. เพิ่มแจ้งเตือนตรงนี้
+    const Toast = Swal.mixin({
+      toast: true,
+      position: 'top-end',
+      showConfirmButton: false,
+      timer: 2000,
+      timerProgressBar: true,
+      didOpen: (toast) => {
+        toast.addEventListener('mouseenter', Swal.stopTimer)
+        toast.addEventListener('mouseleave', Swal.resumeTimer)
+      }
+    })
+
+    Toast.fire({
+      icon: 'info',
+      title: 'คุณเข้าสู่ระบบอยู่แล้ว',
+      text: 'กำลังพาไปหน้าหลัก...'
+    })
+
+    // Redirect ตาม Role
     if (role === 'admin') return next('/admin')
-    // ✅ แก้ไข: ให้ทั้ง maid และ cleaner ไปหน้า maid-home
+    // ✅ 3. รองรับ Cleaner
     if (role === 'maid' || role === 'cleaner') return next('/maid/home')
     return next('/')
   }
@@ -197,7 +220,7 @@ router.beforeEach(async (to, from, next) => {
       return next('/login')
     }
     
-    // ✅ แก้ไข: ถ้า Route ต้องการ maid (โซนแม่บ้าน) อนุญาตให้ทั้ง maid และ cleaner เข้าได้
+    // ✅ 4. อนุญาตให้ Cleaner เข้า Maid Zone ได้
     if (to.meta.role === 'maid') {
         if (!['maid', 'cleaner'].includes(role)) {
             return next('/login')
