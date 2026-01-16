@@ -1,110 +1,100 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { QrcodeStream } from 'vue-qrcode-reader' // ✅ พระเอกตัวจริง
-import { ArrowLeft, Flashlight } from 'lucide-vue-next'
-import Swal from 'sweetalert2'
+import { QrcodeStream } from 'vue-qrcode-reader'
+import { ArrowLeft } from 'lucide-vue-next'
 
 const router = useRouter()
-const torchActive = ref(false) // สถานะไฟฉาย
-const cameraReady = ref(false) // เช็คว่ากล้องพร้อมหรือยัง
+const debugLog = ref('รอเริ่มการทำงาน...') // ตัวแปรเก็บ Log ไว้โชว์หน้าจอ
+const errorMsg = ref('')
 
-// ฟังก์ชันเมื่อสแกนเจอ (Library นี้ส่งค่ามาเป็น Array อัตโนมัติ)
-const onDetect = (detectedCodes) => {
-  // เอาค่าแรกที่เจอ
-  const result = detectedCodes[0]?.rawValue
-
-  if (result) {
-    // 1. สั่นแจ้งเตือน
-    if (navigator.vibrate) navigator.vibrate(200)
-
-    // 2. ตัด Token (เผื่อมาเป็น Link)
-    const token = result.includes('/scan/') ? result.split('/scan/')[1] : result
-
-    // 3. ไปหน้าตรวจสอบทันที (ไม่ต้อง pause เพราะเดี๋ยว component ถูกทำลายเอง)
-    router.replace({ 
-      name: 'scan-handler', 
-      params: { token: token } 
-    })
+// ฟังก์ชันวาดกรอบสีเขียวๆ เวลาเจอ QR Code (จะได้รู้ว่ามันมองเห็นไหม)
+const paintBoundingBox = (detectedCodes, ctx) => {
+  for (const detectedCode of detectedCodes) {
+    const { boundingBox: { x, y, width, height } } = detectedCode
+    ctx.lineWidth = 5
+    ctx.strokeStyle = '#00ff00' // สีเขียว
+    ctx.strokeRect(x, y, width, height)
   }
 }
 
-// จัดการ Error (ใช้ Swal ตามที่ขอ)
-const onError = (error) => {
-  let msg = 'ไม่สามารถใช้งานกล้องได้'
-  
-  if (error.name === 'NotAllowedError') {
-    msg = 'กรุณากด "อนุญาต" เพื่อให้แอปใช้กล้องถ่ายรูป'
-  } else if (error.name === 'NotFoundError') {
-    msg = 'ไม่พบกล้องในอุปกรณ์นี้'
-  } else if (error.name === 'NotSupportedError') {
-    msg = 'ต้องใช้งานผ่าน HTTPS เท่านั้น'
-  } else if (error.name === 'NotReadableError') {
-    msg = 'กล้องถูกใช้งานโดยแอปอื่นอยู่'
-  } else if (error.name === 'OverconstrainedError') {
-    msg = 'กล้องไม่รองรับความละเอียดที่ต้องการ'
-  }
+// เมื่อสแกนเจอ
+const onDetect = (detectedCodes) => {
+  const result = detectedCodes[0]?.rawValue
+  if (result) {
+    debugLog.value = `เจอแล้ว! ข้อมูล: ${result}` // ขึ้นบอกหน้าจอเลย
+    
+    // สั่นเตือน
+    if (navigator.vibrate) navigator.vibrate(200)
 
-  Swal.fire({
-    icon: 'error',
-    title: 'เกิดข้อผิดพลาด',
-    text: msg,
-    confirmButtonText: 'กลับ',
-    allowOutsideClick: false
-  }).then(() => {
-    router.back()
-  })
+    // ตัด Token
+    const token = result.includes('/scan/') ? result.split('/scan/')[1] : result
+    
+    // หน่วงเวลานิดนึงให้พี่เห็นข้อความว่าเจอแล้ว ก่อนดีดไปหน้าอื่น
+    setTimeout(() => {
+      router.replace({ name: 'scan-handler', params: { token: token } })
+    }, 500)
+  }
+}
+
+// ฟังก์ชันเช็ค Error (สำคัญมาก! มันจะบอกว่าทำไมเงียบ)
+const onError = (error) => {
+  const errName = error.name
+  let thMsg = ''
+
+  if (errName === 'NotAllowedError') thMsg = 'คุณกดไม่อนุญาตให้ใช้กล้อง (Block)'
+  else if (errName === 'NotFoundError') thMsg = 'ไม่พบกล้องในเครื่อง'
+  else if (errName === 'NotSupportedError') thMsg = 'เว็บนี้ต้องเปิดผ่าน HTTPS เท่านั้น (Secure Context)'
+  else if (errName === 'NotReadableError') thMsg = 'กล้องพัง หรือมีแอปอื่นใช้อยู่'
+  else if (errName === 'StreamApiNotSupportedError') thMsg = 'Browser นี้ไม่รองรับการสแกน'
+  else thMsg = error.message
+
+  debugLog.value = `ERROR: ${errName}`
+  errorMsg.value = thMsg
 }
 
 const onCameraReady = () => {
-  cameraReady.value = true
+  debugLog.value = 'กล้องพร้อมใช้งาน... กรุณาจ่อ QR Code'
 }
 </script>
 
 <template>
   <div class="fixed inset-0 bg-black z-50 flex flex-col">
     
-    <div class="absolute top-0 left-0 right-0 z-20 p-4 pt-safe flex justify-between items-center bg-black/40 backdrop-blur-sm">
-      <button @click="router.back()" class="p-3 bg-white/10 rounded-full text-white">
-        <ArrowLeft class="w-6 h-6" />
-      </button>
-      <h1 class="text-white font-bold text-lg">สแกน QR Code</h1>
-      
-      <button :disabled="!cameraReady" @click="torchActive = !torchActive" class="p-3 rounded-full transition-all" 
-        :class="torchActive ? 'bg-yellow-400 text-black' : 'bg-white/10 text-white'">
-        <Flashlight class="w-6 h-6" :class="{'fill-current': torchActive}" />
-      </button>
-    </div>
+    <button @click="router.back()" class="absolute top-4 left-4 z-20 p-3 bg-black/50 rounded-full text-white">
+      <ArrowLeft class="w-8 h-8" />
+    </button>
 
-    <div class="flex-1 bg-black relative overflow-hidden">
+    <div class="flex-1 bg-gray-900 relative flex flex-col justify-center">
       
       <qrcode-stream 
         @detect="onDetect" 
         @error="onError"
         @camera-on="onCameraReady"
-        :torch="torchActive"
+        :track="paintBoundingBox"
         class="w-full h-full"
       >
         <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
-           <div class="w-64 h-64 border-2 border-red-500/80 rounded-xl relative">
-              <div class="absolute inset-x-0 h-0.5 bg-red-500 top-1/2 -translate-y-1/2 animate-pulse"></div>
+           <div v-if="errorMsg" class="bg-red-600 text-white p-6 rounded-xl text-center mx-4">
+             <h2 class="text-xl font-bold mb-2">ใช้งานไม่ได้</h2>
+             <p>{{ errorMsg }}</p>
+             <p class="text-sm mt-2 opacity-80">({{ debugLog }})</p>
            </div>
         </div>
-        
-        <div class="absolute bottom-10 left-0 right-0 text-center pointer-events-none">
-           <p class="text-white/80 text-sm bg-black/50 inline-block px-4 py-2 rounded-lg backdrop-blur-md">
-             ถือกล้องให้นิ่ง เพื่อโฟกัส
-           </p>
-        </div>
-
       </qrcode-stream>
+
+      <div class="absolute bottom-0 left-0 right-0 bg-white p-4 z-30">
+        <p class="font-bold text-red-600">สถานะระบบ:</p>
+        <p class="text-gray-800 break-words font-mono text-sm">{{ debugLog }}</p>
+      </div>
       
     </div>
   </div>
 </template>
 
 <style scoped>
-.pt-safe {
-  padding-top: max(1rem, env(safe-area-inset-top));
+/* สำคัญ: บังคับให้เห็นภาพทั้งหมด ไม่มีการ Crop (ยอมมีขอบดำดีกว่าสแกนไม่ติด) */
+:deep(video) {
+  object-fit: contain !important;
 }
 </style>
