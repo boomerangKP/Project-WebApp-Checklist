@@ -4,6 +4,14 @@ import { useUserStore } from '@/stores/user'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
+  // ✅ เพิ่มส่วนนี้เข้าไปครับ (Copy ไปแปะได้เลย)
+  scrollBehavior(to, from, savedPosition) {
+    if (savedPosition) {
+      return savedPosition
+    } else {
+      return { top: 0, behavior: 'smooth' } // สั่งให้เลื่อนไปบนสุดทุกครั้ง (top: 0)
+    }
+  },
   routes: [
     // --- 1. หน้า Login ---
     {
