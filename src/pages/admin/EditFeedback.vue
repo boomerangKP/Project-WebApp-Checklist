@@ -3,7 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { supabase } from '@/lib/supabase'
 import { MessageSquareQuote, Plus } from 'lucide-vue-next'
 import { useSwal } from '@/composables/useSwal'
-import Swal from 'sweetalert2' // ✅ เพิ่ม import Swal ตรงนี้
+import Swal from 'sweetalert2'
 
 // Components
 import TopicFilters from '@/components/admin/feedback/TopicFilters.vue'
@@ -15,6 +15,9 @@ const loading = ref(false)
 const topics = ref([])
 const { swalConfirm, swalSuccess } = useSwal()
 const highlightedId = ref(null)
+
+// ✅ เพิ่ม tableRef เพื่อใช้สั่ง Reset หน้าตาราง
+const tableRef = ref(null)
 
 // Filters
 const filters = ref({
@@ -28,6 +31,10 @@ const modalMode = ref('add')
 const modalLoading = ref(false)
 const editingItem = ref(null)
 
+const allSearchSuggestions = computed(() => {
+  return topics.value.map(t => t.name) // ดึงเฉพาะชื่อหัวข้อมาทำ suggestion
+})
+
 // --- Fetch Data ---
 const fetchData = async () => {
   loading.value = true
@@ -37,7 +44,7 @@ const fetchData = async () => {
       .from('feedback_topics')
       .select('*')
       .order('ordering', { ascending: true })
-    
+
     if (error) throw error
     topics.value = data || []
   } catch (error) {
@@ -51,8 +58,8 @@ const fetchData = async () => {
 const filteredList = computed(() => {
   return topics.value.filter(item => {
     const search = filters.value.search.toLowerCase()
-    const matchSearch = 
-      item.name.toLowerCase().includes(search) || 
+    const matchSearch =
+      item.name.toLowerCase().includes(search) ||
       (item.description && item.description.toLowerCase().includes(search))
 
     let matchStatus = true
@@ -64,11 +71,22 @@ const filteredList = computed(() => {
 })
 
 // --- Actions ---
+
+// ✅ ฟังก์ชัน Reset Filter และ Reset หน้าตาราง (เพื่อให้สอดคล้องกับหน้า Location)
+// ✅ ฟังก์ชัน Reset Filter และ Reset หน้าตาราง
+const resetFilters = () => {
+  filters.value = { search: '', status: 'all' }
+  // สั่งให้ตารางกลับไปหน้า 1 เฉพาะตอนกดปุ่ม Reset หรือค้นหาใหม่
+  if (tableRef.value && tableRef.value.resetPage) {
+    tableRef.value.resetPage()
+  }
+}
+
 const openAddModal = () => {
   modalMode.value = 'add'
   // หาค่า ordering ล่าสุด + 1 เพื่อ auto fill
   const maxOrder = topics.value.length > 0 ? Math.max(...topics.value.map(t => t.ordering)) : 0
-  editingItem.value = { ordering: maxOrder + 1, is_active: true } 
+  editingItem.value = { ordering: maxOrder + 1, is_active: true }
   isModalOpen.value = true
 }
 
@@ -80,7 +98,7 @@ const openEditModal = (item) => {
 
 // 🔥 Save Data
 const handleSave = async (formData) => {
-  // ✅ 1. เปลี่ยน alert เป็น Swal แบบ Warning
+  // ✅ 1. ใช้ Swal แบบ Warning
   if (!formData.name) {
     return Swal.fire({
       icon: 'warning',
@@ -127,7 +145,7 @@ const handleSave = async (formData) => {
 
   } catch (err) {
     console.error('Save error:', err)
-    // ✅ 2. เปลี่ยน alert เป็น Swal แบบ Error
+    // ✅ 2. ใช้ Swal แบบ Error
     Swal.fire({
       icon: 'error',
       title: 'บันทึกไม่สำเร็จ',
@@ -142,17 +160,17 @@ const handleSave = async (formData) => {
 // 🔥 Delete Data
 const handleDelete = async (id) => {
   const isConfirmed = await swalConfirm('ลบหัวข้อนี้?', 'ข้อมูลการประเมินเก่าๆ ที่ผูกกับหัวข้อนี้อาจได้รับผลกระทบ', 'ลบเลย')
-  
+
   if (isConfirmed) {
     try {
       loading.value = true
       const { error } = await supabase.from('feedback_topics').delete().eq('id', id)
       if (error) throw error
-      
+
       await fetchData()
       await swalSuccess('ลบข้อมูลเรียบร้อย')
     } catch (err) {
-      // ✅ 3. เปลี่ยน alert เป็น Swal แบบ Error
+      // ✅ 3. ใช้ Swal แบบ Error
       Swal.fire({
         icon: 'error',
         title: 'ลบไม่สำเร็จ',
@@ -177,27 +195,28 @@ onMounted(fetchData)
         </h1>
         <p class="text-gray-500 text-sm mt-1">หัวข้อที่ใช้ในการประเมินความพึงพอใจ ({{ filteredList.length }} รายการ)</p>
       </div>
-      
+
       <button @click="openAddModal" class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-medium shadow-sm shadow-indigo-200 flex items-center gap-2 transition-all active:scale-95">
         <Plus class="w-5 h-5" /> เพิ่มหัวข้อใหม่
       </button>
     </div>
 
-    <TopicFilters 
+    <TopicFilters
       v-model:search="filters.search"
       v-model:status="filters.status"
-      @reset="filters = { search: '', status: 'all' }"
+      :search-suggestions="allSearchSuggestions" @reset="resetFilters"
     />
 
-    <TopicTable 
-      :items="filteredList" 
+    <TopicTable
+      ref="tableRef"
+      :items="filteredList"
       :loading="loading"
       :highlightId="highlightedId"
       @edit="openEditModal"
       @delete="handleDelete"
     />
 
-    <TopicFormModal 
+    <TopicFormModal
       :isOpen="isModalOpen"
       :mode="modalMode"
       :initialData="editingItem"

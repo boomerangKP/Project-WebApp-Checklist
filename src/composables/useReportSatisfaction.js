@@ -1,7 +1,5 @@
 import { ref, watch, onMounted, onUnmounted } from "vue";
 import { supabase } from "@/lib/supabase";
-// ❌ ลบ import XLSX แบบ Static ออก
-// import * as XLSX from "xlsx"; 
 import Swal from "sweetalert2";
 
 export function useReportSatisfaction() {
@@ -217,89 +215,156 @@ export function useReportSatisfaction() {
   };
 
   // --- 5. ✅ Export Excel (Dynamic Import Version) ---
-  const exportToExcel = async () => { // ✅ เพิ่ม async
+const exportToExcel = async () => {
     try {
-        // ✅ เพิ่ม Dynamic Import ตรงนี้
-        const XLSX = await import("xlsx");
+      // ✅ เรียกใช้ library xlsx-js-style เพื่อแต่งสวย
+      const XLSX = await import("xlsx-js-style");
 
-        // 5.1 เตรียมข้อมูลหัวข้อรายงาน
-        const now = new Date();
-        const startDate = getDateRange(dateFilter.value) ? new Date(getDateRange(dateFilter.value)) : null; // ถ้าเป็น all จะเป็น null หรือต้องกำหนด logic เอง
-        
-        // Logic หา Start Date สำหรับการแสดงผล (ถ้าเลือก All อาจจะหา min date จาก data)
-        let displayStartDate = startDate;
-        if (!displayStartDate && feedbacks.value.length > 0) {
-            displayStartDate = new Date(feedbacks.value[feedbacks.value.length - 1].created_at);
-        }
-        
-        const dateRangeStr = displayStartDate 
-            ? `ประจำวันที่ ${formatDateTH(displayStartDate)} - ${formatDateTH(now)}`
-            : `ข้อมูลทั้งหมด ณ วันที่ ${formatDateTH(now)}`;
+      // 1. เตรียมข้อมูล Header
+      const now = new Date();
+      let startDate = getDateRange(dateFilter.value) ? new Date(getDateRange(dateFilter.value)) : null;
+      if (!startDate && feedbacks.value.length > 0) {
+        startDate = new Date(feedbacks.value[feedbacks.value.length - 1].created_at);
+      }
+      
+      const dateRangeStr = startDate 
+        ? `ประจำวันที่ ${formatDateTH(startDate)} - ${formatDateTH(now)}`
+        : `ข้อมูลทั้งหมด ณ วันที่ ${formatDateTH(now)}`;
 
-        const reportTitle = [
-            ["รายงานคะแนนแบบประเมินความพึงพอใจการบริการด้านความสะอาด"],
-            [dateRangeStr],
-            [""] // เว้นบรรทัด
+      // 2. เตรียมข้อมูล Rows
+      const dataRows = feedbacks.value.map(f => {
+        const dateObj = new Date(f.created_at);
+        const dateStr = dateObj.toLocaleDateString("th-TH", { year: 'numeric', month: '2-digit', day: '2-digit' });
+        
+        // ✅ แก้ไข: เอาเฉพาะ "เวลา" (รวมวินาที) ไม่เอาวันที่
+        const timeStr = dateObj.toLocaleTimeString("th-TH", { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        
+        const row = [
+          timeStr,                                // A: ประทับเวลา (เฉพาะเวลา)
+          dateStr,                                // B: วัน/เดือน/ปี
+          f.locations?.locations_name || '-',     // C: สถานที่
+          f.locations?.locations_building || '-', // D: อาคาร
+          f.locations?.locations_floor || '-',    // E: ชั้น
+          f.rating || '-',                        // F: คะแนนเฉลี่ย
         ];
 
-        // 5.2 เตรียมข้อมูล Rows
-        const dataRows = feedbacks.value.map(f => {
-            // เรียงคอลัมน์ตามที่ต้องการ
-            const row = {
-            'สถานที่': f.locations?.locations_name || '-',
-            'อาคาร': f.locations?.locations_building || '-', 
-            'ชั้น': f.locations?.locations_floor || '-',     
-            'คะแนนรวม': f.rating,
-            'ข้อเสนอแนะ': f.comment || '-'
-            };
-
-            // เพิ่มหัวข้อประเมิน 1-13 (เรียงตาม ID)
-            // สมมติว่า topicsMap มี ID ครบ 1-13 หรือตาม Database
-            const sortedTopicIds = Object.keys(topicsMap.value).sort((a, b) => Number(a) - Number(b));
-            
-            sortedTopicIds.forEach(id => {
-            const topicName = topicsMap.value[id];
-            // เช็คว่ามีคำตอบในข้อนี้ไหม ถ้ามีดึงคะแนนมาใส่
-            const score = f.answers && f.answers[id] ? Number(f.answers[id].rating || f.answers[id]) : '-';
-            row[topicName] = score;
-            });
-
-            return row;
+        // คะแนนหัวข้อ 1-13
+        const sortedTopicIds = Object.keys(topicsMap.value).sort((a, b) => Number(a) - Number(b));
+        sortedTopicIds.forEach(id => {
+          let score = '-';
+          if (f.answers && f.answers[id] !== undefined) {
+             const ans = f.answers[id];
+             score = typeof ans === 'object' && ans !== null ? Number(ans.rating) : Number(ans);
+          }
+          row.push(score);
         });
 
-        // 5.3 สร้าง Worksheet
-        const worksheet = XLSX.utils.json_to_sheet([]); // สร้าง sheet เปล่าก่อน
+        // ข้อเสนอแนะ
+        row.push(f.comment || '-');
 
-        // ใส่ Title
-        XLSX.utils.sheet_add_aoa(worksheet, reportTitle, { origin: "A1" });
+        return row;
+      });
 
-        // ใส่ Data ต่อจาก Title (เริ่มบรรทัดที่ 4)
-        XLSX.utils.sheet_add_json(worksheet, dataRows, { origin: "A4" });
+      // 3. สร้างข้อมูลลง Array แบบ 2 มิติ
+      const ws_data = [
+        ["รายงานคะแนนแบบประเมินความพึงพอใจการบริการด้านความสะอาด"], 
+        [dateRangeStr], 
+        [ 
+          "ประทับเวลา", "วัน/เดือน/ปี", "สถานที่", "อาคาร", "ชั้น", "คะแนน\nเฉลี่ย", 
+          "คะแนนแต่ละหัวข้อประเมิน", "", "", "", "", "", "", "", "", "", "", "", "", 
+          "ข้อเสนอแนะ" 
+        ],
+        [ 
+          "", "", "", "", "", "", 
+          ...Object.keys(topicsMap.value).sort((a, b) => Number(a) - Number(b)).map(id => topicsMap.value[id] || `หัวข้อ ${id}`), 
+          "" 
+        ]
+      ];
 
-        // 5.4 จัดความกว้างคอลัมน์ (Auto Width)
-        if (dataRows.length > 0) {
-            const headers = Object.keys(dataRows[0]);
-            const columnWidths = headers.map(key => {
-            let maxLength = key.length; // ความยาว Header
-            dataRows.forEach(row => {
-                const cellValue = row[key] ? String(row[key]) : "";
-                if (cellValue.length > maxLength) {
-                maxLength = cellValue.length;
-                }
-            });
-            return { wch: maxLength + 2 }; // เผื่อที่นิดหน่อย
-            });
-            worksheet['!cols'] = columnWidths;
+      // รวม Data Rows
+      dataRows.forEach(r => ws_data.push(r));
+
+      // สร้าง Worksheet
+      const worksheet = XLSX.utils.aoa_to_sheet(ws_data);
+
+      // 4. ✅ การใส่ Style (จัดกลาง + ฟอนต์ + เส้นขอบ)
+      // วนลูปทุก Cell ใน Sheet เพื่อใส่ Style
+      const range = XLSX.utils.decode_range(worksheet['!ref']); // หาขอบเขตข้อมูลทั้งหมด
+      
+      for (let R = range.s.r; R <= range.e.r; ++R) {
+        for (let C = range.s.c; C <= range.e.c; ++C) {
+          const cell_address = XLSX.utils.encode_cell({ r: R, c: C });
+          if (!worksheet[cell_address]) continue;
+
+          // กำหนด Style พื้นฐาน
+          worksheet[cell_address].s = {
+            font: { 
+                name: "TH Sarabun New", // หรือ font อื่นที่เครื่องมี
+                sz: 14 // ✅ ปรับขนาดฟอนต์ตรงนี้ (14, 16, 18...)
+            },
+            alignment: { 
+                horizontal: "center", // ✅ จัดกึ่งกลางแนวนอน
+                vertical: "center",   // ✅ จัดกึ่งกลางแนวตั้ง
+                wrapText: true        // ตัดบรรทัดอัตโนมัติ
+            },
+            border: { // ✅ ใส่เส้นขอบ
+                top: { style: "thin" },
+                bottom: { style: "thin" },
+                left: { style: "thin" },
+                right: { style: "thin" }
+            }
+          };
+
+          // (Optional) ปรับ Style พิเศษสำหรับหัวตาราง (แถว 1-4) ให้ตัวหนา
+          if (R < 4) {
+             worksheet[cell_address].s.font.bold = true;
+             worksheet[cell_address].s.fill = { fgColor: { rgb: "EFEFEF" } }; // ใส่สีพื้นหลังเทาอ่อนๆ
+             if (R === 0) worksheet[cell_address].s.font.sz = 18; // ชื่อรายงานตัวใหญ่หน่อย
+          }
         }
+      }
 
-        // สร้าง Workbook และ Save
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "Feedback Report");
-        XLSX.writeFile(workbook, `Feedback_Report_${new Date().toISOString().slice(0,10)}.xlsx`);
+      // 5. กำหนด Merge Cells (เหมือนเดิม)
+      worksheet['!merges'] = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 19 } }, 
+        { s: { r: 1, c: 0 }, e: { r: 1, c: 19 } },
+        { s: { r: 2, c: 6 }, e: { r: 2, c: 18 } },
+        { s: { r: 2, c: 0 }, e: { r: 3, c: 0 } }, 
+        { s: { r: 2, c: 1 }, e: { r: 3, c: 1 } }, 
+        { s: { r: 2, c: 2 }, e: { r: 3, c: 2 } }, 
+        { s: { r: 2, c: 3 }, e: { r: 3, c: 3 } }, 
+        { s: { r: 2, c: 4 }, e: { r: 3, c: 4 } }, 
+        { s: { r: 2, c: 5 }, e: { r: 3, c: 5 } }, 
+        { s: { r: 2, c: 19 }, e: { r: 3, c: 19 } } 
+      ];
+
+      // 6. กำหนดความกว้างคอลัมน์
+      worksheet['!cols'] = [
+        { wch: 12 }, // A: Time (เล็กลงหน่อยเพราะไม่มีวันที่แล้ว)
+        { wch: 15 }, // B: Date
+        { wch: 20 }, // C: Location
+        { wch: 10 }, // D: Building
+        { wch: 8 },  // E: Floor
+        { wch: 10 }, // F: Score
+        ...Array(13).fill({ wch: 15 }), // G-S
+        { wch: 45 }  // T: Comment
+      ];
+
+      // 7. เพิ่มส่วนนี้เพื่อกำหนดความสูงของแถว (Row Height)
+      worksheet['!rows'] = [
+        { hpt: 35 },  // แถวที่ 1 (Title)
+        { hpt: 30 },  // แถวที่ 2 (Date Range)
+        { hpt: 25 },  // แถวที่ 3 (Header หลัก)
+        // แถวอื่นๆ ที่เหลือจะใช้ความสูง default ของ Excel อัตโนมัติ
+      ];
+
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Feedback Report");
+      XLSX.writeFile(workbook, `Feedback_Report_${new Date().toISOString().slice(0,10)}.xlsx`);
     
     } catch (error) {
-        console.error("Export Failed:", error);
-        Swal.fire("Error", "ไม่สามารถดาวน์โหลดไฟล์ได้", "error");
+      console.error("Export Failed:", error);
+      Swal.fire("Error", "ไม่สามารถดาวน์โหลดไฟล์ได้", "error");
     }
   };
 

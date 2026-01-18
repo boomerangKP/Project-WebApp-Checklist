@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
-import { Edit, Trash2, Loader2, ChevronLeft, ChevronRight, CheckCircle, XCircle, ListOrdered } from 'lucide-vue-next'
+import { Edit, Trash2, Loader2, ChevronLeft, ChevronRight, CheckCircle, XCircle } from 'lucide-vue-next'
 
 // --- Props & Emits ---
 const props = defineProps({
@@ -11,16 +11,27 @@ const props = defineProps({
 
 const emit = defineEmits(['edit', 'delete'])
 
-// --- Pagination Logic (ระบบแบ่งหน้า - คงเดิม) ---
+// --- Pagination Logic ---
 const currentPage = ref(1)
 const itemsPerPage = ref(10)
 
-watch(() => props.items, () => {
-  currentPage.value = 1
-})
-
+// คำนวณจำนวนหน้าทั้งหมด
 const totalItems = computed(() => props.items.length)
 const totalPages = computed(() => Math.ceil(totalItems.value / itemsPerPage.value) || 1)
+
+// ✅ ปรับ Logic การ Watch ข้อมูล
+watch(() => props.items, () => {
+  if (currentPage.value > totalPages.value) {
+    currentPage.value = Math.max(1, totalPages.value)
+  }
+})
+
+// ✅ ฟังก์ชันรีเซ็ตหน้า
+const resetPage = () => {
+  currentPage.value = 1
+}
+
+defineExpose({ resetPage })
 
 const startIndex = computed(() => (currentPage.value - 1) * itemsPerPage.value)
 const endIndex = computed(() => Math.min(startIndex.value + itemsPerPage.value, totalItems.value))
@@ -31,7 +42,7 @@ const paginatedItems = computed(() => {
 
 const visiblePages = computed(() => {
   const pages = []
-  const delta = 1 
+  const delta = 1
   if (totalPages.value <= 5) {
     for (let i = 1; i <= totalPages.value; i++) pages.push(i)
   } else {
@@ -55,38 +66,38 @@ const changePage = (page) => {
 
 <template>
   <div class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden flex flex-col h-[calc(100vh-320px)]">
-    
+
     <div class="flex-1 overflow-y-auto overflow-x-auto relative custom-scrollbar">
       <table class="w-full text-left border-collapse">
-        
+
         <thead class="sticky top-0 z-10 bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-500 font-semibold tracking-wider shadow-sm">
           <tr>
-            <th class="px-6 py-4 text-center w-20">ลำดับ</th> 
+            <th class="px-6 py-4 text-center w-20">ลำดับ</th>
             <th class="px-6 py-4 whitespace-nowrap">หัวข้อการประเมิน</th>
             <th class="px-6 py-4">คำอธิบายเพิ่มเติม</th>
             <th class="px-6 py-4 text-center w-32">สถานะ</th>
             <th class="px-6 py-4 text-right w-32">จัดการ</th>
           </tr>
         </thead>
-        
+
         <tbody class="divide-y divide-gray-100">
-          
+
           <tr v-if="loading">
             <td colspan="5" class="px-6 py-20 text-center text-gray-400">
               <div class="flex flex-col items-center justify-center h-full">
-                 <Loader2 class="w-8 h-8 animate-spin mb-2 text-indigo-500" /> 
+                 <Loader2 class="w-8 h-8 animate-spin mb-2 text-indigo-500" />
                  <span>กำลังโหลดข้อมูล...</span>
               </div>
             </td>
           </tr>
-          
+
           <tr v-else-if="items.length === 0">
             <td colspan="5" class="px-6 py-20 text-center text-gray-400 bg-gray-50/30">
               ไม่พบข้อมูลแบบประเมิน
             </td>
           </tr>
 
-          <tr v-for="item in paginatedItems" :key="item.id" 
+          <tr v-for="item in paginatedItems" :key="item.id"
               class="group transition-all duration-300 hover:bg-gray-50"
               :class="[item.id === highlightId ? 'bg-emerald-50' : '']"
           >
@@ -108,10 +119,10 @@ const changePage = (page) => {
             </td>
 
             <td class="px-6 py-4 text-center">
-              <span v-if="item.is_active" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-100">
+              <span v-if="item.is_active" class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200 whitespace-nowrap">
                 <CheckCircle class="w-3 h-3" /> ใช้งาน
               </span>
-              <span v-else class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-500 border border-gray-200">
+              <span v-else class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-600 border border-gray-200 whitespace-nowrap">
                 <XCircle class="w-3 h-3" /> ปิดใช้งาน
               </span>
             </td>
@@ -132,14 +143,14 @@ const changePage = (page) => {
     </div>
 
     <div v-if="!loading && totalItems > 0" class="border-t border-gray-200 p-2 bg-white z-20 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-gray-600">
-      
+
       <div class="flex flex-wrap items-center gap-4 justify-center sm:justify-start">
         <span class="whitespace-nowrap">
-          แสดง <span class="font-semibold text-gray-900">{{ totalItems === 0 ? 0 : startIndex + 1 }}</span> 
-          ถึง <span class="font-semibold text-gray-900">{{ endIndex }}</span> 
+          แสดง <span class="font-semibold text-gray-900">{{ totalItems === 0 ? 0 : startIndex + 1 }}</span>
+          ถึง <span class="font-semibold text-gray-900">{{ endIndex }}</span>
           จาก <span class="font-semibold text-gray-900">{{ totalItems }}</span> รายการ
         </span>
-        
+
         <div class="flex items-center gap-2">
            <span>แสดง:</span>
            <select v-model="itemsPerPage" class="bg-white border border-gray-300 text-gray-700 text-xs rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-1.5 cursor-pointer outline-none shadow-sm">
@@ -152,18 +163,18 @@ const changePage = (page) => {
       </div>
 
       <div class="flex items-center gap-1">
-        <button 
-          @click="changePage(currentPage - 1)" 
+        <button
+          @click="changePage(currentPage - 1)"
           :disabled="currentPage === 1"
           class="p-1.5 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           <ChevronLeft class="w-4 h-4" />
         </button>
-        
+
         <div class="flex gap-1">
            <template v-for="(p, index) in visiblePages" :key="index">
               <span v-if="p === '...'" class="px-2 py-1 text-gray-400">...</span>
-              <button 
+              <button
                 v-else
                 @click="changePage(p)"
                 class="px-3 py-1 rounded-lg text-xs font-medium transition-all shadow-sm"
@@ -174,8 +185,8 @@ const changePage = (page) => {
            </template>
         </div>
 
-        <button 
-          @click="changePage(currentPage + 1)" 
+        <button
+          @click="changePage(currentPage + 1)"
           :disabled="currentPage === totalPages"
           class="p-1.5 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >

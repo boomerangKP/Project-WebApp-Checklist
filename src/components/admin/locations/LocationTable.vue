@@ -15,13 +15,29 @@ const emit = defineEmits(['edit', 'delete'])
 const currentPage = ref(1)
 const itemsPerPage = ref(10) // ค่าเริ่มต้น 10 รายการ
 
-// เมื่อข้อมูลเปลี่ยน (เช่น กดค้นหา) ให้รีเซ็ตกลับไปหน้า 1
-watch(() => props.items, () => {
-  currentPage.value = 1
-})
-
+// คำนวณจำนวนหน้าทั้งหมด
 const totalItems = computed(() => props.items.length)
 const totalPages = computed(() => Math.ceil(totalItems.value / itemsPerPage.value) || 1)
+
+// ✅ จุดที่แก้ไข: ปรับ Logic การ Watch ข้อมูล
+watch(() => props.items, () => {
+  // เมื่อข้อมูลเปลี่ยน (เช่น หลังแก้ไข หรือ ลบ)
+  // ให้เช็คว่าหน้าปัจจุบันมันเกินจำนวนหน้าที่มีจริงไหม?
+  // (เช่น อยู่หน้า 5 แล้วลบข้อมูลจนเหลือแค่ 4 หน้า -> ต้องเด้งกลับหน้า 4)
+  if (currentPage.value > totalPages.value) {
+    currentPage.value = Math.max(1, totalPages.value)
+  }
+  // ถ้าไม่เกิน ก็ให้อยู่หน้าเดิม (currentPage ไม่เปลี่ยน)
+  // ทำให้เวลาบันทึกข้อมูลแล้วไม่เด้งกลับหน้า 1
+})
+
+// ✅ เพิ่มฟังก์ชันนี้เพื่อให้ Parent เรียกใช้ตอนกด "ค้นหา" หรือ "เปลี่ยนฟิลเตอร์"
+const resetPage = () => {
+  currentPage.value = 1
+}
+
+// ✅ ส่งออกฟังก์ชันเพื่อให้ Parent Component เรียกใช้ได้ (ผ่าน ref)
+defineExpose({ resetPage })
 
 const startIndex = computed(() => (currentPage.value - 1) * itemsPerPage.value)
 const endIndex = computed(() => Math.min(startIndex.value + itemsPerPage.value, totalItems.value))

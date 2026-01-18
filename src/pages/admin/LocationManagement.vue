@@ -18,6 +18,9 @@ const { swalConfirm, swalSuccess } = useSwal()
 // Highlight State (เก็บ ID ตัวที่เพิ่งบันทึกเพื่อทำ Effect กะพริบ)
 const highlightedId = ref(null)
 
+// ✅ Table Ref (เพื่อสั่ง Reset หน้า)
+const tableRef = ref(null)
+
 // Filters
 const filters = ref({
   search: '',
@@ -56,6 +59,14 @@ const uniqueBuildings = computed(() => {
   return [...new Set(locations.value.map(l => l.locations_building))].sort()
 })
 
+// ✅ สร้างรายการสำหรับ Search Auto-suggest (ชื่อจุดตรวจ + รหัส)
+const allSearchSuggestions = computed(() => {
+  const names = locations.value.map(l => l.locations_name)
+  const codes = locations.value.map(l => l.locations_code)
+  // รวมกันแล้วตัดตัวซ้ำออก
+  return [...new Set([...names, ...codes])]
+})
+
 const getFloors = (bName) => {
   if (!bName) return []
   const floors = locations.value
@@ -79,6 +90,14 @@ const filteredList = computed(() => {
     return matchSearch && matchBuilding && matchFloor && matchType
   })
 })
+
+// ✅ ฟังก์ชัน Reset Filter และ Reset หน้าตาราง
+const resetFilters = () => {
+  filters.value = { search: '', building: '', floor: '', type: '' }
+  if (tableRef.value) {
+    tableRef.value.resetPage()
+  }
+}
 
 // --- Actions ---
 
@@ -210,10 +229,12 @@ onMounted(fetchData)
       :uniqueBuildings="uniqueBuildings"
       :floors="getFloors(filters.building)"
       :restroomTypes="restroomTypes"
-      @reset="filters = { search: '', building: '', floor: '', type: '' }"
+      :search-suggestions="allSearchSuggestions" 
+      @reset="resetFilters"
     />
 
     <LocationTable 
+      ref="tableRef"
       :items="filteredList" 
       :loading="loading"
       :highlightId="highlightedId"

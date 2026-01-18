@@ -29,10 +29,9 @@ const filters = ref({
 const fetchLocations = async () => {
   try {
     loading.value = true
-    // ✅ แก้ไขตรงนี้: เพิ่ม restroom_types(restroom_types_name)
     const { data, error } = await supabase
       .from('locations')
-      .select('*, restroom_types(restroom_types_name)') 
+      .select('*, restroom_types(restroom_types_name)')
       .eq('locations_status', 'active')
       .order('locations_building')
       .order('locations_floor')
@@ -54,6 +53,14 @@ const uniqueFloors = computed(() => {
   if (!filters.value.building) return []
   const floors = locations.value.filter(l => l.locations_building === filters.value.building).map(l => l.locations_floor).filter(Boolean)
   return [...new Set(floors)].sort()
+})
+
+// ✅ เพิ่ม: สร้างรายการสำหรับ Search Suggestion (ชื่อ + รหัส)
+const allSearchSuggestions = computed(() => {
+  const names = locations.value.map(l => l.locations_name)
+  const codes = locations.value.map(l => l.locations_code)
+  // รวมกันและตัดตัวซ้ำ
+  return [...new Set([...names, ...codes])]
 })
 
 const filteredLocations = computed(() => {
@@ -84,14 +91,10 @@ const preparePrint = async () => {
   showPreview.value = true
   qrDataUrls.value = {}
 
-  // ✅ 1. ประกาศตัวแปร baseUrl ก่อน (ดึงค่า URL ของเว็บปัจจุบัน)
   const baseUrl = window.location.origin
 
   for (const loc of selectedLocationsFull.value) {
     try {
-      // ✅ 2. เปลี่ยนการสร้าง Link:
-      // - ใช้ baseUrl ที่ประกาศไว้ข้างบน
-      // - เปลี่ยนจาก id เป็น token (เพื่อให้สแกนแล้วปลอดภัย เดาเลขไม่ได้)
       const qrContent = `${baseUrl}/scan/${loc.token}`
 
       qrDataUrls.value[loc.locations_id] = await QRCode.toDataURL(qrContent, {
@@ -136,6 +139,7 @@ onMounted(() => fetchLocations())
         :floor="filters.floor"
         :uniqueBuildings="uniqueBuildings"
         :uniqueFloors="uniqueFloors"
+        :search-suggestions="allSearchSuggestions"
         @update:search="filters.search = $event"
         @update:building="filters.building = $event; filters.floor = ''"
         @update:floor="filters.floor = $event"
