@@ -85,13 +85,15 @@ const fetchData = async (rangeObj = currentRange.value) => {
   try {
     const { start, end } = getQueryDates(rangeObj);
 
-    // ✅ เพิ่ม role เข้าไปในคำสั่ง select
+    // ✅ แก้ไข Query:
+    // 1. ระบุ FK employees ให้ชัดเจน (!check_sessions_employees_id_fkey) กัน Error
+    // 2. เพิ่ม time_slots เข้ามาด้วย เพื่อให้ดูรอบเวลาได้
     let query = supabase
       .from("check_sessions")
       .select(
         `
         *, 
-        employees (
+        employees:employees!check_sessions_employees_id_fkey (
           employees_firstname, 
           employees_lastname, 
           employees_photo, 
@@ -102,7 +104,12 @@ const fetchData = async (rangeObj = currentRange.value) => {
           locations_building, 
           locations_floor
         ),
-        restroom_types (restroom_types_name)
+        restroom_types (restroom_types_name),
+        time_slots (
+          time_slots_name,
+          time_slots_start,
+          time_slots_end
+        )
       `
       )
       .order("created_at", { ascending: false });
@@ -144,7 +151,7 @@ const filteredLogs = computed(() => {
   );
 });
 
-// ✅ ฟังก์ชัน Export
+// ✅ ฟังก์ชัน Export (ปรับปรุงให้โชว์รอบเวลา)
 const handleExport = () => {
   if (!logs.value || logs.value.length === 0) {
     return Swal.fire(
@@ -154,32 +161,44 @@ const handleExport = () => {
     );
   }
 
-  const rows = logs.value.map((item) => ({
-    รหัสงาน: `#${item.check_sessions_id}`,
-    วันที่และเวลา: formatThaiDate(item.created_at),
-    ชื่อพนักงาน:
-      `${item.employees?.employees_firstname || ""} ${
-        item.employees?.employees_lastname || ""
-      }`.trim() || "ไม่ระบุ",
-    ตำแหน่ง: item.employees?.role || "-", // เพิ่มตำแหน่งใน Export ด้วยเผื่ออยากดู
-    อาคาร: item.locations?.locations_building || "-",
-    ชั้น: item.locations?.locations_floor || "-",
-    จุดตรวจสอบ: item.locations?.locations_name || "-",
-    สถานะ: getStatusLabel(item.check_sessions_status),
-    หมายเหตุ: item.check_sessions_note || "-",
-  }));
+  const rows = logs.value.map((item) => {
+    // จัดรูปแบบรอบเวลา
+    const slotInfo = item.time_slots
+      ? `${item.time_slots.time_slots_name} (${item.time_slots.time_slots_start.slice(
+          0,
+          5
+        )}-${item.time_slots.time_slots_end.slice(0, 5)})`
+      : "-";
+
+    return {
+      รหัสงาน: `#${item.check_sessions_id}`,
+      วันที่และเวลา: formatThaiDate(item.created_at),
+      รอบเวลา: slotInfo, // ✅ เพิ่มคอลัมน์นี้
+      ชื่อพนักงาน:
+        `${item.employees?.employees_firstname || ""} ${
+          item.employees?.employees_lastname || ""
+        }`.trim() || "ไม่ระบุ",
+      ตำแหน่ง: item.employees?.role || "-",
+      อาคาร: item.locations?.locations_building || "-",
+      ชั้น: item.locations?.locations_floor || "-",
+      จุดตรวจสอบ: item.locations?.locations_name || "-",
+      สถานะ: getStatusLabel(item.check_sessions_status),
+      หมายเหตุ: item.check_sessions_note || "-",
+    };
+  });
 
   const worksheet = XLSX.utils.json_to_sheet(rows);
   worksheet["!cols"] = [
-    { wch: 10 },
-    { wch: 22 },
-    { wch: 25 },
-    { wch: 15 },
-    { wch: 10 },
-    { wch: 8 },
-    { wch: 25 },
-    { wch: 15 },
-    { wch: 30 },
+    { wch: 10 }, // รหัสงาน
+    { wch: 22 }, // วันที่
+    { wch: 18 }, // รอบเวลา (เพิ่มความกว้าง)
+    { wch: 25 }, // ชื่อ
+    { wch: 10 }, // ตำแหน่ง
+    { wch: 10 }, // อาคาร
+    { wch: 8 }, // ชั้น
+    { wch: 25 }, // จุดตรวจ
+    { wch: 15 }, // สถานะ
+    { wch: 30 }, // หมายเหตุ
   ];
 
   const workbook = XLSX.utils.book_new();

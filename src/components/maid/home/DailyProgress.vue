@@ -1,66 +1,60 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { Loader2, CheckCircle2, Clock, ListTodo } from 'lucide-vue-next'
+import { Loader2, CheckCircle2, Clock, ListTodo, AlertCircle } from 'lucide-vue-next' // ✅ เพิ่ม icon AlertCircle
 import { supabase } from '@/lib/supabase'
 
 // --- 1. ตั้งค่าตัวแปร ---
 const loading = ref(true)
-const stats = ref({ total: 0, waiting: 0, completed: 0 })
-const currentEmpId = ref(null) // เปลี่ยนจากเก็บ User ID เป็น Employee ID (ตัวเลข)
+// ✅ เพิ่ม fixNeeded ใน stats
+const stats = ref({ total: 0, waiting: 0, completed: 0, fixNeeded: 0 }) 
+const currentEmpId = ref(null)
 let realtimeSubscription = null
 
 // --- 2. ฟังก์ชันดึงข้อมูล (Fetch) ---
 const fetchDailyProgress = async () => {
   try {
-    // 2.1 ดึง User ที่ Login อยู่
     const { data: { user } } = await supabase.auth.getUser()
-    
-    if (!user) {
-        console.log("No user login")
-        return
-    }
+    if (!user) return
 
-    // 🔥 2.2 ขั้นตอนสำคัญ: เอา Email ไปค้นหา employees_id (ตัวเลข) ในตาราง employees
     const { data: employee, error: empError } = await supabase
       .from('employees')
       .select('employees_id')
       .eq('email', user.email)
       .single()
 
-    if (empError || !employee) {
-      console.error("ไม่พบข้อมูลพนักงาน:", empError)
-      return
-    }
+    if (empError || !employee) return
 
-    currentEmpId.value = employee.employees_id // ได้ ID ตัวเลขมาแล้ว (เช่น 1, 5, 10)
+    currentEmpId.value = employee.employees_id
 
-    // 2.3 หาวันที่ปัจจุบัน (แบบ Local Time เพื่อความชัวร์)
-    // ใช้ en-CA จะได้ format YYYY-MM-DD ตรงกับ Database
     const today = new Date().toLocaleDateString('en-CA') 
 
-    // 2.4 ดึงข้อมูลงาน โดยใช้ ID ตัวเลขที่ได้มา
     const { data, error } = await supabase
       .from('check_sessions') 
       .select('check_sessions_status')
-      .eq('employees_id', currentEmpId.value) // ✅ ใช้ ID ตัวเลขค้นหา เจอแน่นอน
+      .eq('employees_id', currentEmpId.value)
       .eq('check_sessions_date', today)
 
     if (error) throw error
 
-    // 2.5 คำนวณตัวเลข
+    // 2.5 คำนวณตัวเลข (Logic ใหม่ แบบมือโปร)
     const total = data.length
     
-    // เช็คสถานะ (ปรับคำให้ตรงกับ Database ของคุณ)
-    // ดูจาก Schema ของคุณ default คือ 'in_progress'
+    // กลุ่ม 1: เสร็จแล้ว (ผ่าน/อนุมัติ)
     const completed = data.filter(item => 
-        item.check_sessions_status === 'completed' || 
-        item.check_sessions_status === 'pass' ||
-        item.check_sessions_status === 'approved' // เผื่อไว้หลายๆ คำ
+        ['completed', 'pass', 'approved'].includes(item.check_sessions_status)
     ).length 
-    
-    const waiting = total - completed
 
-    stats.value = { total, waiting, completed }
+    // กลุ่ม 2: 🚨 ต้องแก้ไข (ไม่ผ่าน/ถูกตีกลับ) -> อันนี้สำคัญมากต้องแยก!
+    const fixNeeded = data.filter(item => 
+        ['rejected', 'fail'].includes(item.check_sessions_status)
+    ).length
+
+    // กลุ่ม 3: รอตรวจ (ที่เหลือทั้งหมด)
+    // คือเอา Total ลบออกด้วย (เสร็จ + ต้องแก้)
+    const waiting = total - completed - fixNeeded
+
+    // อัปเดต state
+    stats.value = { total, waiting, completed, fixNeeded }
 
   } catch (err) {
     console.error('Error fetching progress:', err)
@@ -69,7 +63,7 @@ const fetchDailyProgress = async () => {
   }
 }
 
-// --- 3. ฟังก์ชัน Realtime (ดักฟัง) ---
+// --- 3. ฟังก์ชัน Realtime (เหมือนเดิม) ---
 const subscribeToRealtime = () => {
   if (realtimeSubscription) supabase.removeChannel(realtimeSubscription)
 
@@ -77,19 +71,11 @@ const subscribeToRealtime = () => {
     .channel('daily-progress-updates')
     .on(
       'postgres_changes',
-      { 
-        event: '*', 
-        schema: 'public', 
-        table: 'check_sessions',
-        // ถ้ากรองด้วย employees_id ได้จะดีมาก แต่ต้องแน่ใจว่าเป็นตัวเลข
-      },
+      { event: '*', schema: 'public', table: 'check_sessions' },
       (payload) => {
-        // เช็คว่างานที่เปลี่ยน เป็นของพนักงานคนนี้ไหม (ถ้ามีข้อมูลใน payload)
         if (payload.new && currentEmpId.value && payload.new.employees_id === currentEmpId.value) {
-           console.log('งานของฉันมีการเปลี่ยนแปลง!', payload)
            fetchDailyProgress()
         } else if (!currentEmpId.value) {
-           // ถ้ายังไม่มี ID ก็โหลดใหม่ไปเลยกันเหนียว
            fetchDailyProgress()
         }
       }
@@ -114,11 +100,19 @@ const progressPercent = computed(() => {
   return Math.round((completed / total) * 100)
 })
 
+// ความกว้างกราฟสีเขียว (เสร็จ)
 const widthCompleted = computed(() => {
   const { total, completed } = stats.value
   return total === 0 ? 0 : (completed / total) * 100
 })
 
+// ✅ ความกว้างกราฟสีแดง (ต้องแก้) -> แทรกกลางเพื่อให้เห็นชัด
+const widthFixNeeded = computed(() => {
+  const { total, fixNeeded } = stats.value
+  return total === 0 ? 0 : (fixNeeded / total) * 100
+})
+
+// ความกว้างกราฟสีเหลือง (รอ)
 const widthWaiting = computed(() => {
   const { total, waiting } = stats.value
   return total === 0 ? 0 : (waiting / total) * 100
@@ -150,35 +144,47 @@ const widthWaiting = computed(() => {
         :style="{ width: `${widthCompleted}%` }"
       ></div>
       <div
+        class="h-full bg-red-500 transition-all duration-500"
+        :style="{ width: `${widthFixNeeded}%` }"
+      ></div>
+      <div
         class="h-full bg-amber-400 transition-all duration-500"
         :style="{ width: `${widthWaiting}%` }"
       ></div>
     </div>
 
-    <div class="grid grid-cols-3 gap-2 text-center">
+    <div class="grid grid-cols-2 gap-2 text-center">
 
-      <div class="bg-gray-50 rounded-xl p-2 border border-gray-100 flex flex-col items-center justify-center min-h-[80px]">
-        <ListTodo class="w-5 h-5 text-gray-400 mb-1" />
-        <div class="text-lg font-bold text-gray-800 leading-none mb-1">
+      <div class="bg-gray-50 rounded-xl p-2 border border-gray-100 flex flex-col items-center justify-center min-h-[70px]">
+        <ListTodo class="w-4 h-4 text-gray-400 mb-1" />
+        <div class="text-lg font-bold text-gray-800 leading-none">
           {{ stats.total }}
         </div>
-        <div class="text-[10px] text-gray-500">งานทั้งหมด</div>
+        <div class="text-[10px] text-gray-500">ทั้งหมด</div>
       </div>
 
-      <div class="bg-amber-50 rounded-xl p-2 border border-amber-100 flex flex-col items-center justify-center min-h-[80px]">
-        <Clock class="w-5 h-5 text-amber-500 mb-1" />
-        <div class="text-lg font-bold text-amber-600 leading-none mb-1">
+      <div class="bg-emerald-50 rounded-xl p-2 border border-emerald-100 flex flex-col items-center justify-center min-h-[70px]">
+        <CheckCircle2 class="w-4 h-4 text-emerald-500 mb-1" />
+        <div class="text-lg font-bold text-emerald-600 leading-none">
+          {{ stats.completed }}
+        </div>
+        <div class="text-[10px] text-emerald-600">ผ่านแล้ว</div>
+      </div>
+
+      <div class="bg-amber-50 rounded-xl p-2 border border-amber-100 flex flex-col items-center justify-center min-h-[70px]">
+        <Clock class="w-4 h-4 text-amber-500 mb-1" />
+        <div class="text-lg font-bold text-amber-600 leading-none">
           {{ stats.waiting }}
         </div>
         <div class="text-[10px] text-amber-600">รอตรวจ</div>
       </div>
 
-      <div class="bg-emerald-50 rounded-xl p-2 border border-emerald-100 flex flex-col items-center justify-center min-h-[80px]">
-        <CheckCircle2 class="w-5 h-5 text-emerald-500 mb-1" />
-        <div class="text-lg font-bold text-emerald-600 leading-none mb-1">
-          {{ stats.completed }}
+      <div class="bg-red-50 rounded-xl p-2 border border-red-100 flex flex-col items-center justify-center min-h-[70px]">
+        <AlertCircle class="w-4 h-4 text-red-500 mb-1" />
+        <div class="text-lg font-bold text-red-600 leading-none">
+          {{ stats.fixNeeded }}
         </div>
-        <div class="text-[10px] text-emerald-600">ตรวจแล้ว</div>
+        <div class="text-[10px] text-red-600">ต้องแก้ไข</div>
       </div>
 
     </div>

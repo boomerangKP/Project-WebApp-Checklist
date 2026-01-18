@@ -8,7 +8,7 @@ import {
   BarChart3,
   RefreshCw,
   TrendingUp,
-  Filter, //
+  Filter,
   ChevronDown,
   Check,
 } from "lucide-vue-next";
@@ -283,13 +283,19 @@ const fetchData = async () => {
     uniqueBuildings.value = buildings;
 
     // 2. Fetch Sessions
+    // 🔥 แก้ไขจุดนี้: ระบุ FK ของ employees ให้ชัดเจน (เพื่อแก้ PGRST201)
     const { data: sessions, error } = await supabase
       .from("check_sessions")
       .select(
-        `*, locations(locations_id, locations_building, locations_floor, locations_name), employees(*)`
+        `
+        *, 
+        locations(locations_id, locations_building, locations_floor, locations_name), 
+        employees:employees!check_sessions_employees_id_fkey(*)
+      `
       )
       .eq("check_sessions_date", today)
       .order("updated_at", { ascending: false });
+
     if (error) throw error;
 
     rawSessions.value = sessions;
