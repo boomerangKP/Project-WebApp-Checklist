@@ -317,7 +317,7 @@ const exportToExcel = async () => {
 
           // (Optional) ปรับ Style พิเศษสำหรับหัวตาราง (แถว 1-4) ให้ตัวหนา
           if (R < 4) {
-             worksheet[cell_address].s.font.bold = true;
+             worksheet[cell_address].s.font.normal = true;
              worksheet[cell_address].s.fill = { fgColor: { rgb: "EFEFEF" } }; // ใส่สีพื้นหลังเทาอ่อนๆ
              if (R === 0) worksheet[cell_address].s.font.sz = 18; // ชื่อรายงานตัวใหญ่หน่อย
           }
