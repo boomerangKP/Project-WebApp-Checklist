@@ -141,7 +141,7 @@ onUnmounted(() => window.removeEventListener("click", handleClickOutside));
           :class="{ 'ring-2 ring-indigo-100 border-indigo-500': isDropdownOpen }"
         >
           <div class="flex items-center gap-2">
-            <CalendarIcon class="w-4 h-4 text-gray-500" />
+            <CalendarIcon class="w-4 h-4 text-indigo-500" />
             <span>{{ currentRangeLabel }}</span>
           </div>
           <ChevronDown

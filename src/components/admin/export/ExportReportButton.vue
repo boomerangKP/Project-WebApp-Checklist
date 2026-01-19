@@ -56,14 +56,14 @@ const handleExport = async () => {
       .from("check_sessions")
       .select(
         `
-        *, 
+        *,
         employees:employees!check_sessions_employees_id_fkey (
-            employees_firstname, 
+            employees_firstname,
             employees_lastname
-        ), 
+        ),
         locations (
-            locations_name, 
-            locations_building, 
+            locations_name,
+            locations_building,
             locations_floor
         ),
         time_slots (
@@ -265,6 +265,7 @@ const handleExport = async () => {
     Swal.fire({
       icon: "success",
       title: "ดาวน์โหลดสำเร็จ",
+      text: `ไฟล์ ${fileName} ถูกบันทึกลงในเครื่องของคุณแล้ว`,
       showConfirmButton: false,
       timer: 1500,
     });
