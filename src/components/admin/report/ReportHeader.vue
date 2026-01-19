@@ -1,136 +1,231 @@
 <script setup>
-import { ref, watch, computed } from 'vue'
-import { Calendar as CalendarIcon, Search, ChevronDown, ArrowRight } from 'lucide-vue-next'
+import { ref, watch, computed, onMounted, onUnmounted } from "vue";
+import {
+  Calendar as CalendarIcon,
+  Search,
+  ChevronDown,
+  ArrowRight,
+  Check,
+} from "lucide-vue-next";
 
 // ✅ 1. นำเข้าปุ่ม Export ที่เราสร้างไว้
-import ExportReportButton from '@/components/admin/export/ExportReportButton.vue'
+import ExportReportButton from "@/components/admin/export/ExportReportButton.vue";
 
-const props = defineProps(['loading'])
-const emit = defineEmits(['update:range'])
+const props = defineProps(["loading"]);
+const emit = defineEmits(["update:range"]);
 
-const dateRange = ref('today')
-const customStart = ref(new Date().toISOString().slice(0, 10))
-const customEnd = ref(new Date().toISOString().slice(0, 10))
-const startInputRef = ref(null)
-const endInputRef = ref(null)
+// --- State ---
+const dateRange = ref("today");
+const customStart = ref(new Date().toISOString().slice(0, 10));
+const customEnd = ref(new Date().toISOString().slice(0, 10));
+const startInputRef = ref(null);
+const endInputRef = ref(null);
+
+// --- Dropdown State ---
+const isDropdownOpen = ref(false);
+
+// ตัวเลือกช่วงเวลา
+const rangeOptions = [
+  { value: "today", label: "วันนี้" },
+  { value: "yesterday", label: "เมื่อวาน" },
+  { value: "week", label: "7 วันล่าสุด" },
+  { value: "month", label: "เดือนนี้" },
+  { value: "custom", label: "กำหนดเอง..." },
+];
+
+// แสดงชื่อตัวเลือกที่เลือกอยู่
+const currentRangeLabel = computed(() => {
+  const found = rangeOptions.find((o) => o.value === dateRange.value);
+  return found ? found.label : "เลือกช่วงเวลา";
+});
+
+// --- Actions ---
+const toggleDropdown = () => {
+  isDropdownOpen.value = !isDropdownOpen.value;
+};
+
+const selectRange = (value) => {
+  dateRange.value = value;
+  isDropdownOpen.value = false;
+};
 
 const displayThaiDate = (isoDate) => {
-  if (!isoDate) return 'เลือกวันที่'
-  const date = new Date(isoDate)
-  return date.toLocaleDateString('th-TH', { 
-    year: 'numeric', month: 'short', day: 'numeric', calendar: 'buddhist' 
-  })
-}
+  if (!isoDate) return "เลือกวันที่";
+  const date = new Date(isoDate);
+  return date.toLocaleDateString("th-TH", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    calendar: "buddhist",
+  });
+};
 
 const openStartCalendar = () => {
-  if (startInputRef.value?.showPicker) startInputRef.value.showPicker()
-  else startInputRef.value?.focus()
-}
+  if (startInputRef.value?.showPicker) startInputRef.value.showPicker();
+  else startInputRef.value?.focus();
+};
 
 const openEndCalendar = () => {
-  if (endInputRef.value?.showPicker) endInputRef.value.showPicker()
-  else endInputRef.value?.focus()
-}
+  if (endInputRef.value?.showPicker) endInputRef.value.showPicker();
+  else endInputRef.value?.focus();
+};
 
-// ✅ 2. เพิ่ม Logic คำนวณวันที่จริง เพื่อส่งให้ปุ่ม Export
+// --- Logic คำนวณวันที่ (คงเดิม) ---
 const computedDateRange = computed(() => {
-  const end = new Date(); // เวลาปัจจุบัน
+  const end = new Date();
   const start = new Date();
-  start.setHours(0, 0, 0, 0); // เริ่มต้นวัน 00:00
-  end.setHours(23, 59, 59, 999); // สิ้นสุดวัน 23:59
+  start.setHours(0, 0, 0, 0);
+  end.setHours(23, 59, 59, 999);
 
   switch (dateRange.value) {
-    case 'today':
-      // ใช้วันนี้ (Default)
+    case "today":
       break;
-    case 'yesterday':
+    case "yesterday":
       start.setDate(start.getDate() - 1);
       end.setDate(end.getDate() - 1);
       break;
-    case 'week':
-      start.setDate(start.getDate() - 6); // 7 วันย้อนหลัง
+    case "week":
+      start.setDate(start.getDate() - 6);
       break;
-    case 'month':
-      start.setDate(1); // วันที่ 1 ของเดือนนี้
+    case "month":
+      start.setDate(1);
       break;
-    case 'custom':
-      // ถ้าเลือกกำหนดเอง ให้เอาค่าจาก Input มาใช้
-      return { 
-        start: customStart.value ? new Date(customStart.value).toISOString() : null, 
-        end: customEnd.value ? new Date(customEnd.value + 'T23:59:59').toISOString() : null 
+    case "custom":
+      return {
+        start: customStart.value ? new Date(customStart.value).toISOString() : null,
+        end: customEnd.value
+          ? new Date(customEnd.value + "T23:59:59").toISOString()
+          : null,
       };
   }
 
   return { start: start.toISOString(), end: end.toISOString() };
 });
 
-// ส่งค่ากลับไปให้หน้า Parent เพื่อแสดงผลบนหน้าเว็บ (กราฟ/ตาราง)
+// Watch & Emit (คงเดิม)
 watch([dateRange, customStart, customEnd], () => {
-  if (dateRange.value !== 'custom') {
-    emit('update:range', { type: dateRange.value, ...computedDateRange.value })
+  if (dateRange.value !== "custom") {
+    emit("update:range", { type: dateRange.value, ...computedDateRange.value });
   }
-})
+});
 
 const handleCustomSearch = () => {
-  emit('update:range', { type: 'custom', ...computedDateRange.value })
-}
+  emit("update:range", { type: "custom", ...computedDateRange.value });
+};
+
+// --- Click Outside ---
+const handleClickOutside = (e) => {
+  if (!e.target.closest(".custom-dropdown-container")) {
+    isDropdownOpen.value = false;
+  }
+};
+
+onMounted(() => window.addEventListener("click", handleClickOutside));
+onUnmounted(() => window.removeEventListener("click", handleClickOutside));
 </script>
 
 <template>
   <div class="flex flex-col xl:flex-row xl:items-center justify-between gap-6 mb-6">
-    
     <div>
-      <h1 class="text-2xl font-bold text-gray-800 tracking-tight">รายงานผลการปฏิบัติงาน</h1>
+      <h1 class="text-2xl font-bold text-gray-800 tracking-tight">
+        รายงานผลการปฏิบัติงาน
+      </h1>
       <p class="text-gray-500 text-sm mt-1">สรุปข้อมูลย้อนหลังและสถิติการทำงาน</p>
     </div>
 
     <div class="flex flex-wrap items-center gap-3">
-      
-      <div class="relative bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all h-11 min-w-[160px]">
-        <select 
-          v-model="dateRange" 
-          class="appearance-none bg-transparent w-full h-full pl-4 pr-10 rounded-xl text-sm font-semibold text-gray-700 focus:outline-none cursor-pointer hover:bg-gray-50 transition-colors"
+      <div class="relative custom-dropdown-container min-w-[180px]">
+        <button
+          @click="toggleDropdown"
+          class="flex items-center justify-between w-full h-11 px-4 bg-white border border-gray-200 rounded-xl shadow-sm hover:border-indigo-500 transition-all text-sm font-semibold text-gray-700"
+          :class="{ 'ring-2 ring-indigo-100 border-indigo-500': isDropdownOpen }"
         >
-          <option value="today">วันนี้</option>
-          <option value="yesterday">เมื่อวาน</option>
-          <option value="week">7 วันล่าสุด</option>
-          <option value="month">เดือนนี้</option>
-          <option value="custom">กำหนดเอง...</option>
-        </select>
-        <ChevronDown class="w-4 h-4 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <div class="flex items-center gap-2">
+            <CalendarIcon class="w-4 h-4 text-gray-500" />
+            <span>{{ currentRangeLabel }}</span>
+          </div>
+          <ChevronDown
+            class="w-4 h-4 text-gray-400 transition-transform duration-200"
+            :class="{ 'rotate-180': isDropdownOpen }"
+          />
+        </button>
+
+        <div
+          v-if="isDropdownOpen"
+          class="absolute top-full left-0 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-100"
+        >
+          <div class="p-1">
+            <div
+              v-for="option in rangeOptions"
+              :key="option.value"
+              @click="selectRange(option.value)"
+              class="px-3 py-2.5 rounded-lg text-sm cursor-pointer flex items-center justify-between group transition-colors"
+              :class="
+                dateRange === option.value
+                  ? 'bg-indigo-50 text-indigo-700 font-medium'
+                  : 'hover:bg-gray-50 text-gray-700'
+              "
+            >
+              <span>{{ option.label }}</span>
+              <Check v-if="dateRange === option.value" class="w-4 h-4 text-indigo-600" />
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div v-if="dateRange === 'custom'" class="flex items-center gap-2 bg-white p-1.5 rounded-xl border border-gray-200 shadow-sm animate-in fade-in slide-in-from-right-4">
-         
-         <div class="relative group cursor-pointer" @click="openStartCalendar">
-           <div class="flex items-center gap-2 bg-gray-50 hover:bg-gray-100 border border-transparent hover:border-indigo-200 rounded-lg px-3 py-1.5 transition-all">
-             <CalendarIcon class="w-4 h-4 text-indigo-500" />
-             <span class="text-sm font-medium text-gray-700 min-w-[80px] text-center">{{ displayThaiDate(customStart) }}</span>
-           </div>
-           <input ref="startInputRef" type="date" v-model="customStart" class="absolute bottom-0 left-0 w-0 h-0 opacity-0 pointer-events-none" />
-         </div>
+      <div
+        v-if="dateRange === 'custom'"
+        class="flex items-center gap-2 bg-white p-1.5 rounded-xl border border-gray-200 shadow-sm animate-in fade-in slide-in-from-right-4"
+      >
+        <div class="relative group cursor-pointer" @click="openStartCalendar">
+          <div
+            class="flex items-center gap-2 bg-gray-50 hover:bg-gray-100 border border-transparent hover:border-indigo-200 rounded-lg px-3 py-1.5 transition-all"
+          >
+            <CalendarIcon class="w-4 h-4 text-indigo-500" />
+            <span class="text-sm font-medium text-gray-700 min-w-[80px] text-center">{{
+              displayThaiDate(customStart)
+            }}</span>
+          </div>
+          <input
+            ref="startInputRef"
+            type="date"
+            v-model="customStart"
+            class="absolute bottom-0 left-0 w-0 h-0 opacity-0 pointer-events-none"
+          />
+        </div>
 
-         <ArrowRight class="w-4 h-4 text-gray-300" />
+        <ArrowRight class="w-4 h-4 text-gray-300" />
 
-         <div class="relative group cursor-pointer" @click="openEndCalendar">
-           <div class="flex items-center gap-2 bg-gray-50 hover:bg-gray-100 border border-transparent hover:border-indigo-200 rounded-lg px-3 py-1.5 transition-all">
-             <CalendarIcon class="w-4 h-4 text-indigo-500" />
-             <span class="text-sm font-medium text-gray-700 min-w-[80px] text-center">{{ displayThaiDate(customEnd) }}</span>
-           </div>
-           <input ref="endInputRef" type="date" v-model="customEnd" class="absolute bottom-0 left-0 w-0 h-0 opacity-0 pointer-events-none" />
-         </div>
+        <div class="relative group cursor-pointer" @click="openEndCalendar">
+          <div
+            class="flex items-center gap-2 bg-gray-50 hover:bg-gray-100 border border-transparent hover:border-indigo-200 rounded-lg px-3 py-1.5 transition-all"
+          >
+            <CalendarIcon class="w-4 h-4 text-indigo-500" />
+            <span class="text-sm font-medium text-gray-700 min-w-[80px] text-center">{{
+              displayThaiDate(customEnd)
+            }}</span>
+          </div>
+          <input
+            ref="endInputRef"
+            type="date"
+            v-model="customEnd"
+            class="absolute bottom-0 left-0 w-0 h-0 opacity-0 pointer-events-none"
+          />
+        </div>
 
-         <button @click="handleCustomSearch" class="bg-indigo-600 hover:bg-indigo-700 text-white p-2 rounded-lg shadow-sm active:scale-95 ml-1 transition-all">
-           <Search class="w-4 h-4" />
-         </button>
+        <button
+          @click="handleCustomSearch"
+          class="bg-indigo-600 hover:bg-indigo-700 text-white p-2 rounded-lg shadow-sm active:scale-95 ml-1 transition-all"
+        >
+          <Search class="w-4 h-4" />
+        </button>
       </div>
 
-      <ExportReportButton 
+      <ExportReportButton
         class="ml-auto sm:ml-0 h-11"
         :startDate="computedDateRange.start"
         :endDate="computedDateRange.end"
       />
-
     </div>
   </div>
 </template>

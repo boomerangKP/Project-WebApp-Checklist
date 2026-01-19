@@ -55,6 +55,21 @@ const fetchEmployees = async () => {
 };
 
 // --- 2. Filter & Pagination Logic ---
+
+// ✅ สร้างรายการสำหรับ Search Suggestion (ชื่อ + เบอร์ + รหัส + อีเมล)
+const allSearchSuggestions = computed(() => {
+  if (!employees.value) return [];
+  const names = employees.value.map(
+    (e) => `${e.employees_firstname} ${e.employees_lastname}`
+  );
+  const phones = employees.value.map((e) => e.employees_phone).filter(Boolean);
+  const codes = employees.value.map((e) => e.employees_code).filter(Boolean);
+  const emails = employees.value.map((e) => e.email).filter(Boolean);
+
+  // รวมทั้งหมดและตัดตัวซ้ำ
+  return [...new Set([...names, ...phones, ...codes, ...emails])];
+});
+
 const filteredEmployees = computed(() => {
   return employees.value.filter((emp) => {
     const fullName = `${emp.employees_firstname} ${emp.employees_lastname}`.toLowerCase();
@@ -114,30 +129,21 @@ const openDelete = async (emp) => {
 const handleSave = async (formData) => {
   submitting.value = true;
   try {
-    // เตรียม Payload ให้ครบทุกคอลัมน์ใน DB และ Map ชื่อให้ตรง
     const payload = {
       employees_code: formData.code,
       employees_firstname: formData.firstname,
       employees_lastname: formData.lastname,
       employees_status: formData.status,
-
-      // Role & Position
-      role: formData.role, // ค่า role (admin, maid, etc.)
-      employees_position: formData.position, // ค่า position ภาษาไทยที่ map มาแล้ว
-
-      // Details
+      role: formData.role,
+      employees_position: formData.position,
       employees_department: formData.department,
       employees_gender: formData.gender,
       employees_phone: formData.phone,
-
-      // ✅ Email: บังคับเป็นตัวพิมพ์เล็ก (Lowercase) เสมอ
       email: formData.email ? formData.email.toLowerCase() : "",
-
       updated_at: new Date(),
     };
 
     if (isEditing.value) {
-      // --- Update ---
       const { error } = await supabase
         .from("employees")
         .update(payload)
@@ -146,11 +152,10 @@ const handleSave = async (formData) => {
       if (error) throw error;
       await swalSuccess("บันทึกสำเร็จ!", "แก้ไขข้อมูลพนักงานเรียบร้อยแล้ว");
     } else {
-      // --- Insert ---
       const { error } = await supabase.from("employees").insert([
         {
           ...payload,
-          employees_status: "active", // Default status
+          employees_status: "active",
           created_at: new Date(),
         },
       ]);
@@ -159,7 +164,6 @@ const handleSave = async (formData) => {
       await swalSuccess("เพิ่มสำเร็จ!", "เพิ่มพนักงานใหม่เข้าระบบเรียบร้อยแล้ว");
     }
 
-    // Refresh & Close
     await fetchEmployees();
     showFormModal.value = false;
   } catch (err) {
@@ -190,7 +194,6 @@ const handleDeleteConfirm = async (empToDelete) => {
     if (paginatedEmployees.value.length === 0 && currentPage.value > 1) {
       currentPage.value--;
     }
-
   } catch (err) {
     console.error("Delete Error:", err);
     showToast("ลบไม่สำเร็จ", err.message, "error");
@@ -216,6 +219,7 @@ onMounted(() => {
         v-model:searchQuery="searchQuery"
         v-model:roleFilter="roleFilter"
         v-model:statusFilter="statusFilter"
+        :search-suggestions="allSearchSuggestions"
         @add="openAdd"
       />
       <EmployeeTable

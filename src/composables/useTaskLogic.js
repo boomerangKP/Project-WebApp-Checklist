@@ -1,14 +1,17 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { supabase } from '@/lib/supabase'
 import Swal from 'sweetalert2'
+import { useUserStore } from '@/stores/user' 
 
 export function useTaskLogic() {
+  const userStore = useUserStore()
+
   // --- State ---
   const tasks = ref([])
   const loading = ref(true)
   const timeSlots = ref([])
 
-  // ✅ 1. เพิ่ม State สำหรับเลือกวัน (เริ่มต้นเป็น "วันนี้")
+  // Date Range
   const startDate = ref(new Date().toISOString().split('T')[0])
   const endDate = ref(new Date().toISOString().split('T')[0])
 
@@ -42,22 +45,35 @@ export function useTaskLogic() {
     return match ? match.time_slots_name : 'นอกเวลาทำการ'
   }
 
-  // --- Fetch Data (Logic ใหม่: รองรับ Date Range) ---
+  // --- Fetch Data ---
   const fetchTasks = async () => {
     loading.value = true
     try {
-      // โหลดรอบเวลาถ้ายังไม่มี
       if (timeSlots.value.length === 0) {
         await fetchTimeSlots()
       }
 
-      // 🔥 แก้ไข Query: ใช้ startDate และ endDate
+      // 🔥 แก้ไข: ลบ Comment ออกจาก string เพื่อไม่ให้ Syntax Error
       let query = supabase
         .from('check_sessions')
         .select(`
-          check_sessions_id, check_sessions_date, check_sessions_time_start, check_sessions_status, created_at, checked_at,
-          employees ( employees_firstname, employees_lastname, employees_photo, role ),
-          locations ( locations_name, locations_building, locations_floor )
+          check_sessions_id, 
+          check_sessions_date, 
+          check_sessions_time_start, 
+          check_sessions_status, 
+          created_at, 
+          checked_at,
+          employees:employees!check_sessions_employees_id_fkey ( 
+            employees_firstname, 
+            employees_lastname, 
+            employees_photo, 
+            role 
+          ),
+          locations ( 
+            locations_name, 
+            locations_building, 
+            locations_floor 
+          )
         `)
         .order('created_at', { ascending: false })
 
@@ -83,10 +99,7 @@ export function useTaskLogic() {
         return {
           id: item.check_sessions_id,
           maidName: item.employees ? `${item.employees.employees_firstname} ${item.employees.employees_lastname}` : 'ไม่ระบุชื่อ',
-          
-          // ✅ ปรับตรงนี้: ส่ง Role ไปตรงๆ (admin, maid, cleaner) ให้ Frontend จัดการเรื่องชื่อ/ไอคอนเอง
           maidRole: item.employees?.role || 'user', 
-          
           maidPhoto: item.employees?.employees_photo,
           location: item.locations?.locations_name || 'ไม่ระบุสถานที่',
           floor: item.locations ? `${item.locations.locations_building} ชั้น ${item.locations.locations_floor}` : '-',
@@ -95,7 +108,6 @@ export function useTaskLogic() {
           status: mappedStatus,
           originalStatus: s,
           rawDate: item.check_sessions_date,
-          // ✅ เก็บ checked_at ไว้ด้วยเผื่อเอาไปใช้
           checkedAt: item.checked_at
         }
       })
@@ -157,6 +169,11 @@ export function useTaskLogic() {
 
   // --- Bulk Approve ---
   const handleBulkApprove = async () => {
+    if (!userStore.profile?.employees_id) {
+        Swal.fire('Error', 'ไม่พบข้อมูลผู้ใช้งาน กรุณาเข้าสู่ระบบใหม่', 'error');
+        return;
+    }
+
     const result = await Swal.fire({
       title: `ยืนยันการตรวจสอบ ${selectedIds.value.length} รายการ?`,
       text: 'รายการที่เลือกทั้งหมดจะถูกเปลี่ยนสถานะเป็น "ตรวจแล้ว"',
@@ -176,8 +193,8 @@ export function useTaskLogic() {
           .update({
             check_sessions_status: 'approved',
             updated_at: new Date(),
-            // ✅ เพิ่มการบันทึกเวลาตรวจตรงนี้ครับ (Bulk Approve)
-            checked_at: new Date().toISOString()
+            checked_at: new Date().toISOString(),
+            checked_by: userStore.profile.employees_id 
           })
           .in('check_sessions_id', selectedIds.value)
 
@@ -195,20 +212,20 @@ export function useTaskLogic() {
   }
 
   // --- Lifecycle & Watchers ---
-
-  // 1. รีเซ็ตหน้าเมื่อเปลี่ยน Filter
   watch([activeTab, itemsPerPage, searchQuery, selectedMaid], () => {
     currentPage.value = 1
     selectedIds.value = []
     isSelectionMode.value = false
   })
 
-  // 2. 🔥 เพิ่ม: โหลดข้อมูลใหม่เมื่อเปลี่ยนวันที่
   watch([startDate, endDate], () => {
     fetchTasks()
   })
 
-  onMounted(() => {
+  onMounted(async () => {
+    if (!userStore.profile) {
+        await userStore.fetchProfile()
+    }
     fetchTimeSlots()
     fetchTasks()
     realtimeSubscription = supabase.channel('realtime').on('postgres_changes', { event: '*', schema: 'public', table: 'check_sessions' }, fetchTasks).subscribe()
@@ -224,8 +241,8 @@ export function useTaskLogic() {
     activeTab,
     searchQuery,
     selectedMaid,
-    startDate, // ✅ ส่งออก
-    endDate,   // ✅ ส่งออก
+    startDate,
+    endDate,
     currentPage,
     itemsPerPage,
     isSelectionMode,
