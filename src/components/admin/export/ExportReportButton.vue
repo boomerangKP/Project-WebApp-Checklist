@@ -29,7 +29,7 @@ const handleExport = async () => {
       Swal.fire({
         icon: "warning",
         title: "ช่วงเวลาเกินกำหนด",
-        text: "ระบบอนุญาตให้ดาวน์โหลดข้อมูลได้สูงสุดครั้งละ 4 เดือนเท่านั้นครับ",
+        text: "ระบบอนุญาตให้ดาวน์โหลดข้อมูลได้สูงสุดครั้งละ 4 เดือน",
         confirmButtonColor: "#f59e0b",
         confirmButtonText: "เข้าใจแล้ว",
       });
@@ -38,15 +38,12 @@ const handleExport = async () => {
 
     isExporting.value = true;
 
-    // ✅ 2. Dynamic Import (แก้ปัญหา stream error แบบเนียนๆ)
-    // พยายามโหลด xlsx-js-style ก่อน ถ้าพัง (เพราะ vite config) ให้ถอยไปใช้ xlsx ธรรมดา
+    // 2. Dynamic Import (แก้ปัญหา stream error)
     let XLSX;
     try {
       XLSX = await import("xlsx-js-style");
     } catch (e) {
-      console.warn(
-        "xlsx-js-style load failed (stream issue), falling back to standard xlsx"
-      );
+      console.warn("xlsx-js-style load failed, falling back to standard xlsx");
       XLSX = await import("xlsx");
     }
 
@@ -54,7 +51,7 @@ const handleExport = async () => {
     const endDateTh = endDateObj.toLocaleDateString("th-TH", { dateStyle: "long" });
 
     // 3. ดึงข้อมูลจาก Supabase
-    // 🔥 แก้ไขจุดนี้: ระบุ FK ให้ชัดเจน (!check_sessions_employees_id_fkey) เพื่อแก้ Error PGRST201
+    // 🔥 แก้ไข: เพิ่ม time_slots และระบุ FK employees ให้ชัดเจน
     const { data: rawLogs, error } = await supabase
       .from("check_sessions")
       .select(
@@ -68,6 +65,10 @@ const handleExport = async () => {
             locations_name, 
             locations_building, 
             locations_floor
+        ),
+        time_slots (
+            time_slots_name,
+            time_slots_start
         )
         `
       )
@@ -81,7 +82,7 @@ const handleExport = async () => {
       return;
     }
 
-    // 4. Process Data: เตรียมข้อมูล (Logic เดิม)
+    // 4. Process Data: เตรียมข้อมูล
     const summaryMap = {};
     rawLogs.forEach((log) => {
       const dateRaw = log.check_sessions_date;
@@ -94,7 +95,15 @@ const handleExport = async () => {
         hour: "2-digit",
         minute: "2-digit",
       });
-      const isMorning = logTimeObj.getHours() < 12;
+
+      // ✅ Logic ใหม่: เช็คจาก time_slots ให้ตรงกับตารางหน้าเว็บ
+      let isMorning = true;
+      if (log.time_slots && log.time_slots.time_slots_start) {
+        const startHour = parseInt(log.time_slots.time_slots_start.split(":")[0]);
+        isMorning = startHour < 12;
+      } else {
+        isMorning = logTimeObj.getHours() < 12;
+      }
 
       if (!summaryMap[key]) {
         summaryMap[key] = {
@@ -125,7 +134,7 @@ const handleExport = async () => {
       }
     });
 
-    // 5. สร้างโครงสร้างข้อมูลใหม่สำหรับ Excel (Complex Header)
+    // 5. สร้างข้อมูล Excel (โครงสร้างเดิมเป๊ะ)
     const ws_data = [
       // Row 1: Title
       [{ v: "รายงานสรุปการทำความสะอาด (Maid Report)" }],
@@ -159,7 +168,6 @@ const handleExport = async () => {
         year: "numeric",
       });
       const floorValue = isNaN(Number(item.floor)) ? item.floor : Number(item.floor);
-
       const workMorning = item.morningCount > 0 ? "✓" : "-";
       const workAfternoon = item.afternoonCount > 0 ? "✓" : "-";
 
@@ -171,7 +179,7 @@ const handleExport = async () => {
         item.building, // E
         floorValue, // F
         item.location, // G
-        translateStatus(item.status), // H
+        translateStatus(item.status), // H: ใช้ฟังก์ชันที่แก้แล้วด้านล่าง
         item.timeMorning, // I
         item.timeAfternoon, // J
         workMorning, // K
@@ -183,41 +191,32 @@ const handleExport = async () => {
     // 6. สร้าง Worksheet
     const ws = XLSX.utils.aoa_to_sheet(ws_data);
 
-    // ✅ กำหนด Merge Cells
+    // กำหนด Merge Cells
     ws["!merges"] = [
       { s: { r: 0, c: 0 }, e: { r: 0, c: 12 } }, // Title
-      { s: { r: 1, c: 0 }, e: { r: 1, c: 12 } }, // Date Range
-
-      // Main Headers Vertical Merge
+      { s: { r: 1, c: 0 }, e: { r: 1, c: 12 } }, // Date
       { s: { r: 2, c: 0 }, e: { r: 3, c: 0 } }, // ลำดับ
-      { s: { r: 2, c: 1 }, e: { r: 3, c: 1 } }, // รหัสงาน
+      { s: { r: 2, c: 1 }, e: { r: 3, c: 1 } }, // รหัส
       { s: { r: 2, c: 2 }, e: { r: 3, c: 2 } }, // วันที่
       { s: { r: 2, c: 3 }, e: { r: 3, c: 3 } }, // ชื่อ
       { s: { r: 2, c: 4 }, e: { r: 3, c: 4 } }, // อาคาร
       { s: { r: 2, c: 5 }, e: { r: 3, c: 5 } }, // ชั้น
       { s: { r: 2, c: 6 }, e: { r: 3, c: 6 } }, // จุดตรวจ
       { s: { r: 2, c: 7 }, e: { r: 3, c: 7 } }, // สถานะ
-
-      // Group Headers Horizontal Merge
-      { s: { r: 2, c: 8 }, e: { r: 2, c: 9 } }, // ประทับเวลา
-      { s: { r: 2, c: 10 }, e: { r: 2, c: 11 } }, // ช่วงการทำงาน
-
+      { s: { r: 2, c: 8 }, e: { r: 2, c: 9 } }, // Time
+      { s: { r: 2, c: 10 }, e: { r: 2, c: 11 } }, // Check
       { s: { r: 2, c: 12 }, e: { r: 3, c: 12 } }, // หมายเหตุ
     ];
 
-    // ✅ ใส่ Style (ทำงานเฉพาะเมื่อโหลด xlsx-js-style ได้สำเร็จ)
+    // ใส่ Style (ถ้าโหลด library ได้)
     if (ws["!ref"] && XLSX.utils.decode_range) {
-      // เช็คก่อนว่ามีฟังก์ชันไหม
       const range = XLSX.utils.decode_range(ws["!ref"]);
       for (let R = range.s.r; R <= range.e.r; ++R) {
         for (let C = range.s.c; C <= range.e.c; ++C) {
           const cell_address = XLSX.utils.encode_cell({ r: R, c: C });
           if (!ws[cell_address]) continue;
-
-          // ถ้าไม่มี object .s ให้สร้างใหม่ (ป้องกัน error ถ้าใช้ xlsx ธรรมดา)
           if (!ws[cell_address].s) ws[cell_address].s = {};
 
-          // Default Style
           ws[cell_address].s = {
             font: { name: "TH Sarabun New", sz: 14 },
             alignment: { horizontal: "center", vertical: "center", wrapText: true },
@@ -229,17 +228,16 @@ const handleExport = async () => {
             },
           };
 
-          // Header Style (Row 1-4)
           if (R < 4) {
             ws[cell_address].s.font.bold = true;
             ws[cell_address].s.fill = { fgColor: { rgb: "EFEFEF" } };
-            if (R === 0) ws[cell_address].s.font.sz = 18; // Title ใหญ่
+            if (R === 0) ws[cell_address].s.font.sz = 18;
           }
         }
       }
     }
 
-    // กำหนดความกว้างคอลัมน์
+    // กำหนดความกว้าง
     ws["!cols"] = [
       { wch: 6 },
       { wch: 10 },
@@ -256,7 +254,6 @@ const handleExport = async () => {
       { wch: 25 },
     ];
 
-    // กำหนดความสูงของแถว
     ws["!rows"] = [{ hpt: 35 }, { hpt: 30 }, { hpt: 25 }];
 
     const wb = XLSX.utils.book_new();
@@ -268,7 +265,6 @@ const handleExport = async () => {
     Swal.fire({
       icon: "success",
       title: "ดาวน์โหลดสำเร็จ",
-      text: `ไฟล์ ${fileName} ถูกบันทึกลงในเครื่องของคุณแล้ว`,
       showConfirmButton: false,
       timer: 1500,
     });
@@ -280,14 +276,15 @@ const handleExport = async () => {
   }
 };
 
+// 🔥🔥🔥 จุดที่แก้ไขสำคัญ: แปลงสถานะให้ตรงกับความเป็นจริง 🔥🔥🔥
 const translateStatus = (status) => {
   const map = {
-    pass: "เรียบร้อย",
-    approved: "เรียบร้อย",
-    fail: "พบปัญหา",
-    rejected: "พบปัญหา",
-    fixed: "แก้ไขแล้ว",
-    waiting: "รอตรวจ",
+    pass: "เรียบร้อย", // แม่บ้านกดผ่านเอง
+    approved: "ตรวจแล้ว", // หัวหน้ากดอนุมัติ
+    fixed: "แก้ไขแล้ว", // แก้งานแล้ว
+    fail: "พบปัญหา", // เจอจุดบกพร่อง
+    rejected: "ปฏิเสธ", // หัวหน้าตีกลับ
+    waiting: "รอตรวจ", // ✅ อันนี้แหละที่ต้องมี!
   };
   return map[status] || status;
 };

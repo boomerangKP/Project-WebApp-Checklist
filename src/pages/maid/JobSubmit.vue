@@ -227,12 +227,39 @@ const onRequestSubmit = async () => {
 
     // --- กรณี A: เจองานเดิม ---
     if (existingSession) {
-      // กฏ: ถ้าสถานะไม่ใช่ waiting (เช่น approved/rejected ไปแล้ว) -> ให้สร้างใบใหม่เลย (INSERT)
-      // หรือถ้าอยาก Block ก็แก้ตรงนี้ได้ แต่นี่ปล่อยให้สร้างใบใหม่เพื่อความยืดหยุ่น
+      // 1. ถ้างานเดิมสถานะไม่ใช่ waiting (ถูกตรวจแล้ว) -> แจ้งเตือนก่อนส่งใหม่
       if (existingSession.check_sessions_status !== "waiting") {
-        // ไปทำ INSERT (ข้ามไปข้างล่าง)
+        const statusMap = {
+            approved: 'อนุมัติแล้ว/ผ่าน',
+            pass: 'ผ่านแล้ว',
+            rejected: 'ส่งกลับแก้ไข',
+            fail: 'ไม่ผ่าน',
+            fixed: 'แก้ไขแล้ว'
+        };
+        const statusText = statusMap[existingSession.check_sessions_status] || existingSession.check_sessions_status;
+
+        // 🚨 แจ้งเตือน (แยกปุ่มให้ชัดเจน)
+        const confirmNew = await Swal.fire({
+            title: 'มีการส่งงานจุดนี้ไปแล้ว',
+            html: `งานล่าสุดสถานะ: <b class="text-indigo-600">${statusText}</b><br>คุณต้องการส่งเป็น <b>"รายการใหม่"</b> ใช่หรือไม่?`,
+            icon: 'info',
+            showCancelButton: true,
+            confirmButtonText: 'ใช่ ส่งรายการใหม่',
+            cancelButtonText: 'ยกเลิก',
+            confirmButtonColor: '#3b82f6',
+            reverseButtons: true
+        });
+
+        // ❌ ถ้ากด "ยกเลิก" หรือปิด Popup -> หยุดทันที
+        if (!confirmNew.isConfirmed) {
+            submitting.value = false;
+            return;
+        }
+
+        // ✅ ถ้ากด "ยืนยัน" -> ปล่อยไหลลงไป Insert ข้างล่าง
+
       } else {
-        // เช็คเวลา 30 นาที
+        // 2. ถ้างานเดิมเป็น Waiting (รอตรวจ) -> ให้แก้ไขได้ภายใน 30 นาที
         const taskTime = new Date(existingSession.created_at).getTime();
         const nowTime = new Date().getTime();
         const diffMinutes = (nowTime - taskTime) / (1000 * 60);
@@ -241,26 +268,32 @@ const onRequestSubmit = async () => {
           throw new Error("หมดเวลาแก้ไขงานเดิม (เกิน 30 นาที) กรุณาติดต่อหัวหน้างาน");
         }
 
-        // ถามยืนยันการแก้
+        // 🔥 แก้ไขตรงนี้: แยก 3 ทางเลือก (แก้ไข / สร้างใหม่ / ยกเลิก)
         const confirmEdit = await Swal.fire({
           title: "พบงานที่ส่งไปแล้ว",
-          text: `คุณเพิ่งส่งงานนี้ไปเมื่อ ${Math.floor(
+          text: `คุณเพิ่งส่งงานจุดนี้ไปเมื่อ ${Math.floor(
             diffMinutes
-          )} นาทีที่แล้ว ต้องการแก้ไขข้อมูลล่าสุดใช่ไหม?`,
+          )} นาทีที่แล้ว`,
           icon: "warning",
-          showCancelButton: true,
+          showDenyButton: true,   // ✅ ปุ่มทางเลือกที่ 2 (สร้างใหม่)
+          showCancelButton: true, // ✅ ปุ่มยกเลิก
           confirmButtonText: "ใช่ แก้ไขอันเดิม",
-          cancelButtonText: "สร้างรายการใหม่", // หรือ 'ยกเลิก' ตามต้องการ
+          denyButtonText: "สร้างรายการใหม่",
+          cancelButtonText: "ยกเลิก",
+          confirmButtonColor: "#f59e0b",
+          denyButtonColor: "#16a34a",
+          cancelButtonColor: "#6b7280",
+          reverseButtons: true,
         });
 
+        // 🟢 ทางเลือก 1: แก้ไขอันเดิม (Confirmed)
         if (confirmEdit.isConfirmed) {
-          // --- UPDATE Logic ---
-          // 1. อัปเดต Session (พิกัดใหม่, เวลานับใหม่, edit_count +1)
+          // UPDATE Logic
           const { error: updateErr } = await supabase
             .from("check_sessions")
             .update({
-              check_sessions_status: "waiting", // อาจเปลี่ยนสถานะ
-              check_sessions_time_start: new Date().toLocaleTimeString("en-GB"), // อัปเดตเวลาล่าสุด
+              check_sessions_status: "waiting", // ✅ บังคับ Waiting
+              check_sessions_time_start: new Date().toLocaleTimeString("en-GB"),
               lat: gps?.lat || null,
               long: gps?.long || null,
               edit_count: (existingSession.edit_count || 0) + 1,
@@ -269,29 +302,31 @@ const onRequestSubmit = async () => {
 
           if (updateErr) throw updateErr;
 
-          // 2. ลบผลการตรวจเก่าทิ้ง (Results)
+          // ลบ Results เก่า ใส่ใหม่
           await supabase
             .from("check_results")
             .delete()
             .eq("check_sessions_id", existingSession.check_sessions_id);
 
-          // 3. ใส่ผลการตรวจใหม่ (Results)
           const resultsData = checkListItems.value.map((item) => ({
             check_sessions_id: existingSession.check_sessions_id,
             check_items_id: item.check_items_id,
             check_results_status: item.status,
             check_results_detail: item.detail || null,
           }));
-          const { error: resErr } = await supabase
-            .from("check_results")
-            .insert(resultsData);
-          if (resErr) throw resErr;
+          await supabase.from("check_results").insert(resultsData);
 
-          // จบการทำงาน (Update)
           await Swal.fire({ icon: "success", title: "แก้ไขงานเรียบร้อย!", timer: 1500 });
           router.replace("/maid/home");
           return;
         }
+        // 🔴 ทางเลือก 2: ยกเลิก / ปิดหน้าต่าง (Dismissed) -> หยุดทันที
+        else if (confirmEdit.isDismissed) {
+           submitting.value = false;
+           return;
+        }
+
+        // 🔵 ทางเลือก 3: สร้างรายการใหม่ (Denied) -> ปล่อยไหลลงไป Insert ข้างล่าง
       }
     }
 
@@ -302,9 +337,9 @@ const onRequestSubmit = async () => {
       employees_id: userStore.profile.employees_id,
       check_sessions_date: localDate,
       check_sessions_time_start: new Date().toLocaleTimeString("en-GB"),
-      check_sessions_status: "waiting", // หรือ "waiting" ตาม Logic นาย
-      lat: gps?.lat || null, // ✅ ใส่พิกัด
-      long: gps?.long || null, // ✅ ใส่พิกัด
+      check_sessions_status: "waiting", // ✅ บังคับ Waiting
+      lat: gps?.lat || null,
+      long: gps?.long || null,
       edit_count: 0,
     };
 
@@ -328,9 +363,11 @@ const onRequestSubmit = async () => {
     await Swal.fire({
       icon: "success",
       title: "ส่งงานเรียบร้อย!",
+      text: "บันทึกข้อมูลสำเร็จแล้ว",
+      confirmButtonText: "กลับหน้าหลัก",
       confirmButtonColor: "#16a34a",
-    });
-    router.replace("/maid/home");
+      allowOutsideClick: false,
+    }).then(() => router.replace("/maid/home"));
   } catch (error) {
     Swal.fire("เกิดข้อผิดพลาด", error.message, "error");
   } finally {
