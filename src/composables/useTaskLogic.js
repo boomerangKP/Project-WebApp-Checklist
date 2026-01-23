@@ -1,26 +1,27 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { supabase } from '@/lib/supabase'
-import Swal from 'sweetalert2'
+import { useSwal } from '@/composables/useSwal' // ✅ 1. เปลี่ยนจาก import 'sweetalert2' มาเป็น useSwal
 import { useUserStore } from '@/stores/user'
-import { useTaskFilterStore } from '@/stores/taskFilters' // ✅ 1. Import Store
-import { storeToRefs } from 'pinia' // ✅ 2. Import ตัวช่วยแปลง
+import { useTaskFilterStore } from '@/stores/taskFilters'
+import { storeToRefs } from 'pinia'
 
 export function useTaskLogic() {
   const userStore = useUserStore()
-  const filterStore = useTaskFilterStore() // ✅ 3. เรียกใช้ Store
+  const filterStore = useTaskFilterStore()
+  const { Swal } = useSwal() // ✅ 2. ดึงตัวแปร Swal ที่แต่ง Dark Mode แล้วมาใช้
 
-  // ✅ 4. ดึง State จาก Store (รวม dateRange ที่เพิ่มมาใหม่)
-  const { 
-    activeTab, 
-    searchQuery, 
+  // --- ดึง State จาก Store (เหมือนเดิม) ---
+  const {
+    activeTab,
+    searchQuery,
     selectedMaid,
-    dateRange, // ✅ เพิ่ม: ดึง dateRange มาใช้
-    startDate, 
-    endDate, 
-    currentPage, 
-    itemsPerPage, 
-    isSelectionMode, 
-    selectedIds 
+    dateRange,
+    startDate,
+    endDate,
+    currentPage,
+    itemsPerPage,
+    isSelectionMode,
+    selectedIds
   } = storeToRefs(filterStore)
 
   // --- Local State ---
@@ -56,21 +57,21 @@ export function useTaskLogic() {
       let query = supabase
         .from('check_sessions')
         .select(`
-          check_sessions_id, 
-          check_sessions_date, 
-          check_sessions_time_start, 
-          check_sessions_status, 
-          created_at, 
+          check_sessions_id,
+          check_sessions_date,
+          check_sessions_time_start,
+          check_sessions_status,
+          created_at,
           checked_at,
-          employees:employees!check_sessions_employees_id_fkey ( 
-            employees_firstname, 
-            employees_lastname, 
-            employees_photo, 
-            role 
+          employees:employees!check_sessions_employees_id_fkey (
+            employees_firstname,
+            employees_lastname,
+            employees_photo,
+            role
           ),
-          locations ( 
-            locations_name, 
-            locations_building, 
+          locations (
+            locations_name,
+            locations_building,
             locations_floor
           )
         `)
@@ -96,7 +97,7 @@ export function useTaskLogic() {
 
         return {
           id: item.check_sessions_id,
-          displayId: String(item.check_sessions_id), 
+          displayId: String(item.check_sessions_id),
           maidName: item.employees ? `${item.employees.employees_firstname} ${item.employees.employees_lastname}` : 'ไม่ระบุชื่อ',
           maidRole: item.employees?.role || 'user',
           maidPhoto: item.employees?.employees_photo,
@@ -112,6 +113,7 @@ export function useTaskLogic() {
       })
     } catch (err) {
       console.error('Fetch Error:', err)
+      // ✅ Swal ตรงนี้จะใช้ธีม Dark Mode อัตโนมัติ
       Swal.fire('Error', `โหลดข้อมูลไม่สำเร็จ: ${err.message}`, 'error')
     } finally {
       loading.value = false
@@ -125,7 +127,7 @@ export function useTaskLogic() {
     const matchesTab = activeTab.value === 'all' || t.status === activeTab.value
     const matchesMaid = selectedMaid.value === 'all' || t.maidName === selectedMaid.value
     const query = searchQuery.value.toLowerCase()
-    const matchesSearch = !searchQuery.value || 
+    const matchesSearch = !searchQuery.value ||
       t.maidName.toLowerCase().includes(query) ||
       t.location.toLowerCase().includes(query) ||
       t.displayId.includes(query)
@@ -178,6 +180,7 @@ export function useTaskLogic() {
         return;
     }
 
+    // ✅ Popup ยืนยันตรงนี้จะเป็นสีเข้มถ้าเปิด Dark Mode
     const result = await Swal.fire({
       title: `ยืนยันการตรวจสอบ ${selectedIds.value.length} รายการ?`,
       text: 'รายการที่เลือกทั้งหมดจะถูกเปลี่ยนสถานะเป็น "ตรวจแล้ว"',
@@ -198,7 +201,7 @@ export function useTaskLogic() {
             check_sessions_status: 'approved',
             updated_at: new Date(),
             checked_at: new Date().toISOString(),
-            checked_by: userStore.profile.employees_id 
+            checked_by: userStore.profile.employees_id
           })
           .in('check_sessions_id', selectedIds.value)
 
@@ -216,15 +219,12 @@ export function useTaskLogic() {
   }
 
   // --- Lifecycle & Watchers ---
-  
-  // ✅ ถ้าเปลี่ยนเงื่อนไขการค้นหา -> กลับหน้า 1 (แต่ถ้ากลับมาจากหน้าอื่น จะไม่เข้าเงื่อนไขนี้)
   watch([activeTab, searchQuery, selectedMaid], () => {
     currentPage.value = 1
     selectedIds.value = []
     isSelectionMode.value = false
   })
 
-  // ถ้าเปลี่ยนวัน -> โหลดข้อมูลใหม่
   watch([startDate, endDate], () => {
     currentPage.value = 1
     fetchTasks()
@@ -235,7 +235,7 @@ export function useTaskLogic() {
         await userStore.fetchProfile()
     }
     fetchTimeSlots()
-    fetchTasks() // ใช้ค่าที่จำไว้ใน Store โหลดข้อมูล
+    fetchTasks()
     realtimeSubscription = supabase.channel('realtime').on('postgres_changes', { event: '*', schema: 'public', table: 'check_sessions' }, fetchTasks).subscribe()
   })
 
@@ -245,7 +245,7 @@ export function useTaskLogic() {
 
   return {
     tasks, loading, activeTab, searchQuery, selectedMaid,
-    dateRange, // ✅ ส่ง dateRange ออกไปให้ UI ใช้
+    dateRange,
     startDate, endDate, currentPage, itemsPerPage,
     isSelectionMode, selectedIds, isBulkSubmitting,
     uniqueMaids, filteredTasks, paginatedTasks, totalPages,

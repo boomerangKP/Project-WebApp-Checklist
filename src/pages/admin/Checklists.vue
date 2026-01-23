@@ -2,11 +2,14 @@
 import { ref, onMounted } from "vue";
 import { supabase } from "@/lib/supabase";
 import { Plus, ListChecks } from "lucide-vue-next";
-import Swal from "sweetalert2";
+import { useSwal } from "@/composables/useSwal"; // ✅ 1. เรียกใช้ useSwal
 
 // Import Components
 import ChecklistTable from "@/components/admin/checklists/ChecklistTable.vue";
 import ChecklistFormModal from "@/components/admin/checklists/ChecklistFormModal.vue";
+
+// ✅ 2. ดึง Swal และฟังก์ชันสำเร็จรูปมาใช้
+const { Swal, swalSuccess, swalConfirm } = useSwal();
 
 // --- State ---
 const loading = ref(false);
@@ -18,31 +21,6 @@ const showModal = ref(false);
 const modalMode = ref("add");
 const editingId = ref(null);
 const formData = ref({});
-
-// --- SweetAlert Config ---
-const swalConfirm = Swal.mixin({
-  customClass: {
-    confirmButton:
-      "bg-[#38b6ff] text-white px-4 py-2 rounded-lg ml-2 hover:bg-[#38b6ff]/90",
-    cancelButton: "bg-gray-100 text-gray-600 px-4 py-2 rounded-lg hover:bg-gray-200",
-    popup: "font-noto",
-  },
-  buttonsStyling: false,
-  confirmButtonText: "ยืนยัน",
-  cancelButtonText: "ยกเลิก",
-  showCancelButton: true,
-  reverseButtons: true,
-});
-
-const swalSuccess = (title) => {
-  Swal.fire({
-    icon: "success",
-    title: title,
-    showConfirmButton: false,
-    timer: 1500,
-    timerProgressBar: true,
-  });
-};
 
 // --- Fetch Data ---
 const fetchData = async () => {
@@ -89,7 +67,7 @@ const openModal = (item = null) => {
   showModal.value = true;
 };
 
-// 🔥 ฟังก์ชัน Save พร้อมเช็คข้อมูลซ้ำ (ชื่อ, รหัส, และลำดับ!)
+// 🔥 ฟังก์ชัน Save พร้อมเช็คข้อมูลซ้ำ
 const handleSave = async (submitData) => {
   if (!submitData.check_items_name.trim()) {
     return Swal.fire("ข้อมูลไม่ครบ", "กรุณากรอกชื่อรายการ", "warning");
@@ -111,7 +89,7 @@ const handleSave = async (submitData) => {
       )
     : false;
 
-  // 3. 🔥 เช็คลำดับซ้ำ (Order Duplicate) เพิ่มตรงนี้ครับ!
+  // 3. เช็คลำดับซ้ำ
   const isDuplicateOrder = checkItems.value.some(
     (item) =>
       item.check_items_order === submitData.check_items_order &&
@@ -142,14 +120,13 @@ const handleSave = async (submitData) => {
     );
   }
 
-  // 4. ถามก่อนบันทึก
-  const result = await swalConfirm.fire({
-    title: modalMode.value === "add" ? "ยืนยันการเพิ่มรายการ?" : "ยืนยันการแก้ไข?",
-    text: "ตรวจสอบความถูกต้องก่อนบันทึก",
-    icon: "question",
-  });
+  // 4. ถามก่อนบันทึก (✅ ใช้ swalConfirm จาก useSwal)
+  const isConfirmed = await swalConfirm(
+    modalMode.value === "add" ? "ยืนยันการเพิ่มรายการ?" : "ยืนยันการแก้ไข?",
+    "ตรวจสอบความถูกต้องก่อนบันทึก"
+  );
 
-  if (!result.isConfirmed) return;
+  if (!isConfirmed) return;
 
   saving.value = true;
   try {
@@ -166,6 +143,7 @@ const handleSave = async (submitData) => {
 
     showModal.value = false;
     await fetchData();
+    // ✅ ใช้ swalSuccess จาก useSwal
     swalSuccess(modalMode.value === "add" ? "เพิ่มข้อมูลสำเร็จ" : "แก้ไขข้อมูลสำเร็จ");
   } catch (err) {
     if (err.message.includes("unique constraint")) {
@@ -179,15 +157,16 @@ const handleSave = async (submitData) => {
 };
 
 const handleDelete = async (id) => {
-  const result = await swalConfirm.fire({
+  // ✅ ใช้ swalConfirm แบบกำหนดเอง (เพื่อให้ปุ่มลบเป็นสีแดง)
+  const result = await Swal.fire({
     title: "ยืนยันการลบ?",
     text: "ข้อมูลที่ลบจะไม่สามารถกู้คืนได้",
     icon: "warning",
+    showCancelButton: true,
     confirmButtonText: "ลบเลย!",
-    customClass: {
-      confirmButton: "bg-red-600 text-white px-4 py-2 rounded-lg ml-2 hover:bg-red-700",
-      cancelButton: "bg-gray-100 text-gray-600 px-4 py-2 rounded-lg hover:bg-gray-200",
-    },
+    cancelButtonText: "ยกเลิก",
+    // ไม่ต้องกำหนด class ปุ่ม confirm/cancel เพราะ useSwal จัดการให้แล้ว
+    // แต่ถ้าอยากได้สีแดงสำหรับปุ่มลบ useSwal จะเช็ค icon: 'warning' ให้เองอัตโนมัติ (ในโค้ด useSwal ล่าสุดที่ผมให้ไป)
   });
 
   if (!result.isConfirmed) return;

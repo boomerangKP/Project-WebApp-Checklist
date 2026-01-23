@@ -2,8 +2,7 @@
 import { ref, computed, onMounted } from "vue";
 import { supabase } from "@/lib/supabase";
 import { MessageSquareQuote, Plus } from "lucide-vue-next";
-import { useSwal } from "@/composables/useSwal";
-import Swal from "sweetalert2";
+import { useSwal } from "@/composables/useSwal"; // ✅ 1. เรียกใช้ useSwal ที่เดียวจบ
 
 // Components
 import TopicFilters from "@/components/admin/feedback/TopicFilters.vue";
@@ -13,7 +12,10 @@ import TopicFormModal from "@/components/admin/feedback/TopicFormModal.vue";
 // --- State ---
 const loading = ref(false);
 const topics = ref([]);
-const { swalConfirm, swalSuccess } = useSwal();
+
+// ✅ 2. ดึง Swal (ตัวหลัก), swalConfirm, swalSuccess มาใช้
+const { Swal, swalConfirm, swalSuccess } = useSwal();
+
 const highlightedId = ref(null);
 
 // ✅ เพิ่ม tableRef เพื่อใช้สั่ง Reset หน้าตาราง
@@ -98,14 +100,14 @@ const openEditModal = (item) => {
 
 // 🔥 Save Data
 const handleSave = async (formData) => {
-  // ✅ 1. ใช้ Swal แบบ Warning
+  // ✅ 1. ใช้ Swal จาก useSwal (ตัดสี Hardcode ออก)
   if (!formData.name) {
     return Swal.fire({
       icon: "warning",
       title: "ข้อมูลไม่ครบถ้วน",
       text: "กรุณากรอกชื่อหัวข้อการประเมิน",
       confirmButtonText: "ตกลง",
-      confirmButtonColor: "#4f46e5",
+      // confirmButtonColor: "#4f46e5", // ❌ ลบออก เพื่อให้ใช้ธีมกลาง
     });
   }
 
@@ -152,10 +154,11 @@ const handleSave = async (formData) => {
       }, 3000);
     }
 
+    // ใช้ swalSuccess ที่ดึงมาจาก useSwal
     await swalSuccess(modalMode.value === "add" ? "เพิ่มหัวข้อสำเร็จ" : "แก้ไขเรียบร้อย");
   } catch (err) {
     console.error("Save error:", err);
-    // ✅ 2. ใช้ Swal แบบ Error
+    // ✅ 2. ใช้ Swal แบบ Error (รองรับ Dark Mode อัตโนมัติ)
     Swal.fire({
       icon: "error",
       title: "บันทึกไม่สำเร็จ",

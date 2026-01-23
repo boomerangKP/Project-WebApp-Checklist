@@ -8,13 +8,12 @@ import {
   MapPin,
   Trash2,
   CheckCheck,
-  // ✅ เพิ่มไอคอน Role
   ShieldCheck,
   SprayCan,
   User,
 } from "lucide-vue-next";
 import { useRouter } from "vue-router";
-import Swal from "sweetalert2";
+import { useSwal } from "@/composables/useSwal"; // ✅ 1. เรียกใช้ useSwal
 import dayjs from "dayjs";
 import "dayjs/locale/th";
 import buddhistEra from "dayjs/plugin/buddhistEra";
@@ -30,6 +29,9 @@ const showDropdown = ref(false);
 const unreadCount = computed(() => notifications.value.filter((n) => !n.is_read).length);
 let realtimeSubscription = null;
 const containerRef = ref(null);
+
+// ✅ 2. ดึง Swal ตัวที่แต่งธีมแล้วมาใช้
+const { Swal } = useSwal();
 
 // --- Helper Functions ---
 const timeSlots = ref([]);
@@ -51,17 +53,15 @@ const getSlotName = (dateString) => {
   return match ? match.time_slots_name : dayjs(dateString).format("HH.mm น.");
 };
 
-// ✅ แก้ไข fetchNotifications ให้ดึง role มาด้วย
 const fetchNotifications = async () => {
   const { data } = await supabase
     .from("notifications")
-    .select(`*, employees (employees_photo, role)`) // เพิ่ม role
+    .select(`*, employees (employees_photo, role)`)
     .order("created_at", { ascending: false })
     .limit(20);
   if (data) notifications.value = data;
 };
 
-// ✅ แก้ไข Realtime ให้ดึง role มาด้วย
 const subscribeRealtime = () => {
   realtimeSubscription = supabase
     .channel("noti-realtime")
@@ -72,7 +72,7 @@ const subscribeRealtime = () => {
         const newNoti = payload.new;
         const { data: emp } = await supabase
           .from("employees")
-          .select("employees_photo, role") // เพิ่ม role
+          .select("employees_photo, role")
           .eq("employees_id", newNoti.actor_id)
           .single();
         notifications.value.unshift({ ...newNoti, employees: emp });
@@ -92,17 +92,13 @@ const handleClick = async (noti) => {
 
 const toggleDropdown = () => (showDropdown.value = !showDropdown.value);
 
-// ✅ ฟังก์ชัน อ่านทั้งหมด
+// ✅ ฟังก์ชัน อ่านทั้งหมด (ใช้ Mixin จาก Swal ที่แต่งธีมแล้ว)
 const markAllRead = async () => {
   if (unreadCount.value === 0) return;
 
-  // อัปเดตหน้าจอทันทีเพื่อให้รู้สึกเร็ว
   notifications.value.forEach((n) => (n.is_read = true));
-
-  // อัปเดตลงฐานข้อมูล
   await supabase.from("notifications").update({ is_read: true }).eq("is_read", false);
 
-  // แจ้งเตือนเล็กๆ (Toast)
   const Toast = Swal.mixin({
     toast: true,
     position: "top-end",
@@ -115,16 +111,26 @@ const markAllRead = async () => {
 
 // ✅ ฟังก์ชัน ลบทั้งหมด
 const deleteAll = async () => {
+  // ใช้ Swal จาก useSwal และกำหนด Custom Class เพื่อให้ปุ่มลบเป็นสีแดง
   const result = await Swal.fire({
     title: "ล้างประวัติแจ้งเตือน?",
     text: "ข้อความทั้งหมดจะหายไปและกู้คืนไม่ได้",
     icon: "warning",
     showCancelButton: true,
-    confirmButtonColor: "#ef4444",
-    cancelButtonColor: "#9ca3af",
     confirmButtonText: "ลบเลย",
     cancelButtonText: "ยกเลิก",
     reverseButtons: true,
+    // Override class ปุ่มให้เป็นสีแดง (Danger) แต่ยังคง Dark Mode ไว้
+    customClass: {
+      popup:
+        "bg-white dark:bg-slate-800 text-gray-900 dark:text-white font-noto rounded-2xl border border-gray-200 dark:border-slate-700 shadow-xl",
+      title: "text-gray-900 dark:text-white",
+      htmlContainer: "text-gray-600 dark:text-slate-300",
+      confirmButton:
+        "bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg ml-2 border-none shadow-sm transition-all font-medium",
+      cancelButton:
+        "bg-gray-100 hover:bg-gray-200 text-gray-600 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-200 px-4 py-2 rounded-lg border-none shadow-sm transition-all font-medium",
+    },
   });
 
   if (result.isConfirmed) {
@@ -175,7 +181,6 @@ const handleScroll = (event) => {
   if (!isScrollingInside) showDropdown.value = false;
 };
 
-// ✅ Helper: Role Config
 const getRoleConfig = (role) => {
   const r = role ? role.toLowerCase() : "user";
   switch (r) {

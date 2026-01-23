@@ -3,7 +3,7 @@ import { ref, onMounted, computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { supabase } from "@/lib/supabase";
 import { useUserStore } from "@/stores/user";
-import Swal from "sweetalert2";
+import { useSwal } from "@/composables/useSwal"; // ✅ 1. เรียกใช้ useSwal แทน import ตรงๆ
 import {
   ArrowLeft,
   Clock,
@@ -26,6 +26,9 @@ import {
 const route = useRoute();
 const router = useRouter();
 const userStore = useUserStore();
+// ✅ 2. ดึง Swal ที่แต่งธีม Dark Mode มาใช้
+const { Swal } = useSwal();
+
 const taskId = route.params.id;
 
 // --- State ---
@@ -93,8 +96,6 @@ const getRoleConfig = (role) => {
 // --- Fetch Data ---
 const fetchTaskDetail = async () => {
   try {
-    // 🔥 แก้ไขจุดนี้: ระบุ Foreign Key ให้ชัดเจน (!check_sessions_employees_id_fkey)
-    // เพื่อบอก Supabase ว่าเราต้องการข้อมูลของ "คนทำความสะอาด" (ไม่ใช่คนตรวจ)
     const { data: sessionData, error: sessionError } = await supabase
       .from("check_sessions")
       .select(
@@ -139,8 +140,6 @@ const handleApprove = async () => {
     text: "งานนี้จะได้รับการตรวจสอบว่าตรวจแล้วเรียบร้อย",
     icon: "question",
     showCancelButton: true,
-    confirmButtonColor: "#22c55e",
-    cancelButtonColor: "#9ca3af",
     confirmButtonText: "ยืนยันการตรวจสอบ",
     cancelButtonText: "ยกเลิก",
     reverseButtons: true,
@@ -168,7 +167,7 @@ const handleReject = async () => {
     input: "textarea",
     inputPlaceholder: "พิมพ์เหตุผลที่นี่... (เช่น พื้นยังไม่สะอาด)",
     showCancelButton: true,
-    confirmButtonColor: "#ef4444",
+    confirmButtonColor: "#ef4444", // สีแดงสำหรับการปฏิเสธ
     cancelButtonColor: "#9ca3af",
     confirmButtonText: "ยืนยันส่งกลับ",
     cancelButtonText: "ยกเลิก",
@@ -199,8 +198,6 @@ const handleReset = async () => {
     text: "สถานะงานจะถูกรีเซ็ตกลับเป็น 'รอตรวจสอบ'",
     icon: "info",
     showCancelButton: true,
-    confirmButtonColor: "#3b82f6",
-    cancelButtonColor: "#9ca3af",
     confirmButtonText: "ใช่, รีเซ็ตเลย",
     cancelButtonText: "ยกเลิก",
     reverseButtons: true,
@@ -326,9 +323,6 @@ onMounted(async () => {
           class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 transition-colors duration-300"
         >
           <div class="space-y-2">
-            <h2 class="text-lg font-bold text-gray-800 dark:text-white">
-              สถานที่ปฏิบัติงาน:
-            </h2>
             <h3 class="text-lg font-bold text-gray-800 dark:text-white">
               {{ session.locations?.locations_name || "ไม่ระบุสถานที่" }}
             </h3>
