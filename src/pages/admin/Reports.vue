@@ -2,7 +2,7 @@
 import { ref, onMounted, computed } from "vue";
 import { supabase } from "@/lib/supabase";
 import * as XLSX from "xlsx";
-import Swal from "sweetalert2";
+import { useSwal } from "@/composables/useSwal"; // ✅ 1. เปลี่ยน import ตรงนี้
 import { useRouter } from "vue-router";
 
 // Import Components
@@ -11,6 +11,7 @@ import ReportStats from "@/components/admin/report/ReportStats.vue";
 import ReportTable from "@/components/admin/report/ReportTable.vue";
 
 const router = useRouter();
+const { Swal } = useSwal(); // ✅ 2. เรียกใช้ Swal ที่แต่ง Dark Mode แล้ว
 
 // State
 const loading = ref(true);
@@ -92,16 +93,16 @@ const fetchData = async (rangeObj = currentRange.value) => {
       .from("check_sessions")
       .select(
         `
-        *, 
+        *,
         employees:employees!check_sessions_employees_id_fkey (
-          employees_firstname, 
-          employees_lastname, 
-          employees_photo, 
-          role 
-        ), 
+          employees_firstname,
+          employees_lastname,
+          employees_photo,
+          role
+        ),
         locations (
-          locations_name, 
-          locations_building, 
+          locations_name,
+          locations_building,
           locations_floor
         ),
         restroom_types (restroom_types_name),
@@ -154,6 +155,7 @@ const filteredLogs = computed(() => {
 // ✅ ฟังก์ชัน Export (ปรับปรุงให้โชว์รอบเวลา)
 const handleExport = () => {
   if (!logs.value || logs.value.length === 0) {
+    // ✅ ใช้ Swal ตัวใหม่ (รองรับ Dark Mode)
     return Swal.fire(
       "ไม่มีข้อมูล",
       "กรุณาเลือกช่วงเวลาที่มีข้อมูลก่อน Export",
@@ -209,6 +211,7 @@ const handleExport = () => {
   }.xlsx`;
   XLSX.writeFile(workbook, fileName);
 
+  // ✅ ใช้ Swal ตัวใหม่
   Swal.fire({
     icon: "success",
     title: "ดาวน์โหลดสำเร็จ!",

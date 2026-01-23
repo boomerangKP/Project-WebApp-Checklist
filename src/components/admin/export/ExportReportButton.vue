@@ -2,43 +2,60 @@
 import { ref } from "vue";
 import { supabase } from "@/lib/supabase";
 import { Loader2, FileSpreadsheet } from "lucide-vue-next";
-import Swal from "sweetalert2";
+import { useSwal } from "@/composables/useSwal"; // ✅ 1. ใช้ useSwal
 
 const props = defineProps({
   startDate: { type: String, default: "" },
   endDate: { type: String, default: "" },
 });
 
+// ✅ 2. เรียกใช้ Swal ธีม Dark Mode
+const { Swal } = useSwal();
+
 const isExporting = ref(false);
 
 const handleExport = async () => {
+  // 1. Validation ช่วงเวลา (เช็คก่อนถาม)
+  const start =
+    props.startDate ||
+    new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+  const end = props.endDate || new Date().toISOString();
+
+  const startDateObj = new Date(start);
+  const endDateObj = new Date(end);
+
+  const maxAllowedDate = new Date(startDateObj);
+  maxAllowedDate.setMonth(maxAllowedDate.getMonth() + 4);
+
+  if (endDateObj > maxAllowedDate) {
+    Swal.fire({
+      icon: "warning",
+      title: "ช่วงเวลาเกินกำหนด",
+      text: "ระบบอนุญาตให้ดาวน์โหลดข้อมูลได้สูงสุดครั้งละ 4 เดือน",
+      confirmButtonText: "เข้าใจแล้ว",
+    });
+    return;
+  }
+
+  // ✅✅ เพิ่ม: ถามยืนยันก่อนดาวน์โหลด (Confirm Dialog) ✅✅
+  const confirmResult = await Swal.fire({
+    title: "ยืนยันการดาวน์โหลด?",
+    text: "ต้องการส่งออกรายงานสรุปการทำความสะอาดเป็นไฟล์ Excel หรือไม่?",
+    icon: "question",
+    showCancelButton: true,
+    confirmButtonText: "ใช่, ดาวน์โหลดเลย",
+    cancelButtonText: "ยกเลิก",
+    // ไม่ต้องกำหนดสีปุ่ม เพราะมันจะดึงจาก Theme กลางมาใช้เอง
+  });
+
+  // ถ้ากด Cancel ให้จบการทำงานตรงนี้เลย
+  if (!confirmResult.isConfirmed) return;
+
+  // --- เริ่มกระบวนการ Export ---
+  isExporting.value = true; // หมุนติ้วๆ
+
   try {
-    // 1. Validation ช่วงเวลา
-    const start =
-      props.startDate ||
-      new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
-    const end = props.endDate || new Date().toISOString();
-
-    const startDateObj = new Date(start);
-    const endDateObj = new Date(end);
-
-    const maxAllowedDate = new Date(startDateObj);
-    maxAllowedDate.setMonth(maxAllowedDate.getMonth() + 4);
-
-    if (endDateObj > maxAllowedDate) {
-      Swal.fire({
-        icon: "warning",
-        title: "ช่วงเวลาเกินกำหนด",
-        text: "ระบบอนุญาตให้ดาวน์โหลดข้อมูลได้สูงสุดครั้งละ 4 เดือน",
-        confirmButtonColor: "#f59e0b",
-        confirmButtonText: "เข้าใจแล้ว",
-      });
-      return;
-    }
-
-    isExporting.value = true;
-
-    // 2. Dynamic Import (แก้ปัญหา stream error)
+    // 2. Dynamic Import
     let XLSX;
     try {
       XLSX = await import("xlsx-js-style");
@@ -51,7 +68,6 @@ const handleExport = async () => {
     const endDateTh = endDateObj.toLocaleDateString("th-TH", { dateStyle: "long" });
 
     // 3. ดึงข้อมูลจาก Supabase
-    // 🔥 แก้ไข: เพิ่ม time_slots และระบุ FK employees ให้ชัดเจน
     const { data: rawLogs, error } = await supabase
       .from("check_sessions")
       .select(
@@ -82,7 +98,7 @@ const handleExport = async () => {
       return;
     }
 
-    // 4. Process Data: เตรียมข้อมูล
+    // 4. Process Data
     const summaryMap = {};
     rawLogs.forEach((log) => {
       const dateRaw = log.check_sessions_date;
@@ -96,7 +112,6 @@ const handleExport = async () => {
         minute: "2-digit",
       });
 
-      // ✅ Logic ใหม่: เช็คจาก time_slots ให้ตรงกับตารางหน้าเว็บ
       let isMorning = true;
       if (log.time_slots && log.time_slots.time_slots_start) {
         const startHour = parseInt(log.time_slots.time_slots_start.split(":")[0]);
@@ -134,13 +149,10 @@ const handleExport = async () => {
       }
     });
 
-    // 5. สร้างข้อมูล Excel (โครงสร้างเดิมเป๊ะ)
+    // 5. สร้างข้อมูล Excel
     const ws_data = [
-      // Row 1: Title
       [{ v: "รายงานสรุปการทำความสะอาด (Maid Report)" }],
-      // Row 2: Date
       [{ v: `ช่วงวันที่: ${startDateTh} ถึง ${endDateTh}` }],
-      // Row 3: Main Headers
       [
         "ลำดับ",
         "รหัสงาน",
@@ -151,16 +163,14 @@ const handleExport = async () => {
         "ชื่อจุดตรวจ",
         "สถานะการ\nติดตามงาน",
         "ประทับเวลาล่าสุด",
-        "", // คลุม I, J
+        "",
         "ช่วงการทำงาน",
-        "", // คลุม K, L
+        "",
         "หมายเหตุ",
       ],
-      // Row 4: Sub Headers
       ["", "", "", "", "", "", "", "", "เช้า", "บ่าย", "เช้า", "บ่าย", ""],
     ];
 
-    // Data Rows
     Object.values(summaryMap).forEach((item, index) => {
       const dateDisplay = new Date(item.dateRaw).toLocaleDateString("th-TH", {
         day: "2-digit",
@@ -172,43 +182,41 @@ const handleExport = async () => {
       const workAfternoon = item.afternoonCount > 0 ? "✓" : "-";
 
       ws_data.push([
-        index + 1, // A
-        item.id, // B
-        dateDisplay, // C
-        item.name, // D
-        item.building, // E
-        floorValue, // F
-        item.location, // G
-        translateStatus(item.status), // H: ใช้ฟังก์ชันที่แก้แล้วด้านล่าง
-        item.timeMorning, // I
-        item.timeAfternoon, // J
-        workMorning, // K
-        workAfternoon, // L
-        item.remark, // M
+        index + 1,
+        item.id,
+        dateDisplay,
+        item.name,
+        item.building,
+        floorValue,
+        item.location,
+        translateStatus(item.status),
+        item.timeMorning,
+        item.timeAfternoon,
+        workMorning,
+        workAfternoon,
+        item.remark,
       ]);
     });
 
     // 6. สร้าง Worksheet
     const ws = XLSX.utils.aoa_to_sheet(ws_data);
 
-    // กำหนด Merge Cells
     ws["!merges"] = [
-      { s: { r: 0, c: 0 }, e: { r: 0, c: 12 } }, // Title
-      { s: { r: 1, c: 0 }, e: { r: 1, c: 12 } }, // Date
-      { s: { r: 2, c: 0 }, e: { r: 3, c: 0 } }, // ลำดับ
-      { s: { r: 2, c: 1 }, e: { r: 3, c: 1 } }, // รหัส
-      { s: { r: 2, c: 2 }, e: { r: 3, c: 2 } }, // วันที่
-      { s: { r: 2, c: 3 }, e: { r: 3, c: 3 } }, // ชื่อ
-      { s: { r: 2, c: 4 }, e: { r: 3, c: 4 } }, // อาคาร
-      { s: { r: 2, c: 5 }, e: { r: 3, c: 5 } }, // ชั้น
-      { s: { r: 2, c: 6 }, e: { r: 3, c: 6 } }, // จุดตรวจ
-      { s: { r: 2, c: 7 }, e: { r: 3, c: 7 } }, // สถานะ
-      { s: { r: 2, c: 8 }, e: { r: 2, c: 9 } }, // Time
-      { s: { r: 2, c: 10 }, e: { r: 2, c: 11 } }, // Check
-      { s: { r: 2, c: 12 }, e: { r: 3, c: 12 } }, // หมายเหตุ
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 12 } },
+      { s: { r: 1, c: 0 }, e: { r: 1, c: 12 } },
+      { s: { r: 2, c: 0 }, e: { r: 3, c: 0 } },
+      { s: { r: 2, c: 1 }, e: { r: 3, c: 1 } },
+      { s: { r: 2, c: 2 }, e: { r: 3, c: 2 } },
+      { s: { r: 2, c: 3 }, e: { r: 3, c: 3 } },
+      { s: { r: 2, c: 4 }, e: { r: 3, c: 4 } },
+      { s: { r: 2, c: 5 }, e: { r: 3, c: 5 } },
+      { s: { r: 2, c: 6 }, e: { r: 3, c: 6 } },
+      { s: { r: 2, c: 7 }, e: { r: 3, c: 7 } },
+      { s: { r: 2, c: 8 }, e: { r: 2, c: 9 } },
+      { s: { r: 2, c: 10 }, e: { r: 2, c: 11 } },
+      { s: { r: 2, c: 12 }, e: { r: 3, c: 12 } },
     ];
 
-    // ใส่ Style (ถ้าโหลด library ได้)
     if (ws["!ref"] && XLSX.utils.decode_range) {
       const range = XLSX.utils.decode_range(ws["!ref"]);
       for (let R = range.s.r; R <= range.e.r; ++R) {
@@ -237,7 +245,6 @@ const handleExport = async () => {
       }
     }
 
-    // กำหนดความกว้าง
     ws["!cols"] = [
       { wch: 6 },
       { wch: 10 },
@@ -277,15 +284,14 @@ const handleExport = async () => {
   }
 };
 
-// 🔥🔥🔥 จุดที่แก้ไขสำคัญ: แปลงสถานะให้ตรงกับความเป็นจริง 🔥🔥🔥
 const translateStatus = (status) => {
   const map = {
-    pass: "เรียบร้อย", // แม่บ้านกดผ่านเอง
-    approved: "ตรวจแล้ว", // หัวหน้ากดอนุมัติ
-    fixed: "แก้ไขแล้ว", // แก้งานแล้ว
-    fail: "พบปัญหา", // เจอจุดบกพร่อง
-    rejected: "ปฏิเสธ", // หัวหน้าตีกลับ
-    waiting: "รอตรวจ", // ✅ อันนี้แหละที่ต้องมี!
+    pass: "เรียบร้อย",
+    approved: "ตรวจแล้ว",
+    fixed: "แก้ไขแล้ว",
+    fail: "พบปัญหา",
+    rejected: "ปฏิเสธ",
+    waiting: "รอตรวจ",
   };
   return map[status] || status;
 };
