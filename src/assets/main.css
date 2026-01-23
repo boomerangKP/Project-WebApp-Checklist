@@ -2,7 +2,58 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ใส่ใน style.css หรือ App.vue */
+/* Fix SweetAlert2 z-index */
 .swal2-container {
   z-index: 20000 !important;
+}
+
+/* =========================================
+   ✅ SCROLLBAR CUSTOMIZATION (Global)
+   ========================================= */
+
+/* 1. Light Mode (โหมดปกติ) */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9; /* gray-100 */
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1; /* slate-300 */
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8; /* slate-400 */
+}
+
+/* 2. Dark Mode (โหมดมืด) - แก้ปัญหา Scrollbar ขาว */
+.dark ::-webkit-scrollbar-track {
+  background: #0f172a; /* slate-900 (สีเดียวกับพื้นหลัง Sidebar) */
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #334155; /* slate-700 */
+  border-radius: 4px;
+  border: 1px solid #0f172a; /* เพิ่มขอบให้ดูมีมิติ */
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #475569; /* slate-600 */
+}
+
+/* =========================================
+   ✅ GLOBAL BODY STYLES
+   ========================================= */
+
+body {
+  @apply bg-gray-50 text-gray-900 transition-colors duration-300;
+}
+
+/* Dark Mode Default Body */
+.dark body {
+  @apply bg-slate-950 text-gray-100;
 }

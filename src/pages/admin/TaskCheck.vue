@@ -1,8 +1,8 @@
 <script setup>
-import { computed } from "vue"; // ✅ 1. อย่าลืม import computed
+import { computed } from "vue";
 import { useRouter } from "vue-router";
 import { Loader2 } from "lucide-vue-next";
-import { useTaskLogic } from "@/composables/useTaskLogic";
+import { useTaskLogic } from "@/composables/useTaskLogic"; // เรียกใช้ Logic ที่เชื่อม Store แล้ว
 
 // Components
 import TaskFilter from "@/components/admin/task/TaskFilter.vue";
@@ -18,6 +18,7 @@ const {
   activeTab,
   searchQuery,
   selectedMaid,
+  dateRange, // ✅ เพิ่ม: ดึง dateRange มาด้วย (เพื่อส่งให้ Filter จำค่า)
   currentPage,
   itemsPerPage,
   isSelectionMode,
@@ -40,23 +41,25 @@ const {
   endDate,
 } = useTaskLogic();
 
-// ✅ 2. สร้างรายการ Search Suggestions (รวมชื่อแม่บ้าน + รหัสงาน + สถานที่)
+// ✅ สร้างรายการ Search Suggestions (รวมชื่อแม่บ้าน + รหัสงาน + สถานที่)
 const allSearchSuggestions = computed(() => {
   const suggestions = new Set();
 
-  // 2.1 เพิ่มชื่อแม่บ้าน
+  // 1. เพิ่มชื่อแม่บ้าน
   if (uniqueMaids.value) {
     uniqueMaids.value.forEach((m) => suggestions.add(m));
   }
 
-  // 2.2 เพิ่มรหัสงาน และ สถานที่ (จากรายการงานที่มีอยู่)
+  // 2. เพิ่มรหัสงาน และ สถานที่ (จากรายการงานที่มีอยู่)
   if (filteredTasks.value) {
     filteredTasks.value.forEach((task) => {
       // ดึงรหัส (รองรับทั้ง code หรือ check_sessions_id)
       if (task.code) suggestions.add(task.code);
       if (task.check_sessions_id) suggestions.add(String(task.check_sessions_id));
+      if (task.displayId) suggestions.add(task.displayId); // รองรับ displayId
 
       // ดึงชื่อสถานที่
+      if (task.location) suggestions.add(task.location); // แก้ไขให้ตรงกับ useTaskLogic
       if (task.location_name) suggestions.add(task.location_name);
       if (task.locations?.locations_name) suggestions.add(task.locations.locations_name);
     });
@@ -71,19 +74,22 @@ const openTaskDetail = (id) => router.push({ path: `/admin/check/${id}` });
 <template>
   <div class="space-y-6 flex-1 flex flex-col">
     <div class="shrink-0 flex items-center justify-between">
-      <h1 class="text-2xl font-bold text-gray-800">รายการตรวจสอบงาน</h1>
+      <h1 class="text-2xl font-bold text-gray-800 dark:text-white">รายการตรวจสอบงาน</h1>
     </div>
 
     <div
-      class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-[calc(100vh-195px)] relative"
+      class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 overflow-hidden flex flex-col h-[calc(100vh-195px)] relative transition-colors duration-300"
     >
-      <div class="p-4 border-b border-gray-100 shrink-0 bg-white z-5">
+      <div
+        class="p-4 border-b border-gray-100 dark:border-slate-700 shrink-0 bg-white dark:bg-slate-800 z-5"
+      >
         <TaskFilter
           v-model:activeTab="activeTab"
           v-model:searchQuery="searchQuery"
           v-model:selectedMaid="selectedMaid"
           v-model:startDate="startDate"
           v-model:endDate="endDate"
+          v-model:dateRange="dateRange"
           :maids="uniqueMaids"
           :isSelectionMode="isSelectionMode"
           :isAllSelected="isAllSelected"
@@ -95,9 +101,11 @@ const openTaskDetail = (id) => router.push({ path: `/admin/check/${id}` });
         />
       </div>
 
-      <div class="flex-1 overflow-y-auto p-4 bg-gray-50/50 custom-scrollbar relative">
+      <div
+        class="flex-1 overflow-y-auto p-4 bg-gray-50/50 dark:bg-slate-900/50 custom-scrollbar relative"
+      >
         <div v-if="loading" class="flex justify-center py-20 h-full items-center">
-          <Loader2 class="w-10 h-10 text-gray-400 animate-spin" />
+          <Loader2 class="w-10 h-10 text-gray-400 dark:text-slate-500 animate-spin" />
         </div>
 
         <div v-else class="space-y-3 pb-4">
@@ -113,7 +121,7 @@ const openTaskDetail = (id) => router.push({ path: `/admin/check/${id}` });
 
           <div
             v-if="paginatedTasks.length === 0"
-            class="flex flex-col items-center justify-center py-16 h-full text-gray-400 border-2 border-dashed border-gray-200 rounded-xl bg-white/50"
+            class="flex flex-col items-center justify-center py-16 h-full text-gray-400 dark:text-slate-500 border-2 border-dashed border-gray-200 dark:border-slate-700 rounded-xl bg-white/50 dark:bg-slate-800/50"
           >
             <span class="text-4xl mb-2 opacity-50">📭</span>
             <p>ไม่พบรายการงาน ({{ activeTab }})</p>
@@ -121,7 +129,7 @@ const openTaskDetail = (id) => router.push({ path: `/admin/check/${id}` });
         </div>
       </div>
 
-      <div class="shrink-0 z-20 bg-white relative">
+      <div class="shrink-0 z-20 bg-white dark:bg-slate-800 relative">
         <TaskPagination
           :currentPage="currentPage"
           :totalPages="totalPages"
@@ -157,5 +165,16 @@ const openTaskDetail = (id) => router.push({ path: `/admin/check/${id}` });
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
+}
+
+/* ✅ Dark Mode Scrollbar */
+:global(.dark) .custom-scrollbar::-webkit-scrollbar-track {
+  background: #1e293b; /* slate-800 */
+}
+:global(.dark) .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #475569; /* slate-600 */
+}
+:global(.dark) .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #64748b; /* slate-500 */
 }
 </style>

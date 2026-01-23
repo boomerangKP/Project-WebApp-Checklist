@@ -127,32 +127,32 @@ onUnmounted(() => window.removeEventListener("click", handleClickOutside));
 <template>
   <div class="flex flex-col xl:flex-row xl:items-center justify-between gap-6 mb-6">
     <div>
-      <h1 class="text-2xl font-bold text-gray-800 tracking-tight">
+      <h1 class="text-2xl font-bold text-gray-800 dark:text-white tracking-tight">
         รายงานผลการปฏิบัติงาน
       </h1>
-      <p class="text-gray-500 text-sm mt-1">สรุปข้อมูลย้อนหลังและสถิติการทำงาน</p>
+      <p class="text-gray-500 dark:text-slate-400 text-sm mt-1">สรุปข้อมูลย้อนหลังและสถิติการทำงาน</p>
     </div>
 
     <div class="flex flex-wrap items-center gap-3">
       <div class="relative custom-dropdown-container min-w-[180px]">
         <button
           @click="toggleDropdown"
-          class="flex items-center justify-between w-full h-11 px-4 bg-white border border-gray-200 rounded-xl shadow-sm hover:border-indigo-500 transition-all text-sm font-semibold text-gray-700"
-          :class="{ 'ring-2 ring-indigo-100 border-indigo-500': isDropdownOpen }"
+          class="flex items-center justify-between w-full h-11 px-4 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl shadow-sm hover:border-indigo-500 dark:hover:border-indigo-500 transition-all text-sm font-semibold text-gray-700 dark:text-white"
+          :class="{ 'ring-2 ring-indigo-100 dark:ring-indigo-900 border-indigo-500 dark:border-indigo-500': isDropdownOpen }"
         >
           <div class="flex items-center gap-2">
-            <CalendarIcon class="w-4 h-4 text-indigo-500" />
+            <CalendarIcon class="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
             <span>{{ currentRangeLabel }}</span>
           </div>
           <ChevronDown
-            class="w-4 h-4 text-gray-400 transition-transform duration-200"
+            class="w-4 h-4 text-gray-400 dark:text-slate-500 transition-transform duration-200"
             :class="{ 'rotate-180': isDropdownOpen }"
           />
         </button>
 
         <div
           v-if="isDropdownOpen"
-          class="absolute top-full left-0 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-100"
+          class="absolute top-full left-0 mt-1 w-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-100"
         >
           <div class="p-1">
             <div
@@ -162,12 +162,12 @@ onUnmounted(() => window.removeEventListener("click", handleClickOutside));
               class="px-3 py-2.5 rounded-lg text-sm cursor-pointer flex items-center justify-between group transition-colors"
               :class="
                 dateRange === option.value
-                  ? 'bg-indigo-50 text-indigo-700 font-medium'
-                  : 'hover:bg-gray-50 text-gray-700'
+                  ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 font-medium'
+                  : 'hover:bg-gray-50 dark:hover:bg-slate-700 text-gray-700 dark:text-gray-300'
               "
             >
               <span>{{ option.label }}</span>
-              <Check v-if="dateRange === option.value" class="w-4 h-4 text-indigo-600" />
+              <Check v-if="dateRange === option.value" class="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
             </div>
           </div>
         </div>
@@ -175,14 +175,14 @@ onUnmounted(() => window.removeEventListener("click", handleClickOutside));
 
       <div
         v-if="dateRange === 'custom'"
-        class="flex items-center gap-2 bg-white p-1.5 rounded-xl border border-gray-200 shadow-sm animate-in fade-in slide-in-from-right-4"
+        class="flex items-center gap-2 bg-white dark:bg-slate-800 p-1.5 rounded-xl border border-gray-200 dark:border-slate-700 shadow-sm animate-in fade-in slide-in-from-right-4"
       >
         <div class="relative group cursor-pointer" @click="openStartCalendar">
           <div
-            class="flex items-center gap-2 bg-gray-50 hover:bg-gray-100 border border-transparent hover:border-indigo-200 rounded-lg px-3 py-1.5 transition-all"
+            class="flex items-center gap-2 bg-gray-50 dark:bg-slate-900 hover:bg-gray-100 dark:hover:bg-slate-800 border border-transparent hover:border-indigo-200 dark:hover:border-indigo-700 rounded-lg px-3 py-1.5 transition-all"
           >
-            <CalendarIcon class="w-4 h-4 text-indigo-500" />
-            <span class="text-sm font-medium text-gray-700 min-w-[80px] text-center">{{
+            <CalendarIcon class="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
+            <span class="text-sm font-medium text-gray-700 dark:text-white min-w-[80px] text-center">{{
               displayThaiDate(customStart)
             }}</span>
           </div>
@@ -194,14 +194,14 @@ onUnmounted(() => window.removeEventListener("click", handleClickOutside));
           />
         </div>
 
-        <ArrowRight class="w-4 h-4 text-gray-300" />
+        <ArrowRight class="w-4 h-4 text-gray-300 dark:text-slate-600" />
 
         <div class="relative group cursor-pointer" @click="openEndCalendar">
           <div
-            class="flex items-center gap-2 bg-gray-50 hover:bg-gray-100 border border-transparent hover:border-indigo-200 rounded-lg px-3 py-1.5 transition-all"
+            class="flex items-center gap-2 bg-gray-50 dark:bg-slate-900 hover:bg-gray-100 dark:hover:bg-slate-800 border border-transparent hover:border-indigo-200 dark:hover:border-indigo-700 rounded-lg px-3 py-1.5 transition-all"
           >
-            <CalendarIcon class="w-4 h-4 text-indigo-500" />
-            <span class="text-sm font-medium text-gray-700 min-w-[80px] text-center">{{
+            <CalendarIcon class="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
+            <span class="text-sm font-medium text-gray-700 dark:text-white min-w-[80px] text-center">{{
               displayThaiDate(customEnd)
             }}</span>
           </div>
@@ -215,7 +215,7 @@ onUnmounted(() => window.removeEventListener("click", handleClickOutside));
 
         <button
           @click="handleCustomSearch"
-          class="bg-indigo-600 hover:bg-indigo-700 text-white p-2 rounded-lg shadow-sm active:scale-95 ml-1 transition-all"
+          class="bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-600 dark:hover:bg-indigo-500 text-white p-2 rounded-lg shadow-sm active:scale-95 ml-1 transition-all"
         >
           <Search class="w-4 h-4" />
         </button>

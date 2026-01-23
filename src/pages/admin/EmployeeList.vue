@@ -227,10 +227,10 @@ onMounted(() => {
 
 <template>
   <div class="space-y-6">
-    <h1 class="text-2xl font-bold text-gray-800">จัดการพนักงาน</h1>
+    <h1 class="text-2xl font-bold text-gray-800 dark:text-white">จัดการพนักงาน</h1>
 
     <div
-      class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col"
+      class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 overflow-hidden flex flex-col transition-colors duration-300"
     >
       <EmployeeToolbar
         v-model:searchQuery="searchQuery"
