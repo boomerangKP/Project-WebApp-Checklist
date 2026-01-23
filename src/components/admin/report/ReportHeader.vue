@@ -6,6 +6,7 @@ import {
   ChevronDown,
   ArrowRight,
   Check,
+  ClipboardList,
 } from "lucide-vue-next";
 
 // ✅ 1. นำเข้าปุ่ม Export ที่เราสร้างไว้
@@ -130,7 +131,9 @@ onUnmounted(() => window.removeEventListener("click", handleClickOutside));
       <h1 class="text-2xl font-bold text-gray-800 dark:text-white tracking-tight">
         รายงานผลการปฏิบัติงาน
       </h1>
-      <p class="text-gray-500 dark:text-slate-400 text-sm mt-1">สรุปข้อมูลย้อนหลังและสถิติการทำงาน</p>
+      <p class="text-gray-500 dark:text-slate-400 text-sm mt-1">
+        สรุปข้อมูลย้อนหลังและสถิติการทำงาน
+      </p>
     </div>
 
     <div class="flex flex-wrap items-center gap-3">
@@ -138,7 +141,9 @@ onUnmounted(() => window.removeEventListener("click", handleClickOutside));
         <button
           @click="toggleDropdown"
           class="flex items-center justify-between w-full h-11 px-4 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl shadow-sm hover:border-indigo-500 dark:hover:border-indigo-500 transition-all text-sm font-semibold text-gray-700 dark:text-white"
-          :class="{ 'ring-2 ring-indigo-100 dark:ring-indigo-900 border-indigo-500 dark:border-indigo-500': isDropdownOpen }"
+          :class="{
+            'ring-2 ring-indigo-100 dark:ring-indigo-900 border-indigo-500 dark:border-indigo-500': isDropdownOpen,
+          }"
         >
           <div class="flex items-center gap-2">
             <CalendarIcon class="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
@@ -167,7 +172,10 @@ onUnmounted(() => window.removeEventListener("click", handleClickOutside));
               "
             >
               <span>{{ option.label }}</span>
-              <Check v-if="dateRange === option.value" class="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+              <Check
+                v-if="dateRange === option.value"
+                class="w-4 h-4 text-indigo-600 dark:text-indigo-400"
+              />
             </div>
           </div>
         </div>
@@ -182,9 +190,10 @@ onUnmounted(() => window.removeEventListener("click", handleClickOutside));
             class="flex items-center gap-2 bg-gray-50 dark:bg-slate-900 hover:bg-gray-100 dark:hover:bg-slate-800 border border-transparent hover:border-indigo-200 dark:hover:border-indigo-700 rounded-lg px-3 py-1.5 transition-all"
           >
             <CalendarIcon class="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
-            <span class="text-sm font-medium text-gray-700 dark:text-white min-w-[80px] text-center">{{
-              displayThaiDate(customStart)
-            }}</span>
+            <span
+              class="text-sm font-medium text-gray-700 dark:text-white min-w-[80px] text-center"
+              >{{ displayThaiDate(customStart) }}</span
+            >
           </div>
           <input
             ref="startInputRef"
@@ -201,9 +210,10 @@ onUnmounted(() => window.removeEventListener("click", handleClickOutside));
             class="flex items-center gap-2 bg-gray-50 dark:bg-slate-900 hover:bg-gray-100 dark:hover:bg-slate-800 border border-transparent hover:border-indigo-200 dark:hover:border-indigo-700 rounded-lg px-3 py-1.5 transition-all"
           >
             <CalendarIcon class="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
-            <span class="text-sm font-medium text-gray-700 dark:text-white min-w-[80px] text-center">{{
-              displayThaiDate(customEnd)
-            }}</span>
+            <span
+              class="text-sm font-medium text-gray-700 dark:text-white min-w-[80px] text-center"
+              >{{ displayThaiDate(customEnd) }}</span
+            >
           </div>
           <input
             ref="endInputRef"

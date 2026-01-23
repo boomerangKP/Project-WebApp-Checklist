@@ -219,6 +219,7 @@ onMounted(fetchData);
         <h1
           class="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2"
         >
+          <ListChecks class="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
           รายการตรวจสอบ (Checklist)
         </h1>
         <p class="text-gray-500 dark:text-slate-400 text-sm mt-1">
