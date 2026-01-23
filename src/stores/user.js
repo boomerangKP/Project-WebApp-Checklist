@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase'
 export const useUserStore = defineStore('user', {
   state: () => ({
     session: null,  // เก็บ Token และ User Auth
-    profile: null,  // เก็บข้อมูลพนักงาน (Role, Name, etc.)
+    profile: null,  // เก็บข้อมูลพนักงาน (Role, Name, Photo, etc.)
   }),
 
   actions: {
@@ -18,8 +18,7 @@ export const useUserStore = defineStore('user', {
       this.profile = data
     },
 
-    // 3. ดึงข้อมูลพนักงานจาก Supabase (🔥🔥 พระเอกใหม่ของเรา)
-    // ฟังก์ชันนี้จะดึงข้อมูลตาม Email ของ Session ปัจจุบัน
+    // 3. ดึงข้อมูลพนักงานจาก Supabase
     async fetchUserProfile() {
       // ถ้าไม่มี Session หรือไม่มี Email ให้จบการทำงาน
       if (!this.session?.user?.email) return null
@@ -27,7 +26,23 @@ export const useUserStore = defineStore('user', {
       try {
         const { data, error } = await supabase
           .from('employees')
-          .select('*') // หรือจะระบุแค่ .select('id, name, role') ก็ได้
+          // ✅ แก้ไข: ระบุชื่อคอลัมน์ให้ครบและชัดเจน (Security & Consistency)
+          // ต้องมั่นใจว่าดึง 'employees_photo' และ 'notification_email' มาด้วย
+          .select(`
+            employees_id,
+            employees_code,
+            employees_firstname,
+            employees_lastname,
+            employees_gender,
+            employees_position,
+            employees_department,
+            employees_phone,
+            employees_status,
+            role,
+            email,
+            notification_email,
+            employees_photo
+          `)
           .eq('email', this.session.user.email)
           .single()
 
@@ -49,10 +64,11 @@ export const useUserStore = defineStore('user', {
 
     // 4. ล้างข้อมูล (Logout)
     async clearSession() {
-      await supabase.auth.signOut() // สั่ง Logout ที่ Supabase ด้วยเพื่อความชัวร์
+      await supabase.auth.signOut() // สั่ง Logout ที่ Supabase ด้วย
       this.session = null
       this.profile = null
-      // ถ้าใช้ persist บางทีต้องสั่ง clear storage ด้วย (แต่ปกติ pinia จัดการให้)
+      // เคลียร์ LocalStorage ที่ Pinia Persist เก็บไว้ (ถ้าจำเป็น)
+      localStorage.removeItem('user') 
     },
 
     // 5. โหลดข้อมูลตอนเข้าเว็บใหม่ (Re-hydrate)
@@ -61,13 +77,12 @@ export const useUserStore = defineStore('user', {
 
       if (session) {
         this.session = session
-        // เรียกใช้ฟังก์ชันพระเอกของเรา เพื่อดึง Role/Profile ล่าสุด
+        // เรียกใช้ฟังก์ชันพระเอกของเรา เพื่อดึง Role/Profile ล่าสุด (รวมถึงรูปที่เพิ่งอัปเดต)
         await this.fetchUserProfile()
       }
     }
   },
 
   // ✅ เปิดใช้งาน Persistence (จำข้อมูลแม้รีเฟรชหน้า)
-  // ต้องมั่นใจว่าลง npm install pinia-plugin-persistedstate แล้ว
   persist: true
 })

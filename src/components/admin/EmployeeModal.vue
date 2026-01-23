@@ -1,8 +1,22 @@
 <script setup>
-import { ref, watch, onMounted, onUnmounted, computed } from "vue";
-import { Loader2, X, RefreshCw, ChevronDown, Check } from "lucide-vue-next";
+import { ref, watch, onMounted, onUnmounted } from "vue";
+import {
+  Loader2,
+  X,
+  RefreshCw,
+  ChevronDown,
+  Check,
+  Camera,
+  CheckCircle,
+  RotateCcw,
+  Trash2,
+  Bell,
+} from "lucide-vue-next";
 import { supabase } from "@/lib/supabase";
 import { useSwal } from "@/composables/useSwal";
+import imageCompression from "browser-image-compression";
+import { Cropper } from "vue-advanced-cropper";
+import "vue-advanced-cropper/dist/style.css";
 
 const props = defineProps({
   isOpen: Boolean,
@@ -12,13 +26,16 @@ const props = defineProps({
 });
 
 const emit = defineEmits(["close", "save"]);
-
 const { swalError } = useSwal();
 
-// State สำหรับแจ้งเตือน Error ของ Email
+// ... (State เดิม) ...
 const emailError = ref("");
+const imagePreview = ref(null);
+const isUploadingImage = ref(false);
+const showCropper = ref(false);
+const selectedImage = ref(null);
+const cropperRef = ref(null);
 
-// Map สำหรับแปลง Role เป็น Position อัตโนมัติ
 const roleToPositionMap = {
   admin: "ผู้ดูแลระบบ",
   maid: "แม่บ้าน",
@@ -36,66 +53,46 @@ const form = ref({
   status: "active",
   phone: "",
   email: "",
+  notification_email: "",
+  employees_photo: null,
 });
 
 const isGeneratingCode = ref(false);
-
-// --- Custom Dropdown State ---
 const activeDropdown = ref(null);
 
+// ... (Functions เดิม: Dropdown, Reset, GenerateCode) ...
 const toggleDropdown = (name) => {
-  if (activeDropdown.value === name) {
-    activeDropdown.value = null;
-  } else {
-    activeDropdown.value = name;
-  }
+  activeDropdown.value = activeDropdown.value === name ? null : name;
 };
-
-const closeDropdown = () => {
-  activeDropdown.value = null;
-};
-
 const selectOption = (field, value) => {
   form.value[field] = value;
-  closeDropdown();
+  activeDropdown.value = null;
 };
-
-// --- Click Outside Logic ---
 const handleClickOutside = (e) => {
-  if (!e.target.closest(".custom-dropdown-container")) {
-    activeDropdown.value = null;
-  }
+  if (!e.target.closest(".custom-dropdown-container")) activeDropdown.value = null;
 };
 
 onMounted(() => window.addEventListener("click", handleClickOutside));
 onUnmounted(() => window.removeEventListener("click", handleClickOutside));
 
-// --- Options for Dropdowns ---
 const genderOptions = [
   { value: "ชาย", label: "ชาย" },
   { value: "หญิง", label: "หญิง" },
   { value: "อื่นๆ", label: "อื่นๆ" },
 ];
-
-const departmentOptions = [
-  { value: "แผนกซ่อมบำรุง", label: "แผนกซ่อมบำรุง" },
-  // Add more departments here if needed
-];
-
+const departmentOptions = [{ value: "แผนกซ่อมบำรุง", label: "แผนกซ่อมบำรุง" }];
 const roleOptions = [
-  { value: "admin", label: "Admin (ผู้ดูแลระบบ)" },
-  { value: "maid", label: "Maid (แม่บ้าน)" },
-  { value: "user", label: "General Staff (พนักงานทั่วไป)" },
-  { value: "cleaner", label: "Cleaner (พนักงานทำความสะอาด)" },
+  { value: "admin", label: "ผู้ดูแลระบบ" },
+  { value: "maid", label: "แม่บ้าน" },
+  { value: "user", label: "พนักงานทั่วไป" },
+  { value: "cleaner", label: "พนักงานทำความสะอาด" },
 ];
-
 const statusOptions = [
-  { value: "active", label: "ปกติ (Active)" },
-  { value: "inactive", label: "ไม่เคลื่อนไหว (Inactive)" },
-  { value: "suspended", label: "ระงับ (Suspended)" },
+  { value: "active", label: "ปกติ" },
+  { value: "inactive", label: "ไม่เคลื่อนไหว" },
+  { value: "suspended", label: "ระงับ" },
 ];
 
-// Computed Labels for Display
 const getLabel = (options, value, placeholder) => {
   const found = options.find((opt) => opt.value === value);
   return found ? found.label : placeholder;
@@ -112,8 +109,13 @@ const resetForm = () => {
     status: "active",
     phone: "",
     email: "",
+    notification_email: "",
+    employees_photo: null,
   };
+  imagePreview.value = null;
   emailError.value = "";
+  selectedImage.value = null;
+  showCropper.value = false;
 };
 
 const generateNextCode = async () => {
@@ -126,13 +128,10 @@ const generateNextCode = async () => {
       .order("employees_id", { ascending: false })
       .limit(1)
       .single();
-
     let nextCode = "001";
     if (data && data.employees_code) {
       const currentNum = parseInt(data.employees_code, 10);
-      if (!isNaN(currentNum)) {
-        nextCode = String(currentNum + 1).padStart(3, "0");
-      }
+      if (!isNaN(currentNum)) nextCode = String(currentNum + 1).padStart(3, "0");
     }
     form.value.code = nextCode;
   } catch (err) {
@@ -142,14 +141,102 @@ const generateNextCode = async () => {
   }
 };
 
+const deleteOldImage = async (oldUrl) => {
+  if (!oldUrl) return;
+  try {
+    const fileName = oldUrl.split("/").pop();
+    const { error } = await supabase.storage.from("avatars").remove([fileName]);
+    if (error) console.error("Failed delete:", error);
+  } catch (err) {
+    console.error("Error delete:", err);
+  }
+};
+
+// ... (Image Handler Functions เดิม) ...
+const onFileSelect = (event) => {
+  const file = event.target.files[0];
+  if (!file) return;
+  if (!file.type.match("image.*"))
+    return swalError("ไฟล์ไม่ถูกต้อง", "กรุณาเลือกไฟล์รูปภาพเท่านั้น");
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    selectedImage.value = e.target.result;
+    showCropper.value = true;
+    event.target.value = null;
+  };
+  reader.readAsDataURL(file);
+};
+
+const confirmCrop = () => {
+  if (!cropperRef.value) return;
+  const { canvas } = cropperRef.value.getResult();
+  if (!canvas) return;
+  showCropper.value = false;
+  isUploadingImage.value = true;
+  canvas.toBlob(async (blob) => {
+    if (blob) await processAndUpload(blob);
+  }, "image/jpeg");
+};
+
+const cancelCrop = () => {
+  showCropper.value = false;
+  selectedImage.value = null;
+};
+
+const processAndUpload = async (fileBlob) => {
+  try {
+    if (
+      form.value.employees_photo &&
+      form.value.employees_photo !== props.employeeData?.employees_photo
+    ) {
+      await deleteOldImage(form.value.employees_photo);
+    }
+    const file = new File([fileBlob], "cropped-image.jpg", { type: "image/jpeg" });
+    const options = {
+      maxSizeMB: 0.1,
+      maxWidthOrHeight: 500,
+      useWebWorker: true,
+      fileType: "image/webp",
+    };
+    const compressedFile = await imageCompression(file, options);
+    imagePreview.value = URL.createObjectURL(compressedFile);
+    const fileName = `avatar_${Date.now()}_${Math.random()
+      .toString(36)
+      .substring(7)}.webp`;
+    const { error: uploadError } = await supabase.storage
+      .from("avatars")
+      .upload(fileName, compressedFile, { cacheControl: "3600", upsert: false });
+    if (uploadError) throw uploadError;
+    const { data } = supabase.storage.from("avatars").getPublicUrl(fileName);
+    form.value.employees_photo = data.publicUrl;
+  } catch (error) {
+    console.error(error);
+    swalError("อัปโหลดไม่สำเร็จ", "เกิดข้อผิดพลาดในการอัปโหลด");
+  } finally {
+    isUploadingImage.value = false;
+  }
+};
+
+const removeImage = async () => {
+  if (form.value.employees_photo) {
+    if (form.value.employees_photo !== props.employeeData?.employees_photo) {
+      await deleteOldImage(form.value.employees_photo);
+    }
+  }
+  form.value.employees_photo = null;
+  imagePreview.value = null;
+};
+
 const handleEmailInput = (e) => {
   const value = e.target.value;
   form.value.email = value;
-  if (/[A-Z]/.test(value)) {
-    emailError.value = "กรุณากรอกอีเมลด้วยตัวพิมพ์เล็ก (a-z) เท่านั้น";
-  } else {
-    emailError.value = "";
-  }
+  emailError.value = /[A-Z]/.test(value)
+    ? "กรุณากรอกอีเมลด้วยตัวพิมพ์เล็ก (a-z) เท่านั้น"
+    : "";
+};
+
+const handlePhoneInput = (e) => {
+  form.value.phone = e.target.value.replace(/\D/g, "").slice(0, 10);
 };
 
 watch(
@@ -166,7 +253,10 @@ watch(
         status: newData.employees_status || "active",
         phone: newData.employees_phone ? newData.employees_phone.replace(/-/g, "") : "",
         email: newData.employees_email || newData.email,
+        notification_email: newData.notification_email || "",
+        employees_photo: newData.employees_photo || null,
       };
+      imagePreview.value = newData.employees_photo || null;
       emailError.value = "";
     }
   },
@@ -176,19 +266,12 @@ watch(
 watch(
   () => props.isOpen,
   (isOpen) => {
-    if (isOpen) {
-      if (!props.isEditing) {
-        resetForm();
-        generateNextCode();
-      }
+    if (isOpen && !props.isEditing) {
+      resetForm();
+      generateNextCode();
     }
   }
 );
-
-const handlePhoneInput = (e) => {
-  let value = e.target.value.replace(/\D/g, "").slice(0, 10);
-  form.value.phone = value;
-};
 
 const handleSubmit = async () => {
   if (!form.value.code) return swalError("ข้อผิดพลาด", "ไม่พบรหัสพนักงาน");
@@ -200,14 +283,17 @@ const handleSubmit = async () => {
   if (!form.value.role) return swalError("ข้อมูลไม่ครบ", "กรุณาเลือก บทบาท");
   if (!form.value.status) return swalError("ข้อมูลไม่ครบ", "กรุณาเลือก สถานะ");
   if (!form.value.email.trim()) return swalError("ข้อมูลไม่ครบ", "กรุณากรอก อีเมล");
-
   if (emailError.value)
     return swalError("ข้อมูลไม่ถูกต้อง", "กรุณาแก้ไขรูปแบบอีเมลให้ถูกต้อง");
-
   if (!form.value.phone.trim())
     return swalError("ข้อมูลไม่ครบ", "กรุณากรอก เบอร์โทรศัพท์");
-  if (form.value.phone.length !== 10) {
+  if (form.value.phone.length !== 10)
     return swalError("ข้อมูลไม่ถูกต้อง", "เบอร์โทรศัพท์ต้องมี 10 หลักถ้วน");
+
+  if (props.isEditing && props.employeeData.employees_photo) {
+    if (form.value.employees_photo !== props.employeeData.employees_photo) {
+      await deleteOldImage(props.employeeData.employees_photo);
+    }
   }
 
   const finalRole = form.value.role.toLowerCase();
@@ -221,6 +307,8 @@ const handleSubmit = async () => {
     phone: formattedPhone,
     status: form.value.status,
     email: form.value.email.toLowerCase(),
+    notification_email: finalRole === "admin" ? form.value.notification_email : null,
+    employees_photo: form.value.employees_photo,
   });
 };
 </script>
@@ -238,41 +326,123 @@ const handleSubmit = async () => {
         ></div>
 
         <div
-          class="bg-white rounded-2xl shadow-xl w-full max-w-lg relative z-10 flex flex-col max-h-[90vh] animate-fade-in-up border border-gray-100"
+          class="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-lg relative z-10 flex flex-col max-h-[90vh] animate-fade-in-up border border-gray-100 dark:border-slate-700"
         >
           <div
-            class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50 rounded-t-2xl shrink-0"
+            class="px-6 py-4 border-b border-gray-100 dark:border-slate-700 flex justify-between items-center bg-gray-50/50 dark:bg-slate-900/50 rounded-t-2xl shrink-0"
           >
-            <h3 class="text-lg font-bold text-gray-800">
+            <h3 class="text-lg font-bold text-gray-800 dark:text-white">
               {{ isEditing ? "แก้ไขข้อมูลพนักงาน" : "เพิ่มพนักงานใหม่" }}
             </h3>
             <button
               @click="$emit('close')"
-              class="text-gray-400 hover:text-gray-600 hover:bg-white rounded-full p-2 transition-all"
+              class="text-gray-400 dark:text-slate-400 hover:text-gray-600 dark:hover:text-white hover:bg-white dark:hover:bg-slate-700 rounded-full p-2 transition-all"
             >
               <X class="w-5 h-5" />
             </button>
           </div>
 
           <div class="overflow-y-auto p-6 custom-scrollbar">
+            <div class="flex flex-col items-center justify-center mb-6 gap-3">
+              <div
+                v-if="showCropper"
+                class="w-full bg-gray-100 dark:bg-slate-900 rounded-xl p-2 border-2 border-dashed border-indigo-300 dark:border-indigo-700 animate-in fade-in zoom-in-95"
+              >
+                <div class="h-64 w-full bg-slate-800 rounded-lg overflow-hidden relative">
+                  <Cropper
+                    ref="cropperRef"
+                    :src="selectedImage"
+                    :stencil-props="{ aspectRatio: 1, class: 'circle-stencil' }"
+                    image-class="object-contain"
+                    class="h-full"
+                  />
+                </div>
+                <div class="flex gap-2 mt-2">
+                  <button
+                    @click="cancelCrop"
+                    class="flex-1 py-1.5 text-xs font-bold text-gray-600 dark:text-gray-300 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700"
+                  >
+                    <RotateCcw class="w-3 h-3 inline mr-1" /> ยกเลิก
+                  </button>
+                  <button
+                    @click="confirmCrop"
+                    class="flex-1 py-1.5 text-xs font-bold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 shadow-sm"
+                  >
+                    <CheckCircle class="w-3 h-3 inline mr-1" /> ยืนยันรูปนี้
+                  </button>
+                </div>
+              </div>
+              <div v-else class="relative group">
+                <div
+                  class="w-24 h-24 rounded-full border-4 border-white dark:border-slate-600 shadow-lg overflow-hidden bg-gray-100 dark:bg-slate-700 flex items-center justify-center relative"
+                  :class="{
+                    'border-indigo-100 dark:border-indigo-900 ring-2 ring-indigo-500': isUploadingImage,
+                  }"
+                >
+                  <img
+                    v-if="imagePreview"
+                    :src="imagePreview"
+                    class="w-full h-full object-cover"
+                    alt="Profile"
+                  />
+                  <div v-else class="text-gray-300 dark:text-slate-500">
+                    <svg class="w-12 h-12" fill="currentColor" viewBox="0 0 24 24">
+                      <path
+                        d="M24 20.993V24H0v-2.996A14.977 14.977 0 0112.004 15c4.904 0 9.26 2.354 11.996 5.993zM16.002 8.999a4 4 0 11-8 0 4 4 0 018 0z"
+                      />
+                    </svg>
+                  </div>
+                  <div
+                    v-if="isUploadingImage"
+                    class="absolute inset-0 bg-black/50 flex items-center justify-center z-10"
+                  >
+                    <Loader2 class="w-6 h-6 text-white animate-spin" />
+                  </div>
+                </div>
+                <label
+                  class="absolute bottom-0 right-0 bg-indigo-600 hover:bg-indigo-700 text-white p-2 rounded-full cursor-pointer shadow-md transition-transform hover:scale-105 active:scale-95 z-20"
+                >
+                  <Camera class="w-4 h-4" />
+                  <input
+                    type="file"
+                    class="hidden"
+                    accept="image/*"
+                    @change="onFileSelect"
+                    :disabled="isUploadingImage"
+                  />
+                </label>
+                <button
+                  v-if="imagePreview"
+                  @click="removeImage"
+                  type="button"
+                  class="absolute top-0 right-[-10px] bg-red-500 hover:bg-red-600 text-white p-1.5 rounded-full shadow-sm transition-transform hover:scale-110 z-20"
+                  title="ลบรูปภาพ"
+                >
+                  <Trash2 class="w-3 h-3" />
+                </button>
+              </div>
+              <p v-if="!showCropper" class="text-xs text-gray-400 dark:text-slate-500">
+                รองรับไฟล์ภาพ (ระบบจะบีบอัดอัตโนมัติ)
+              </p>
+            </div>
+
             <form id="employeeForm" @submit.prevent="handleSubmit" class="space-y-4">
               <div class="space-y-1">
                 <label
-                  class="text-xs font-bold text-gray-500 uppercase flex justify-between"
+                  class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase flex justify-between"
                 >
                   รหัสพนักงาน (Auto) <span class="text-red-500">*</span>
                   <span
                     v-if="isGeneratingCode"
                     class="text-indigo-500 text-[10px] flex items-center gap-1"
+                    ><Loader2 class="w-3 h-3 animate-spin" /> ...</span
                   >
-                    <Loader2 class="w-3 h-3 animate-spin" /> ...
-                  </span>
                 </label>
                 <div class="relative">
                   <input
                     v-model="form.code"
                     type="text"
-                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-gray-100 text-gray-600 font-mono font-bold focus:ring-0 cursor-not-allowed"
+                    class="w-full border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-gray-100 dark:bg-slate-900 text-gray-600 dark:text-gray-400 font-mono font-bold focus:ring-0 cursor-not-allowed"
                     placeholder="001"
                     readonly
                   />
@@ -293,24 +463,26 @@ const handleSubmit = async () => {
 
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div class="space-y-1">
-                  <label class="text-xs font-bold text-gray-500 uppercase"
+                  <label
+                    class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase"
                     >ชื่อจริง <span class="text-red-500">*</span></label
                   >
                   <input
                     v-model="form.firstname"
                     type="text"
-                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                    class="w-full border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                     placeholder="กรุณากรอกชื่อจริง"
                   />
                 </div>
                 <div class="space-y-1">
-                  <label class="text-xs font-bold text-gray-500 uppercase"
+                  <label
+                    class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase"
                     >นามสกุล <span class="text-red-500">*</span></label
                   >
                   <input
                     v-model="form.lastname"
                     type="text"
-                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                    class="w-full border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                     placeholder="กรุณากรอกนามสกุล"
                   />
                 </div>
@@ -318,41 +490,48 @@ const handleSubmit = async () => {
 
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div class="space-y-1 relative custom-dropdown-container">
-                  <label class="text-xs font-bold text-gray-500 uppercase"
+                  <label
+                    class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase"
                     >เพศ <span class="text-red-500">*</span></label
                   >
                   <button
                     type="button"
                     @click="toggleDropdown('gender')"
-                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-left bg-white focus:ring-2 focus:ring-indigo-500 transition-all flex items-center justify-between"
+                    class="w-full border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-left bg-white dark:bg-slate-900 focus:ring-2 focus:ring-indigo-500 transition-all flex items-center justify-between"
                     :class="{
                       'ring-2 ring-indigo-500 border-indigo-500':
                         activeDropdown === 'gender',
                     }"
                   >
-                    <span :class="form.gender ? 'text-gray-900' : 'text-gray-400'">{{
-                      getLabel(genderOptions, form.gender, "เลือกเพศ")
-                    }}</span>
+                    <span
+                      :class="
+                        form.gender
+                          ? 'text-gray-900 dark:text-white'
+                          : 'text-gray-400 dark:text-gray-500'
+                      "
+                      >{{ getLabel(genderOptions, form.gender, "เลือกเพศ") }}</span
+                    >
                     <ChevronDown
-                      class="w-4 h-4 text-gray-400"
+                      class="w-4 h-4 text-gray-400 dark:text-gray-500"
                       :class="{ 'rotate-180': activeDropdown === 'gender' }"
                     />
                   </button>
+
                   <div
                     v-if="activeDropdown === 'gender'"
-                    class="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden animate-in fade-in zoom-in-95"
+                    class="absolute z-50 w-full mt-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg overflow-hidden animate-in fade-in zoom-in-95"
                   >
                     <div class="p-1">
                       <div
                         v-for="option in genderOptions"
                         :key="option.value"
                         @click="selectOption('gender', option.value)"
-                        class="px-3 py-2 rounded-md hover:bg-indigo-50 text-sm cursor-pointer flex items-center justify-between text-gray-700"
+                        class="px-3 py-2 rounded-md hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-sm cursor-pointer flex items-center justify-between text-gray-700 dark:text-gray-200"
                       >
-                        <span>{{ option.label }}</span>
-                        <Check
+                        <span>{{ option.label }}</span
+                        ><Check
                           v-if="form.gender === option.value"
-                          class="w-4 h-4 text-indigo-600"
+                          class="w-4 h-4 text-indigo-600 dark:text-indigo-400"
                         />
                       </div>
                     </div>
@@ -360,41 +539,49 @@ const handleSubmit = async () => {
                 </div>
 
                 <div class="space-y-1 relative custom-dropdown-container">
-                  <label class="text-xs font-bold text-gray-500 uppercase"
+                  <label
+                    class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase"
                     >แผนก <span class="text-red-500">*</span></label
                   >
                   <button
                     type="button"
                     @click="toggleDropdown('department')"
-                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-left bg-white focus:ring-2 focus:ring-indigo-500 transition-all flex items-center justify-between"
+                    class="w-full border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-left bg-white dark:bg-slate-900 focus:ring-2 focus:ring-indigo-500 transition-all flex items-center justify-between"
                     :class="{
                       'ring-2 ring-indigo-500 border-indigo-500':
                         activeDropdown === 'department',
                     }"
                   >
-                    <span :class="form.department ? 'text-gray-900' : 'text-gray-400'">{{
-                      getLabel(departmentOptions, form.department, "เลือกแผนก")
-                    }}</span>
+                    <span
+                      :class="
+                        form.department
+                          ? 'text-gray-900 dark:text-white'
+                          : 'text-gray-400 dark:text-gray-500'
+                      "
+                      >{{
+                        getLabel(departmentOptions, form.department, "เลือกแผนก")
+                      }}</span
+                    >
                     <ChevronDown
-                      class="w-4 h-4 text-gray-400"
+                      class="w-4 h-4 text-gray-400 dark:text-gray-500"
                       :class="{ 'rotate-180': activeDropdown === 'department' }"
                     />
                   </button>
                   <div
                     v-if="activeDropdown === 'department'"
-                    class="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden animate-in fade-in zoom-in-95"
+                    class="absolute z-50 w-full mt-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg overflow-hidden animate-in fade-in zoom-in-95"
                   >
                     <div class="p-1">
                       <div
                         v-for="option in departmentOptions"
                         :key="option.value"
                         @click="selectOption('department', option.value)"
-                        class="px-3 py-2 rounded-md hover:bg-indigo-50 text-sm cursor-pointer flex items-center justify-between text-gray-700"
+                        class="px-3 py-2 rounded-md hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-sm cursor-pointer flex items-center justify-between text-gray-700 dark:text-gray-200"
                       >
-                        <span>{{ option.label }}</span>
-                        <Check
+                        <span>{{ option.label }}</span
+                        ><Check
                           v-if="form.department === option.value"
-                          class="w-4 h-4 text-indigo-600"
+                          class="w-4 h-4 text-indigo-600 dark:text-indigo-400"
                         />
                       </div>
                     </div>
@@ -404,41 +591,47 @@ const handleSubmit = async () => {
 
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div class="space-y-1 relative custom-dropdown-container">
-                  <label class="text-xs font-bold text-gray-500 uppercase"
+                  <label
+                    class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase"
                     >บทบาท (Role) <span class="text-red-500">*</span></label
                   >
                   <button
                     type="button"
                     @click="toggleDropdown('role')"
-                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-left bg-white focus:ring-2 focus:ring-indigo-500 transition-all flex items-center justify-between"
+                    class="w-full border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-left bg-white dark:bg-slate-900 focus:ring-2 focus:ring-indigo-500 transition-all flex items-center justify-between"
                     :class="{
                       'ring-2 ring-indigo-500 border-indigo-500':
                         activeDropdown === 'role',
                     }"
                   >
-                    <span :class="form.role ? 'text-gray-900' : 'text-gray-400'">{{
-                      getLabel(roleOptions, form.role, "เลือกบทบาท")
-                    }}</span>
+                    <span
+                      :class="
+                        form.role
+                          ? 'text-gray-900 dark:text-white'
+                          : 'text-gray-400 dark:text-gray-500'
+                      "
+                      >{{ getLabel(roleOptions, form.role, "เลือกบทบาท") }}</span
+                    >
                     <ChevronDown
-                      class="w-4 h-4 text-gray-400"
+                      class="w-4 h-4 text-gray-400 dark:text-gray-500"
                       :class="{ 'rotate-180': activeDropdown === 'role' }"
                     />
                   </button>
                   <div
                     v-if="activeDropdown === 'role'"
-                    class="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden animate-in fade-in zoom-in-95"
+                    class="absolute z-50 w-full mt-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg overflow-hidden animate-in fade-in zoom-in-95"
                   >
                     <div class="p-1">
                       <div
                         v-for="option in roleOptions"
                         :key="option.value"
                         @click="selectOption('role', option.value)"
-                        class="px-3 py-2 rounded-md hover:bg-indigo-50 text-sm cursor-pointer flex items-center justify-between text-gray-700"
+                        class="px-3 py-2 rounded-md hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-sm cursor-pointer flex items-center justify-between text-gray-700 dark:text-gray-200"
                       >
-                        <span>{{ option.label }}</span>
-                        <Check
+                        <span>{{ option.label }}</span
+                        ><Check
                           v-if="form.role === option.value"
-                          class="w-4 h-4 text-indigo-600"
+                          class="w-4 h-4 text-indigo-600 dark:text-indigo-400"
                         />
                       </div>
                     </div>
@@ -446,41 +639,47 @@ const handleSubmit = async () => {
                 </div>
 
                 <div class="space-y-1 relative custom-dropdown-container">
-                  <label class="text-xs font-bold text-gray-500 uppercase"
+                  <label
+                    class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase"
                     >สถานะ (Status) <span class="text-red-500">*</span></label
                   >
                   <button
                     type="button"
                     @click="toggleDropdown('status')"
-                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-left bg-white focus:ring-2 focus:ring-indigo-500 transition-all flex items-center justify-between"
+                    class="w-full border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-left bg-white dark:bg-slate-900 focus:ring-2 focus:ring-indigo-500 transition-all flex items-center justify-between"
                     :class="{
                       'ring-2 ring-indigo-500 border-indigo-500':
                         activeDropdown === 'status',
                     }"
                   >
-                    <span :class="form.status ? 'text-gray-900' : 'text-gray-400'">{{
-                      getLabel(statusOptions, form.status, "เลือกสถานะ")
-                    }}</span>
+                    <span
+                      :class="
+                        form.status
+                          ? 'text-gray-900 dark:text-white'
+                          : 'text-gray-400 dark:text-gray-500'
+                      "
+                      >{{ getLabel(statusOptions, form.status, "เลือกสถานะ") }}</span
+                    >
                     <ChevronDown
-                      class="w-4 h-4 text-gray-400"
+                      class="w-4 h-4 text-gray-400 dark:text-gray-500"
                       :class="{ 'rotate-180': activeDropdown === 'status' }"
                     />
                   </button>
                   <div
                     v-if="activeDropdown === 'status'"
-                    class="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden animate-in fade-in zoom-in-95"
+                    class="absolute z-50 w-full mt-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg overflow-hidden animate-in fade-in zoom-in-95"
                   >
                     <div class="p-1">
                       <div
                         v-for="option in statusOptions"
                         :key="option.value"
                         @click="selectOption('status', option.value)"
-                        class="px-3 py-2 rounded-md hover:bg-indigo-50 text-sm cursor-pointer flex items-center justify-between text-gray-700"
+                        class="px-3 py-2 rounded-md hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-sm cursor-pointer flex items-center justify-between text-gray-700 dark:text-gray-200"
                       >
-                        <span>{{ option.label }}</span>
-                        <Check
+                        <span>{{ option.label }}</span
+                        ><Check
                           v-if="form.status === option.value"
-                          class="w-4 h-4 text-indigo-600"
+                          class="w-4 h-4 text-indigo-600 dark:text-indigo-400"
                         />
                       </div>
                     </div>
@@ -489,20 +688,21 @@ const handleSubmit = async () => {
               </div>
 
               <div class="space-y-1">
-                <label class="text-xs font-bold text-gray-500 uppercase"
-                  >อีเมล <span class="text-red-500">*</span></label
+                <label
+                  class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase"
+                  >อีเมล (Login) <span class="text-red-500">*</span></label
                 >
                 <input
                   :value="form.email"
                   @input="handleEmailInput"
                   type="email"
-                  class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 outline-none transition-all"
+                  class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 outline-none transition-all dark:bg-slate-900 dark:text-white"
                   :class="
                     emailError
-                      ? 'border-red-500 focus:ring-red-200 bg-red-50 text-red-900'
-                      : 'border-gray-300 focus:ring-indigo-500'
+                      ? 'border-red-500 focus:ring-red-200 bg-red-50 dark:bg-red-900/20 text-red-900 dark:text-red-300'
+                      : 'border-gray-300 dark:border-slate-600 focus:ring-indigo-500'
                   "
-                  placeholder="example@mail.com"
+                  placeholder="example@role.com"
                 />
                 <p
                   v-if="emailError"
@@ -512,8 +712,29 @@ const handleSubmit = async () => {
                 </p>
               </div>
 
+              <div
+                v-if="form.role === 'admin'"
+                class="space-y-1 animate-in fade-in slide-in-from-top-1"
+              >
+                <label
+                  class="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase flex items-center gap-1"
+                >
+                  <Bell class="w-3 h-3" /> อีเมลรับแจ้งเตือน (Notification)
+                </label>
+                <input
+                  v-model="form.notification_email"
+                  type="email"
+                  class="w-full border border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-900/20 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all dark:text-white"
+                  placeholder="notification@gmail.com"
+                />
+                <p class="text-[10px] text-gray-400 dark:text-slate-500">
+                  ระบุอีเมลสำหรับรับแจ้งเตือนจากระบบ
+                </p>
+              </div>
+
               <div class="space-y-1">
-                <label class="text-xs font-bold text-gray-500 uppercase"
+                <label
+                  class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase"
                   >เบอร์โทร (10 หลัก) <span class="text-red-500">*</span></label
                 >
                 <input
@@ -522,20 +743,20 @@ const handleSubmit = async () => {
                   type="tel"
                   inputmode="numeric"
                   maxlength="10"
-                  class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                  placeholder="0812345678"
+                  class="w-full border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                  placeholder="0987654321"
                 />
               </div>
             </form>
           </div>
 
           <div
-            class="p-4 border-t border-gray-100 flex gap-3 bg-gray-50/50 rounded-b-2xl shrink-0"
+            class="p-4 border-t border-gray-100 dark:border-slate-700 flex gap-3 bg-gray-50/50 dark:bg-slate-900/50 rounded-b-2xl shrink-0"
           >
             <button
               type="button"
               @click="$emit('close')"
-              class="flex-1 py-2.5 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-100 transition-colors bg-white"
+              class="flex-1 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 dark:text-gray-300 font-medium hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors bg-white dark:bg-slate-800"
             >
               ยกเลิก
             </button>
@@ -543,7 +764,7 @@ const handleSubmit = async () => {
               type="submit"
               form="employeeForm"
               :disabled="loading"
-              class="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold shadow-sm shadow-indigo-200 flex justify-center items-center gap-2 transition-all disabled:opacity-70 active:scale-95"
+              class="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold shadow-sm shadow-indigo-200 dark:shadow-none flex justify-center items-center gap-2 transition-all disabled:opacity-70 active:scale-95"
             >
               <Loader2 v-if="loading" class="w-4 h-4 animate-spin" />
               <span>{{ isEditing ? "บันทึก" : "เพิ่มพนักงาน" }}</span>
@@ -556,6 +777,7 @@ const handleSubmit = async () => {
 </template>
 
 <style scoped>
+/* Style เดิม */
 .animate-fade-in-up {
   animation: fadeInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
@@ -569,7 +791,6 @@ const handleSubmit = async () => {
     transform: translateY(0) scale(1);
   }
 }
-
 .custom-scrollbar::-webkit-scrollbar {
   width: 4px;
 }
@@ -582,5 +803,17 @@ const handleSubmit = async () => {
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
+}
+
+/* ✅ Dark Mode Scrollbar */
+:global(.dark) .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #475569;
+}
+:global(.dark) .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+:deep(.vue-advanced-cropper__stencil) {
+  border-radius: 50% !important;
 }
 </style>

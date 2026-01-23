@@ -9,10 +9,16 @@ import EmployeeModal from "@/components/admin/EmployeeModal.vue";
 import ToastNotification from "@/components/ui/ToastNotification.vue";
 import { useSwal } from "@/composables/useSwal";
 
+// ✅ 1. Import Store เข้ามา
+import { useUserStore } from "@/stores/user";
+
 // --- State: Data & UI ---
 const employees = ref([]);
 const loading = ref(true);
 const submitting = ref(false);
+
+// ✅ 2. เรียกใช้ Store
+const userStore = useUserStore();
 
 // --- State: Filters & Pagination ---
 const searchQuery = ref("");
@@ -41,7 +47,10 @@ const fetchEmployees = async () => {
   try {
     const { data, error } = await supabase
       .from("employees")
-      .select("*")
+      // ระบุคอลัมน์ชัดเจน
+      .select(
+        "employees_id, employees_code, employees_firstname, employees_lastname, employees_position, employees_department, employees_gender, employees_phone, employees_status, email, role, notification_email, employees_photo, created_at"
+      )
       .order("created_at", { ascending: false });
 
     if (error) throw error;
@@ -55,8 +64,6 @@ const fetchEmployees = async () => {
 };
 
 // --- 2. Filter & Pagination Logic ---
-
-// ✅ สร้างรายการสำหรับ Search Suggestion (ชื่อ + เบอร์ + รหัส + อีเมล)
 const allSearchSuggestions = computed(() => {
   if (!employees.value) return [];
   const names = employees.value.map(
@@ -65,8 +72,6 @@ const allSearchSuggestions = computed(() => {
   const phones = employees.value.map((e) => e.employees_phone).filter(Boolean);
   const codes = employees.value.map((e) => e.employees_code).filter(Boolean);
   const emails = employees.value.map((e) => e.email).filter(Boolean);
-
-  // รวมทั้งหมดและตัดตัวซ้ำ
   return [...new Set([...names, ...phones, ...codes, ...emails])];
 });
 
@@ -141,6 +146,9 @@ const handleSave = async (formData) => {
       employees_phone: formData.phone,
       email: formData.email ? formData.email.toLowerCase() : "",
       updated_at: new Date(),
+      // ✅ ส่งรูปและอีเมลแจ้งเตือน
+      employees_photo: formData.employees_photo,
+      notification_email: formData.notification_email || null,
     };
 
     if (isEditing.value) {
@@ -151,6 +159,15 @@ const handleSave = async (formData) => {
 
       if (error) throw error;
       await swalSuccess("บันทึกสำเร็จ!", "แก้ไขข้อมูลพนักงานเรียบร้อยแล้ว");
+
+      // 🔥🔥🔥 3. พระเอกของเรา: เช็คว่าถ้าแก้ข้อมูลตัวเอง ให้โหลด Profile ใหม่ทันที!
+      if (
+        userStore.profile &&
+        selectedEmployee.value.employees_id === userStore.profile.employees_id
+      ) {
+        console.log("Updating current user profile...");
+        await userStore.fetchUserProfile(); // สั่ง Store ดึงข้อมูลใหม่จาก Server
+      }
     } else {
       const { error } = await supabase.from("employees").insert([
         {
@@ -210,10 +227,10 @@ onMounted(() => {
 
 <template>
   <div class="space-y-6">
-    <h1 class="text-2xl font-bold text-gray-800">จัดการพนักงาน</h1>
+    <h1 class="text-2xl font-bold text-gray-800 dark:text-white">จัดการพนักงาน</h1>
 
     <div
-      class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col"
+      class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 overflow-hidden flex flex-col transition-colors duration-300"
     >
       <EmployeeToolbar
         v-model:searchQuery="searchQuery"

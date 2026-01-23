@@ -49,7 +49,7 @@ const getRoleLabel = (r) => {
     case "user":
       return "หัวหน้างาน (Supervisor)";
     case "maid":
-      return "พนักงานทำความสะอาด";
+      return "แม่บ้าน";
     case "cleaner":
       return "พนักงานทำความสะอาด";
     default:
@@ -64,25 +64,28 @@ const getRoleConfig = (role) => {
       return {
         type: "icon",
         icon: ShieldCheck,
-        class: "bg-purple-100 text-purple-600 border-purple-200",
+        class:
+          "bg-purple-100 text-purple-600 border-purple-200 dark:bg-purple-900/30 dark:text-purple-400 dark:border-purple-800",
       };
     case "maid":
       return {
         type: "icon",
         icon: SprayCan,
-        class: "bg-rose-100 text-rose-600 border-rose-200",
+        class:
+          "bg-rose-100 text-rose-600 border-rose-200 dark:bg-rose-900/30 dark:text-rose-400 dark:border-rose-800",
       };
     case "cleaner":
       return {
         type: "emoji",
         icon: "🧹",
-        class: "bg-gray-200 text-xl border-transparent",
+        class: "bg-gray-200 text-xl border-transparent dark:bg-slate-700",
       };
     default:
       return {
         type: "icon",
         icon: User,
-        class: "bg-gray-100 text-gray-500 border-gray-200",
+        class:
+          "bg-gray-100 text-gray-500 border-gray-200 dark:bg-slate-700 dark:text-gray-400 dark:border-slate-600",
       };
   }
 };
@@ -97,11 +100,11 @@ const fetchTaskDetail = async () => {
       .select(
         `
         *,
-        employees:employees!check_sessions_employees_id_fkey ( 
-            employees_firstname, 
-            employees_lastname, 
-            employees_photo, 
-            role 
+        employees:employees!check_sessions_employees_id_fkey (
+            employees_firstname,
+            employees_lastname,
+            employees_photo,
+            role
         ),
         locations ( locations_name, locations_building, locations_floor )
       `
@@ -295,13 +298,13 @@ onMounted(async () => {
     <div class="flex items-center justify-between">
       <button
         @click="router.back()"
-        class="flex items-center text-gray-600 hover:text-gray-900 transition-colors font-medium border border-gray-300 bg-white px-4 py-2 rounded-lg shadow-sm hover:bg-gray-50 w-fit"
+        class="flex items-center text-gray-600 dark:text-slate-300 hover:text-gray-900 dark:hover:text-white transition-colors font-medium border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-2 rounded-lg shadow-sm hover:bg-gray-50 dark:hover:bg-slate-700 w-fit"
       >
         <ArrowLeft class="w-5 h-5 mr-2" /> ย้อนกลับ
       </button>
 
       <div
-        class="hidden sm:flex items-center gap-2 text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full"
+        class="hidden sm:flex items-center gap-2 text-sm text-gray-500 dark:text-slate-400 bg-gray-100 dark:bg-slate-800 px-3 py-1 rounded-full"
       >
         <ShieldCheck class="w-4 h-4" />
         มุมมอง: {{ getRoleLabel(userStore.profile?.role) }}
@@ -317,27 +320,39 @@ onMounted(async () => {
       class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start relative"
     >
       <div class="lg:col-span-2 space-y-4">
-        <h2 class="text-xl font-bold text-gray-800">รายละเอียดรายการ</h2>
+        <h2 class="text-xl font-bold text-gray-800 dark:text-white">รายละเอียดรายการ</h2>
+
         <div
-          class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4"
+          class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 transition-colors duration-300"
         >
           <div class="space-y-2">
-            <h3 class="text-lg font-bold text-gray-800">
+            <h2 class="text-lg font-bold text-gray-800 dark:text-white">
+              สถานที่ปฏิบัติงาน:
+            </h2>
+            <h3 class="text-lg font-bold text-gray-800 dark:text-white">
               {{ session.locations?.locations_name || "ไม่ระบุสถานที่" }}
             </h3>
-            <div class="flex flex-wrap gap-3 text-gray-500 text-sm">
-              <div class="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded">
+            <div class="flex flex-wrap gap-3 text-gray-500 dark:text-slate-300 text-sm">
+              <div
+                class="flex items-center gap-1 bg-gray-100 dark:bg-slate-700 px-2 py-1 rounded"
+              >
                 <Calendar class="w-4 h-4" /> {{ formatDate(session.check_sessions_date) }}
               </div>
-              <div class="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded">
+              <div
+                class="flex items-center gap-1 bg-gray-100 dark:bg-slate-700 px-2 py-1 rounded"
+              >
                 <Clock class="w-4 h-4" />เวลา:
                 {{ session.check_sessions_time_start?.substring(0, 5) }} น.
               </div>
-              <div class="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded">
+              <div
+                class="flex items-center gap-1 bg-gray-100 dark:bg-slate-700 px-2 py-1 rounded"
+              >
                 <Building class="w-4 h-4" />อาคาร
                 {{ session.locations?.locations_building || "-" }}
               </div>
-              <div class="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded">
+              <div
+                class="flex items-center gap-1 bg-gray-100 dark:bg-slate-700 px-2 py-1 rounded"
+              >
                 <MapPin class="w-4 h-4" /> ชั้น
                 {{ session.locations?.locations_floor || "-" }}
               </div>
@@ -347,9 +362,10 @@ onMounted(async () => {
           <div
             class="px-4 py-1.5 rounded-full font-bold text-white flex items-center gap-2 text-sm shadow-sm"
             :class="{
-              'bg-yellow-400': !isCompleted,
-              'bg-green-500': session.check_sessions_status === 'approved',
-              'bg-red-400': session.check_sessions_status === 'rejected',
+              'bg-yellow-400 dark:bg-yellow-500': !isCompleted,
+              'bg-green-500 dark:bg-green-600':
+                session.check_sessions_status === 'approved',
+              'bg-red-400 dark:bg-red-500': session.check_sessions_status === 'rejected',
             }"
           >
             {{
@@ -362,15 +378,21 @@ onMounted(async () => {
           </div>
         </div>
 
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          <div class="p-4 border-b border-gray-100 bg-gray-50">
-            <h3 class="text-lg font-bold text-gray-800">รายการตรวจสอบ (Checklist)</h3>
+        <div
+          class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 overflow-hidden transition-colors duration-300"
+        >
+          <div
+            class="p-4 border-b border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-900"
+          >
+            <h3 class="text-lg font-bold text-gray-800 dark:text-white">
+              รายการตรวจสอบ (Checklist)
+            </h3>
           </div>
           <div class="p-5 space-y-3">
             <div
               v-for="(item, index) in checkResults"
               :key="item.check_results_id"
-              class="bg-white rounded-lg p-3 border border-gray-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 hover:bg-gray-50 transition-colors"
+              class="bg-white dark:bg-slate-800 rounded-lg p-3 border border-gray-200 dark:border-slate-700 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors"
               :class="{
                 'border-l-4 border-l-red-500': ['fail', 'false'].includes(
                   item.check_results_status
@@ -381,32 +403,37 @@ onMounted(async () => {
               }"
             >
               <div class="flex-1">
-                <div class="font-bold text-gray-800 text-base mb-1">
+                <div class="font-bold text-gray-800 dark:text-white text-base mb-1">
                   {{ index + 1 }}. {{ item.check_items?.check_items_name }}
                 </div>
-                <div class="text-gray-500 text-xs font-light">
+                <div class="text-gray-500 dark:text-slate-400 text-xs font-light">
                   {{ item.check_items?.check_items_description || "-" }}
                 </div>
                 <div
                   v-if="item.check_results_detail"
-                  class="mt-2 text-xs text-gray-600 bg-yellow-50 p-2 rounded-md border border-yellow-100 flex items-start gap-2"
+                  class="mt-2 text-xs text-gray-600 dark:text-gray-300 bg-yellow-50 dark:bg-yellow-900/20 p-2 rounded-md border border-yellow-100 dark:border-yellow-800 flex items-start gap-2"
                 >
-                  <MessageSquare class="w-3 h-3 mt-0.5 text-yellow-600 shrink-0" />
+                  <MessageSquare
+                    class="w-3 h-3 mt-0.5 text-yellow-600 dark:text-yellow-400 shrink-0"
+                  />
                   <span
-                    ><span class="font-bold text-yellow-600">หมายเหตุ:</span>
+                    ><span class="font-bold text-yellow-600 dark:text-yellow-400"
+                      >หมายเหตุ:</span
+                    >
                     {{ item.check_results_detail }}</span
                   >
                 </div>
               </div>
+
               <div
                 v-if="['pass', 'true'].includes(item.check_results_status)"
-                class="flex items-center gap-2 bg-green-100 text-green-700 px-3 py-1 rounded-md font-bold text-xs shrink-0"
+                class="flex items-center gap-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-3 py-1 rounded-md font-bold text-xs shrink-0"
               >
                 <Check class="w-3 h-3" /> เรียบร้อย
               </div>
               <div
                 v-else-if="['fail', 'false'].includes(item.check_results_status)"
-                class="flex items-center gap-2 bg-red-100 text-red-700 px-3 py-1 rounded-md font-bold text-xs shrink-0"
+                class="flex items-center gap-2 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 px-3 py-1 rounded-md font-bold text-xs shrink-0"
               >
                 <XCircle class="w-3 h-3" /> ไม่ผ่าน
               </div>
@@ -416,20 +443,20 @@ onMounted(async () => {
       </div>
 
       <div class="lg:col-span-1 space-y-3 sticky top-4 h-fit z-10">
-        <h2 class="text-xl font-bold text-gray-800">ข้อมูลผู้ส่งงาน</h2>
+        <h2 class="text-xl font-bold text-gray-800 dark:text-white">ข้อมูลผู้ส่งงาน</h2>
 
         <div
-          class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 flex flex-col items-center text-center"
+          class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-5 flex flex-col items-center text-center transition-colors duration-300"
         >
           <div class="relative mb-3">
             <img
               v-if="session.employees?.employees_photo"
               :src="session.employees.employees_photo"
-              class="w-20 h-20 rounded-full object-cover border-4 border-gray-50 shadow-sm"
+              class="w-20 h-20 rounded-full object-cover border-4 border-gray-50 dark:border-slate-700 shadow-sm"
             />
             <div
               v-else
-              class="w-20 h-20 rounded-full flex items-center justify-center border-4 border-white shadow-sm"
+              class="w-20 h-20 rounded-full flex items-center justify-center border-4 border-white dark:border-slate-600 shadow-sm"
               :class="getRoleConfig(session.employees?.role).class"
             >
               <component
@@ -443,69 +470,80 @@ onMounted(async () => {
             </div>
           </div>
 
-          <div class="font-bold text-lg text-gray-800">
+          <div class="font-bold text-lg text-gray-800 dark:text-white">
             {{ session.employees?.employees_firstname }}
             {{ session.employees?.employees_lastname }}
           </div>
-          <div class="text-gray-400 font-light mt-0.5 text-xs">
-            {{ getRoleLabel(session.employees?.role) }}
+          <div class="text-gray-400 dark:text-slate-500 font-light mt-0.5 text-xs">
+            ตำแหน่ง: {{ getRoleLabel(session.employees?.role) }}
           </div>
         </div>
 
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+        <div
+          class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-4 transition-colors duration-300"
+        >
           <h3
-            class="font-bold text-gray-700 flex items-center gap-2 mb-3 text-sm border-b border-gray-100 pb-2"
+            class="font-bold text-gray-700 dark:text-slate-300 flex items-center gap-2 mb-3 text-sm border-b border-gray-100 dark:border-slate-700 pb-2"
           >
-            <MapPin class="w-4 h-4 text-indigo-600" /> พิกัด GPS ที่ส่งงาน
+            <MapPin class="w-4 h-4 text-indigo-600 dark:text-indigo-400" /> พิกัด GPS
+            ที่ส่งงาน
           </h3>
           <div v-if="session.lat && session.long" class="space-y-3">
             <div
-              class="flex items-center justify-between text-xs bg-gray-50 p-2 rounded border border-gray-100"
+              class="flex items-center justify-between text-xs bg-gray-50 dark:bg-slate-900 p-2 rounded border border-gray-100 dark:border-slate-700"
             >
-              <span class="text-gray-500">Latitude:</span>
-              <span class="font-mono font-medium">{{ session.lat }}</span>
+              <span class="text-gray-500 dark:text-slate-400">Latitude:</span>
+              <span class="font-mono font-medium dark:text-white">{{ session.lat }}</span>
             </div>
             <div
-              class="flex items-center justify-between text-xs bg-gray-50 p-2 rounded border border-gray-100"
+              class="flex items-center justify-between text-xs bg-gray-50 dark:bg-slate-900 p-2 rounded border border-gray-100 dark:border-slate-700"
             >
-              <span class="text-gray-500">Longitude:</span>
-              <span class="font-mono font-medium">{{ session.long }}</span>
+              <span class="text-gray-500 dark:text-slate-400">Longitude:</span>
+              <span class="font-mono font-medium dark:text-white">{{
+                session.long
+              }}</span>
             </div>
             <a
               :href="`https://www.google.com/maps/search/?api=1&query=${session.lat},${session.long}`"
               target="_blank"
-              class="flex items-center justify-center gap-2 w-full py-2 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition-colors font-bold text-xs"
+              class="flex items-center justify-center gap-2 w-full py-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors font-bold text-xs"
             >
               <ExternalLink class="w-3 h-3" /> เปิด Google Maps
             </a>
           </div>
           <div
             v-else
-            class="flex flex-col items-center justify-center gap-2 text-orange-500 bg-orange-50 p-4 rounded-lg text-center border border-orange-100"
+            class="flex flex-col items-center justify-center gap-2 text-orange-500 bg-orange-50 dark:bg-orange-900/20 p-4 rounded-lg text-center border border-orange-100 dark:border-orange-800"
           >
             <AlertTriangle class="w-6 h-6" />
             <span class="text-xs font-medium">ไม่พบพิกัด GPS<br />ในรายการนี้</span>
           </div>
         </div>
 
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-          <h3 class="text-lg font-bold text-gray-800 mb-3 text-center">การดำเนินการ</h3>
+        <div
+          class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-4 transition-colors duration-300"
+        >
+          <h3 class="text-lg font-bold text-gray-800 dark:text-white mb-3 text-center">
+            การดำเนินการ
+          </h3>
 
           <div v-if="isCompleted" class="text-center space-y-3">
-            <div class="p-3 rounded-lg bg-gray-50 border border-gray-100">
+            <div
+              class="p-3 rounded-lg bg-gray-50 dark:bg-slate-900 border border-gray-100 dark:border-slate-700"
+            >
               <CheckCircle2
                 v-if="session.check_sessions_status === 'approved'"
                 class="w-10 h-10 text-green-500 mx-auto mb-2"
               />
               <XCircle v-else class="w-10 h-10 text-red-500 mx-auto mb-2" />
-              <div class="font-bold text-gray-700 text-sm">
+              <div class="font-bold text-gray-700 dark:text-white text-sm">
                 {{
                   session.check_sessions_status === "approved"
                     ? "ตรวจสอบแล้วเรียบร้อย"
                     : "ส่งกลับแก้ไขแล้ว"
                 }}
               </div>
-              <div class="text-xs text-gray-400 mt-1">
+              <div class="text-xs text-gray-400 dark:text-slate-500 mt-1">
                 เมื่อ: {{ formatDate(session.updated_at) }}
               </div>
               <div
@@ -513,7 +551,7 @@ onMounted(async () => {
                   session.check_sessions_status === 'rejected' &&
                   session.supervisor_comment
                 "
-                class="mt-3 text-xs text-red-600 bg-red-50 p-3 rounded-lg text-left border border-red-100"
+                class="mt-3 text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 p-3 rounded-lg text-left border border-red-100 dark:border-red-800"
               >
                 <b class="block mb-1">เหตุผล:</b> {{ session.supervisor_comment }}
               </div>
@@ -521,7 +559,7 @@ onMounted(async () => {
             <button
               v-if="canManage"
               @click="handleReset"
-              class="text-xs text-indigo-500 hover:text-indigo-700 font-bold underline flex items-center justify-center gap-1 w-full transition-colors pt-2"
+              class="text-xs text-indigo-500 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-bold underline flex items-center justify-center gap-1 w-full transition-colors pt-2"
             >
               <RotateCcw class="w-3 h-3" /> ต้องการเปลี่ยนแปลงผลตรวจ?
             </button>
@@ -539,25 +577,31 @@ onMounted(async () => {
               <button
                 @click="handleReject"
                 :disabled="submitting"
-                class="w-full bg-white border-2 border-red-100 text-red-500 hover:bg-red-50 hover:border-red-200 font-bold text-base py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                class="w-full bg-white dark:bg-slate-800 border-2 border-red-100 dark:border-red-800 text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:border-red-200 font-bold text-base py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <XCircle class="w-5 h-5" /> ส่งกลับแก้ไข
               </button>
             </div>
             <div
               v-else
-              class="p-4 bg-gray-100 rounded-lg text-center border border-gray-200"
+              class="p-4 bg-gray-100 dark:bg-slate-900 rounded-lg text-center border border-gray-200 dark:border-slate-700"
             >
-              <ShieldCheck class="w-8 h-8 text-gray-400 mx-auto mb-2" />
-              <p class="text-sm font-bold text-gray-600">โหมดอ่านอย่างเดียว</p>
-              <p class="text-xs text-gray-500 mt-1">คุณไม่มีสิทธิ์อนุมัติงานนี้</p>
+              <ShieldCheck
+                class="w-8 h-8 text-gray-400 dark:text-slate-500 mx-auto mb-2"
+              />
+              <p class="text-sm font-bold text-gray-600 dark:text-slate-300">
+                โหมดอ่านอย่างเดียว
+              </p>
+              <p class="text-xs text-gray-500 dark:text-slate-400 mt-1">
+                คุณไม่มีสิทธิ์อนุมัติงานนี้
+              </p>
             </div>
           </div>
         </div>
       </div>
     </div>
 
-    <div v-else class="flex justify-center py-20 text-gray-500">
+    <div v-else class="flex justify-center py-20 text-gray-500 dark:text-slate-400">
       ไม่พบข้อมูลงาน หรือเกิดข้อผิดพลาดในการโหลด
     </div>
   </div>

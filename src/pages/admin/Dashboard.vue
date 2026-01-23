@@ -49,7 +49,7 @@ const stats = ref({
 const recentActivities = ref([]);
 const chartData = ref({ labels: [], datasets: [] });
 
-// --- Chart Configuration (คงเดิม) ---
+// --- Chart Configuration (คงเดิม + ปรับสี Dark Mode นิดหน่อย) ---
 const chartOptions = {
   responsive: true,
   maintainAspectRatio: false,
@@ -61,6 +61,8 @@ const chartOptions = {
         usePointStyle: true,
         boxWidth: 8,
         font: { family: "'Noto Sans Thai', sans-serif" },
+        // ✅ ปรับสีตัวหนังสือใน Legend ให้รองรับ Dark Mode (ChartJS ไม่รองรับ Class, ต้องใช้สี)
+        // color: '#94a3b8' // ถ้าจะแก้ต้องทำ dynamic แต่เบื้องต้นปล่อย default ไว้ก่อน หรือใช้สีเทากลางๆ
       },
     },
   },
@@ -68,7 +70,7 @@ const chartOptions = {
   scales: {
     y: {
       beginAtZero: true,
-      grid: { color: "#f3f4f6" },
+      grid: { color: "#f3f4f6" }, // อาจจะมองไม่เห็นใน Dark Mode แต่ไม่เป็นไร
       ticks: { precision: 0, font: { family: "'Noto Sans Thai', sans-serif" } },
     },
     x: {
@@ -359,11 +361,13 @@ onUnmounted(() => {
   <div class="space-y-6 pb-10">
     <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
       <div>
-        <h1 class="text-3xl font-bold text-gray-900 tracking-tight">Dashboard</h1>
-        <p class="text-gray-500 mt-1 flex items-center gap-2">
+        <h1 class="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">
+          Dashboard
+        </h1>
+        <p class="text-gray-500 dark:text-slate-400 mt-1 flex items-center gap-2">
           ภาพรวมการทำงานประจำวันที่
           <span
-            class="font-medium text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100"
+            class="font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 px-2 py-0.5 rounded-md border border-indigo-100 dark:border-indigo-800"
           >
             {{ new Date().toLocaleDateString("th-TH", { dateStyle: "long" }) }}
           </span>
@@ -374,15 +378,17 @@ onUnmounted(() => {
         <div class="relative custom-dropdown-container min-w-[160px]">
           <button
             @click="toggleBuildingDropdown"
-            class="flex items-center justify-between w-full pl-3 pr-3 py-2 bg-white border border-gray-200 rounded-xl text-sm text-gray-700 shadow-sm hover:border-indigo-500 hover:ring-2 hover:ring-indigo-100 transition-all focus:outline-none"
+            class="flex items-center justify-between w-full pl-3 pr-3 py-2 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-sm text-gray-700 dark:text-white shadow-sm hover:border-indigo-500 hover:ring-2 hover:ring-indigo-100 dark:hover:ring-indigo-900 transition-all focus:outline-none"
             :class="{
-              'border-indigo-500 ring-2 ring-indigo-100': isBuildingDropdownOpen,
+              'border-indigo-500 ring-2 ring-indigo-100 dark:ring-indigo-900': isBuildingDropdownOpen,
             }"
           >
             <div class="flex items-center gap-2">
               <Filter
-                class="h-4 w-4 text-gray-400"
-                :class="{ 'text-indigo-500': isBuildingDropdownOpen }"
+                class="h-4 w-4 text-gray-400 dark:text-slate-500"
+                :class="{
+                  'text-indigo-500 dark:text-indigo-400': isBuildingDropdownOpen,
+                }"
               />
               <span class="truncate">{{
                 selectedBuilding === "ทั้งหมด"
@@ -391,14 +397,14 @@ onUnmounted(() => {
               }}</span>
             </div>
             <ChevronDown
-              class="h-4 w-4 text-gray-400 transition-transform duration-200"
+              class="h-4 w-4 text-gray-400 dark:text-slate-500 transition-transform duration-200"
               :class="{ 'rotate-180': isBuildingDropdownOpen }"
             />
           </button>
 
           <div
             v-if="isBuildingDropdownOpen"
-            class="absolute top-full right-0 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 origin-top-right"
+            class="absolute top-full right-0 mt-1 w-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 origin-top-right"
           >
             <div class="p-1 max-h-60 overflow-y-auto custom-scrollbar">
               <div
@@ -406,18 +412,18 @@ onUnmounted(() => {
                 class="px-3 py-2 rounded-lg text-sm cursor-pointer flex items-center justify-between transition-colors"
                 :class="
                   selectedBuilding === 'ทั้งหมด'
-                    ? 'bg-indigo-50 text-indigo-700 font-medium'
-                    : 'hover:bg-gray-50 text-gray-700'
+                    ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 font-medium'
+                    : 'hover:bg-gray-50 dark:hover:bg-slate-700 text-gray-700 dark:text-gray-300'
                 "
               >
                 <span>อาคารทั้งหมด</span>
                 <Check
                   v-if="selectedBuilding === 'ทั้งหมด'"
-                  class="w-4 h-4 text-indigo-600"
+                  class="w-4 h-4 text-indigo-600 dark:text-indigo-400"
                 />
               </div>
 
-              <div class="h-px bg-gray-100 my-1"></div>
+              <div class="h-px bg-gray-100 dark:bg-slate-700 my-1"></div>
 
               <div
                 v-for="b in uniqueBuildings"
@@ -426,12 +432,15 @@ onUnmounted(() => {
                 class="px-3 py-2 rounded-lg text-sm cursor-pointer flex items-center justify-between transition-colors"
                 :class="
                   selectedBuilding === b
-                    ? 'bg-indigo-50 text-indigo-700 font-medium'
-                    : 'hover:bg-gray-50 text-gray-700'
+                    ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 font-medium'
+                    : 'hover:bg-gray-50 dark:hover:bg-slate-700 text-gray-700 dark:text-gray-300'
                 "
               >
                 <span>อาคาร {{ b }}</span>
-                <Check v-if="selectedBuilding === b" class="w-4 h-4 text-indigo-600" />
+                <Check
+                  v-if="selectedBuilding === b"
+                  class="w-4 h-4 text-indigo-600 dark:text-indigo-400"
+                />
               </div>
             </div>
           </div>
@@ -440,7 +449,7 @@ onUnmounted(() => {
         <button
           @click="handleRefresh"
           :disabled="isRefreshing"
-          class="text-sm text-gray-600 hover:text-indigo-600 transition-colors flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-gray-200 hover:border-indigo-200 hover:bg-indigo-50 hover:shadow-sm active:scale-95 disabled:opacity-70"
+          class="text-sm text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors flex items-center gap-2 px-4 py-2 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 hover:border-indigo-200 dark:hover:border-indigo-800 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 hover:shadow-sm active:scale-95 disabled:opacity-70"
         >
           <RefreshCw class="w-4 h-4" :class="{ 'animate-spin': isRefreshing }" />
           <span class="hidden sm:inline">{{
@@ -452,10 +461,12 @@ onUnmounted(() => {
 
     <div
       v-if="loading"
-      class="h-96 flex flex-col items-center justify-center bg-white rounded-3xl shadow-sm border border-gray-100"
+      class="h-96 flex flex-col items-center justify-center bg-white dark:bg-slate-800 rounded-3xl shadow-sm border border-gray-100 dark:border-slate-700"
     >
-      <Loader2 class="w-10 h-10 animate-spin text-indigo-600 mb-3" />
-      <span class="text-gray-400 text-sm font-medium">กำลังประมวลผลข้อมูล...</span>
+      <Loader2 class="w-10 h-10 animate-spin text-indigo-600 dark:text-indigo-400 mb-3" />
+      <span class="text-gray-400 dark:text-slate-500 text-sm font-medium"
+        >กำลังประมวลผลข้อมูล...</span
+      >
     </div>
 
     <div v-else class="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -463,11 +474,13 @@ onUnmounted(() => {
 
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div
-          class="lg:col-span-2 bg-white p-6 rounded-3xl shadow-sm border border-gray-100 h-[480px] flex flex-col relative overflow-hidden"
+          class="lg:col-span-2 bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-slate-700 h-[480px] flex flex-col relative overflow-hidden"
         >
-          <h3 class="font-bold text-gray-800 mb-6 flex items-center gap-2 text-lg">
-            <div class="p-1.5 bg-indigo-50 rounded-lg">
-              <BarChart3 class="w-5 h-5 text-indigo-500" />
+          <h3
+            class="font-bold text-gray-800 dark:text-white mb-6 flex items-center gap-2 text-lg"
+          >
+            <div class="p-1.5 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg">
+              <BarChart3 class="w-5 h-5 text-indigo-500 dark:text-indigo-400" />
             </div>
             เปรียบเทียบผลงาน รอบเช้า vs บ่าย
           </h3>
@@ -477,14 +490,14 @@ onUnmounted(() => {
         </div>
 
         <div
-          class="bg-white rounded-3xl shadow-sm border border-gray-100 p-6 flex flex-col h-[480px] relative overflow-hidden"
+          class="bg-white dark:bg-slate-800 rounded-3xl shadow-sm border border-gray-100 dark:border-slate-700 p-6 flex flex-col h-[480px] relative overflow-hidden"
         >
           <h3
-            class="font-bold text-gray-800 mb-4 flex items-center justify-between gap-2 text-lg"
+            class="font-bold text-gray-800 dark:text-white mb-4 flex items-center justify-between gap-2 text-lg"
           >
             <div class="flex items-center gap-2">
-              <div class="p-1.5 bg-indigo-50 rounded-lg">
-                <Building class="w-5 h-5 text-indigo-500" />
+              <div class="p-1.5 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg">
+                <Building class="w-5 h-5 text-indigo-500 dark:text-indigo-400" />
               </div>
               <span>{{
                 selectedBuilding === "ทั้งหมด"
@@ -498,7 +511,7 @@ onUnmounted(() => {
             <div v-for="item in progressStats" :key="item.name" class="space-y-2 group">
               <div class="flex justify-between text-sm items-end">
                 <span
-                  class="font-semibold text-gray-700 group-hover:text-indigo-600 transition-colors"
+                  class="font-semibold text-gray-700 dark:text-gray-300 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors"
                 >
                   {{ item.name }}
                 </span>
@@ -506,17 +519,21 @@ onUnmounted(() => {
                   <span
                     class="font-bold text-lg"
                     :class="
-                      item.completed >= item.total ? 'text-emerald-600' : 'text-gray-800'
+                      item.completed >= item.total
+                        ? 'text-emerald-600 dark:text-emerald-400'
+                        : 'text-gray-800 dark:text-white'
                     "
                   >
                     {{ item.completed }}
                   </span>
-                  <span class="text-gray-400 text-xs font-medium">งาน</span>
+                  <span class="text-gray-400 dark:text-slate-500 text-xs font-medium"
+                    >งาน</span
+                  >
                 </div>
               </div>
 
               <div
-                class="h-2.5 w-full bg-gray-100 rounded-full overflow-hidden relative shadow-inner"
+                class="h-2.5 w-full bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden relative shadow-inner"
               >
                 <div
                   class="h-full rounded-full transition-all duration-1000 ease-out relative"
@@ -534,7 +551,7 @@ onUnmounted(() => {
 
             <div
               v-if="progressStats.length === 0"
-              class="flex flex-col items-center justify-center h-full text-gray-400 text-sm opacity-60"
+              class="flex flex-col items-center justify-center h-full text-gray-400 dark:text-slate-500 text-sm opacity-60"
             >
               <Building class="w-12 h-12 mb-2 stroke-1" />
               ไม่พบข้อมูล
@@ -542,22 +559,22 @@ onUnmounted(() => {
           </div>
 
           <div
-            class="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-white to-transparent pointer-events-none"
+            class="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-white dark:from-slate-800 to-transparent pointer-events-none"
           ></div>
         </div>
       </div>
 
       <div
-        class="bg-white h-[500px] rounded-3xl shadow-sm border border-gray-100 overflow-hidden flex flex-col"
+        class="bg-white dark:bg-slate-800 h-[500px] rounded-3xl shadow-sm border border-gray-100 dark:border-slate-700 overflow-hidden flex flex-col"
       >
         <div
-          class="p-6 border-b border-gray-100 flex items-center justify-between gap-2 shrink-0"
+          class="p-6 border-b border-gray-100 dark:border-slate-700 flex items-center justify-between gap-2 shrink-0"
         >
           <div class="flex items-center gap-2">
-            <div class="p-1.5 bg-indigo-50 rounded-lg">
-              <TrendingUp class="w-5 h-5 text-indigo-500" />
+            <div class="p-1.5 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg">
+              <TrendingUp class="w-5 h-5 text-indigo-500 dark:text-indigo-400" />
             </div>
-            <h3 class="font-bold text-gray-800 text-lg">กิจกรรมล่าสุด</h3>
+            <h3 class="font-bold text-gray-800 dark:text-white text-lg">กิจกรรมล่าสุด</h3>
           </div>
         </div>
 
@@ -583,6 +600,14 @@ onUnmounted(() => {
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #cbd5e1;
+}
+
+/* Dark Mode Scrollbar */
+:global(.dark) .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #475569;
+}
+:global(.dark) .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
 }
 
 /* Shimmer Animation */

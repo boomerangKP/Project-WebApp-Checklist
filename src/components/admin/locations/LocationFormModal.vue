@@ -36,7 +36,7 @@ const formData = reactive({
 });
 
 // --- State สำหรับ Custom Dropdown ---
-const activeDropdown = ref(null); // ใช้ตัวแปรเดียวคุมการเปิด/ปิดทั้งหมด
+const activeDropdown = ref(null);
 const buildingSearch = ref("");
 const floorSearch = ref("");
 const buildingInputRef = ref(null);
@@ -49,24 +49,24 @@ const statusOptions = [
     label: "ปกติ",
     description: "พร้อมใช้งาน",
     icon: CheckCircle2,
-    color: "text-emerald-600",
-    bg: "bg-emerald-50",
+    color: "text-emerald-600 dark:text-emerald-400",
+    bg: "bg-emerald-50 dark:bg-emerald-900/20",
   },
   {
     value: "maintenance",
     label: "ปิดปรับปรุง",
     description: "กำลังซ่อมแซม",
     icon: Hammer,
-    color: "text-orange-600",
-    bg: "bg-orange-50",
+    color: "text-orange-600 dark:text-orange-400",
+    bg: "bg-orange-50 dark:bg-orange-900/20",
   },
   {
     value: "inactive",
     label: "ปิดใช้งาน",
     description: "เลิกใช้งานถาวร",
     icon: Ban,
-    color: "text-gray-500",
-    bg: "bg-gray-100",
+    color: "text-gray-500 dark:text-gray-400",
+    bg: "bg-gray-100 dark:bg-slate-700",
   },
 ];
 
@@ -140,7 +140,6 @@ const toggleDropdown = async (name) => {
     activeDropdown.value = null;
   } else {
     activeDropdown.value = name;
-    // Auto focus search inputs
     await nextTick();
     if (name === "building" && buildingInputRef.value) buildingInputRef.value.focus();
     if (name === "floor" && floorInputRef.value) floorInputRef.value.focus();
@@ -202,7 +201,7 @@ const handleSubmit = () => {
 
 const getStatusColor = (status) => {
   const option = statusOptions.find((o) => o.value === status);
-  return option ? option.color : "text-gray-500";
+  return option ? option.color : "text-gray-500 dark:text-gray-400";
 };
 </script>
 
@@ -219,18 +218,20 @@ const getStatusColor = (status) => {
         ></div>
 
         <div
-          class="bg-white w-full max-w-lg rounded-2xl shadow-xl overflow-visible animate-in zoom-in-95 relative z-10 flex flex-col max-h-[90vh]"
+          class="bg-white dark:bg-slate-800 w-full max-w-lg rounded-2xl shadow-xl overflow-visible animate-in zoom-in-95 relative z-10 flex flex-col max-h-[90vh]"
         >
           <div
-            class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50 rounded-t-2xl shrink-0"
+            class="px-6 py-4 border-b border-gray-100 dark:border-slate-700 flex justify-between items-center bg-gray-50/50 dark:bg-slate-900/50 rounded-t-2xl shrink-0"
           >
-            <h3 class="font-bold text-gray-800 text-lg flex items-center gap-2">
-              <MapPin class="w-5 h-5 text-indigo-600" />
+            <h3
+              class="font-bold text-gray-800 dark:text-white text-lg flex items-center gap-2"
+            >
+              <MapPin class="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
               {{ mode === "add" ? "เพิ่มจุดตรวจใหม่" : "แก้ไขข้อมูล" }}
             </h3>
             <button
               @click="$emit('close')"
-              class="text-gray-400 hover:text-gray-600 hover:bg-gray-100 p-1 rounded-full"
+              class="text-gray-400 dark:text-slate-400 hover:text-gray-600 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-700 p-1 rounded-full"
             >
               <X class="w-5 h-5" />
             </button>
@@ -240,55 +241,61 @@ const getStatusColor = (status) => {
             <form @submit.prevent="handleSubmit" class="space-y-5">
               <div class="grid grid-cols-2 gap-4">
                 <div class="space-y-1">
-                  <label class="text-xs font-bold text-gray-500 uppercase"
-                    >รหัส (Code) <span class="text-red-500">*</span></label
+                  <label
+                    class="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase"
                   >
+                    รหัส (Code) <span class="text-red-500">*</span>
+                  </label>
                   <div class="relative">
-                    <Hash class="w-4 h-4 absolute left-3 top-2.5 text-gray-400" />
+                    <Hash
+                      class="w-4 h-4 absolute left-3 top-2.5 text-gray-400 dark:text-slate-500"
+                    />
                     <input
                       v-model="formData.code"
                       type="text"
                       placeholder="Ex. B1-F2-01"
-                      class="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none font-mono"
+                      class="w-full pl-9 pr-3 py-2 bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-600 rounded-lg text-sm dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none font-mono"
                       required
                     />
                   </div>
                 </div>
 
                 <div class="space-y-1 relative custom-dropdown-container">
-                  <label class="text-xs font-bold text-gray-500 uppercase"
-                    >ประเภทห้อง <span class="text-red-500">*</span></label
+                  <label
+                    class="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase"
                   >
+                    ประเภทห้อง <span class="text-red-500">*</span>
+                  </label>
                   <div
                     @click="toggleDropdown('type')"
-                    class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm flex items-center justify-between cursor-pointer hover:bg-white hover:border-emerald-500 transition-colors"
+                    class="w-full px-3 py-2 bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-600 rounded-lg text-sm flex items-center justify-between cursor-pointer hover:bg-white dark:hover:bg-slate-800 hover:border-emerald-500 transition-colors"
                     :class="{
-                      'ring-2 ring-emerald-500 border-emerald-500 bg-white':
+                      'ring-2 ring-emerald-500 border-emerald-500 bg-white dark:bg-slate-800':
                         activeDropdown === 'type',
                     }"
                   >
-                    <span>{{ currentTypeName }}</span>
+                    <span class="dark:text-white">{{ currentTypeName }}</span>
                     <ChevronDown
-                      class="w-4 h-4 text-gray-400 transition-transform"
+                      class="w-4 h-4 text-gray-400 dark:text-slate-500 transition-transform"
                       :class="{ 'rotate-180': activeDropdown === 'type' }"
                     />
                   </div>
 
                   <div
                     v-if="activeDropdown === 'type'"
-                    class="absolute top-full left-0 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-[70] overflow-hidden animate-in fade-in zoom-in-95"
+                    class="absolute top-full left-0 w-full mt-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl shadow-lg z-[70] overflow-hidden animate-in fade-in zoom-in-95"
                   >
                     <div class="p-1 max-h-48 overflow-y-auto custom-scrollbar">
                       <div
                         v-for="t in restroomTypes"
                         :key="t.restroom_types_id"
                         @click="selectType(t.restroom_types_id)"
-                        class="px-3 py-2 rounded-md hover:bg-emerald-50 text-sm cursor-pointer flex items-center justify-between"
+                        class="px-3 py-2 rounded-md hover:bg-emerald-50 dark:hover:bg-slate-700 text-sm cursor-pointer flex items-center justify-between dark:text-white"
                       >
                         <span>{{ t.restroom_types_name }}</span>
                         <Check
                           v-if="formData.typeId === t.restroom_types_id"
-                          class="w-4 h-4 text-emerald-600"
+                          class="w-4 h-4 text-emerald-600 dark:text-emerald-400"
                         />
                       </div>
                     </div>
@@ -298,37 +305,45 @@ const getStatusColor = (status) => {
 
               <div class="grid grid-cols-2 gap-4">
                 <div class="space-y-1 relative custom-dropdown-container">
-                  <label class="text-xs font-bold text-gray-500 uppercase"
-                    >อาคาร <span class="text-red-500">*</span></label
+                  <label
+                    class="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase"
                   >
+                    อาคาร <span class="text-red-500">*</span>
+                  </label>
                   <div
                     @click="toggleDropdown('building')"
-                    class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm flex items-center justify-between cursor-pointer hover:bg-white hover:border-emerald-500 transition-colors"
+                    class="w-full px-3 py-2 bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-600 rounded-lg text-sm flex items-center justify-between cursor-pointer hover:bg-white dark:hover:bg-slate-800 hover:border-emerald-500 transition-colors"
                     :class="{
-                      'ring-2 ring-emerald-500 border-emerald-500 bg-white':
+                      'ring-2 ring-emerald-500 border-emerald-500 bg-white dark:bg-slate-800':
                         activeDropdown === 'building',
                     }"
                   >
-                    <span :class="formData.building ? 'text-gray-900' : 'text-gray-400'">
+                    <span
+                      :class="
+                        formData.building
+                          ? 'text-gray-900 dark:text-white'
+                          : 'text-gray-400 dark:text-slate-500'
+                      "
+                    >
                       {{ formData.building || "เลือกอาคาร..." }}
                     </span>
                     <ChevronDown
-                      class="w-4 h-4 text-gray-400 transition-transform"
+                      class="w-4 h-4 text-gray-400 dark:text-slate-500 transition-transform"
                       :class="{ 'rotate-180': activeDropdown === 'building' }"
                     />
                   </div>
 
                   <div
                     v-if="activeDropdown === 'building'"
-                    class="absolute top-full left-0 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-[70] overflow-hidden animate-in fade-in zoom-in-95"
+                    class="absolute top-full left-0 w-full mt-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl shadow-lg z-[70] overflow-hidden animate-in fade-in zoom-in-95"
                   >
-                    <div class="p-2 border-b border-gray-100">
+                    <div class="p-2 border-b border-gray-100 dark:border-slate-700">
                       <input
                         v-model="buildingSearch"
                         ref="buildingInputRef"
                         type="text"
                         placeholder="พิมพ์เพื่อค้นหา/สร้าง..."
-                        class="w-full px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        class="w-full px-3 py-1.5 bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-600 rounded-lg text-sm dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                         @click.stop
                       />
                     </div>
@@ -337,24 +352,24 @@ const getStatusColor = (status) => {
                         v-for="b in filteredBuildings"
                         :key="b"
                         @click="selectBuilding(b)"
-                        class="px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 cursor-pointer flex items-center justify-between group"
+                        class="px-3 py-2 rounded-lg text-sm text-gray-700 dark:text-white hover:bg-emerald-50 dark:hover:bg-slate-700 hover:text-emerald-700 dark:hover:text-emerald-400 cursor-pointer flex items-center justify-between group"
                       >
                         <span>{{ b }}</span>
                         <Check
                           v-if="formData.building === b"
-                          class="w-4 h-4 text-emerald-600"
+                          class="w-4 h-4 text-emerald-600 dark:text-emerald-400"
                         />
                       </div>
                       <div
                         v-if="filteredBuildings.length === 0 && buildingSearch"
                         @click="createBuilding"
-                        class="px-3 py-2 rounded-lg text-sm text-emerald-600 bg-emerald-50 cursor-pointer flex items-center gap-2"
+                        class="px-3 py-2 rounded-lg text-sm text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 cursor-pointer flex items-center gap-2"
                       >
                         <Plus class="w-4 h-4" /> สร้าง "{{ buildingSearch }}"
                       </div>
                       <div
                         v-if="filteredBuildings.length === 0 && !buildingSearch"
-                        class="px-3 py-2 text-xs text-gray-400 text-center"
+                        class="px-3 py-2 text-xs text-gray-400 dark:text-slate-500 text-center"
                       >
                         ไม่พบข้อมูล
                       </div>
@@ -363,39 +378,48 @@ const getStatusColor = (status) => {
                 </div>
 
                 <div class="space-y-1 relative custom-dropdown-container">
-                  <label class="text-xs font-bold text-gray-500 uppercase"
-                    >ชั้น <span class="text-red-500">*</span></label
+                  <label
+                    class="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase"
                   >
+                    ชั้น <span class="text-red-500">*</span>
+                  </label>
                   <div
                     @click="formData.building ? toggleDropdown('floor') : null"
-                    class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm flex items-center justify-between cursor-pointer transition-colors"
+                    class="w-full px-3 py-2 bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-600 rounded-lg text-sm flex items-center justify-between cursor-pointer transition-colors"
                     :class="{
                       'opacity-50 cursor-not-allowed': !formData.building,
-                      'hover:bg-white hover:border-emerald-500': formData.building,
-                      'ring-2 ring-emerald-500 border-emerald-500 bg-white':
+                      'hover:bg-white dark:hover:bg-slate-800 hover:border-emerald-500':
+                        formData.building,
+                      'ring-2 ring-emerald-500 border-emerald-500 bg-white dark:bg-slate-800':
                         activeDropdown === 'floor',
                     }"
                   >
-                    <span :class="formData.floor ? 'text-gray-900' : 'text-gray-400'">
+                    <span
+                      :class="
+                        formData.floor
+                          ? 'text-gray-900 dark:text-white'
+                          : 'text-gray-400 dark:text-slate-500'
+                      "
+                    >
                       {{ formData.floor || "เลือกชั้น..." }}
                     </span>
                     <ChevronDown
-                      class="w-4 h-4 text-gray-400 transition-transform"
+                      class="w-4 h-4 text-gray-400 dark:text-slate-500 transition-transform"
                       :class="{ 'rotate-180': activeDropdown === 'floor' }"
                     />
                   </div>
 
                   <div
                     v-if="activeDropdown === 'floor'"
-                    class="absolute top-full left-0 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-[70] overflow-hidden animate-in fade-in zoom-in-95"
+                    class="absolute top-full left-0 w-full mt-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl shadow-lg z-[70] overflow-hidden animate-in fade-in zoom-in-95"
                   >
-                    <div class="p-2 border-b border-gray-100">
+                    <div class="p-2 border-b border-gray-100 dark:border-slate-700">
                       <input
                         v-model="floorSearch"
                         ref="floorInputRef"
                         type="text"
                         placeholder="ค้นหาชั้น..."
-                        class="w-full px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        class="w-full px-3 py-1.5 bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-600 rounded-lg text-sm dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                         @click.stop
                       />
                     </div>
@@ -404,18 +428,18 @@ const getStatusColor = (status) => {
                         v-for="f in filteredFloors"
                         :key="f"
                         @click="selectFloor(f)"
-                        class="px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 cursor-pointer flex items-center justify-between"
+                        class="px-3 py-2 rounded-lg text-sm text-gray-700 dark:text-white hover:bg-emerald-50 dark:hover:bg-slate-700 hover:text-emerald-700 dark:hover:text-emerald-400 cursor-pointer flex items-center justify-between"
                       >
                         <span>ชั้น {{ f }}</span>
                         <Check
                           v-if="String(formData.floor) === String(f)"
-                          class="w-4 h-4 text-emerald-600"
+                          class="w-4 h-4 text-emerald-600 dark:text-emerald-400"
                         />
                       </div>
                       <div
                         v-if="filteredFloors.length === 0 && floorSearch"
                         @click="createFloor"
-                        class="px-3 py-2 rounded-lg text-sm text-emerald-600 bg-emerald-50 cursor-pointer flex items-center gap-2"
+                        class="px-3 py-2 rounded-lg text-sm text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 cursor-pointer flex items-center gap-2"
                       >
                         <Plus class="w-4 h-4" /> เพิ่ม "ชั้น {{ floorSearch }}"
                       </div>
@@ -425,23 +449,27 @@ const getStatusColor = (status) => {
               </div>
 
               <div class="space-y-1">
-                <label class="text-xs font-bold text-gray-500 uppercase"
-                  >ชื่อจุดตรวจ / ห้อง <span class="text-red-500">*</span></label
+                <label
+                  class="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase"
                 >
+                  ชื่อจุดตรวจ / ห้อง <span class="text-red-500">*</span>
+                </label>
                 <input
                   v-model="formData.name"
                   type="text"
                   placeholder="ระบุชื่อเรียก (เช่น ห้องน้ำชาย ฝั่งซ้าย)"
-                  class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+                  class="w-full px-3 py-2 bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-600 rounded-lg text-sm dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
                   required
                 />
               </div>
 
               <div
-                class="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-200"
+                class="flex items-center justify-between p-4 bg-gray-50 dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-700"
               >
                 <div class="flex flex-col">
-                  <span class="text-sm font-bold text-gray-900">สถานะการใช้งาน</span>
+                  <span class="text-sm font-bold text-gray-900 dark:text-white"
+                    >สถานะการใช้งาน</span
+                  >
                   <span
                     class="text-xs transition-colors"
                     :class="getStatusColor(formData.status)"
@@ -457,7 +485,7 @@ const getStatusColor = (status) => {
                   <button
                     type="button"
                     @click="toggleDropdown('status')"
-                    class="w-full pl-3 pr-2 py-2 bg-white border border-gray-300 rounded-lg text-sm flex items-center justify-between hover:border-emerald-500 transition-colors shadow-sm"
+                    class="w-full pl-3 pr-2 py-2 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg text-sm flex items-center justify-between hover:border-emerald-500 transition-colors shadow-sm"
                     :class="{
                       'ring-2 ring-emerald-500 border-emerald-500':
                         activeDropdown === 'status',
@@ -471,17 +499,17 @@ const getStatusColor = (status) => {
                           statusOptions.find((o) => o.value === formData.status)?.color
                         "
                       />
-                      <span>{{ currentStatusLabel }}</span>
+                      <span class="dark:text-white">{{ currentStatusLabel }}</span>
                     </div>
                     <ChevronDown
-                      class="w-4 h-4 text-gray-500 transition-transform"
+                      class="w-4 h-4 text-gray-500 dark:text-slate-400 transition-transform"
                       :class="{ 'rotate-180': activeDropdown === 'status' }"
                     />
                   </button>
 
                   <div
                     v-if="activeDropdown === 'status'"
-                    class="absolute bottom-full right-0 mb-1 w-56 bg-white border border-gray-200 rounded-xl shadow-xl z-[70] overflow-hidden animate-in fade-in zoom-in-95"
+                    class="absolute bottom-full right-0 mb-1 w-56 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl shadow-xl z-[70] overflow-hidden animate-in fade-in zoom-in-95"
                   >
                     <div class="p-1">
                       <div
@@ -492,7 +520,7 @@ const getStatusColor = (status) => {
                         :class="
                           formData.status === option.value
                             ? option.bg
-                            : 'hover:bg-gray-50'
+                            : 'hover:bg-gray-50 dark:hover:bg-slate-700'
                         "
                       >
                         <component
@@ -501,16 +529,17 @@ const getStatusColor = (status) => {
                           :class="option.color"
                         />
                         <div class="flex flex-col">
-                          <span class="text-sm font-medium text-gray-900">{{
-                            option.label
-                          }}</span>
-                          <span class="text-[10px] text-gray-500">{{
+                          <span
+                            class="text-sm font-medium text-gray-900 dark:text-white"
+                            >{{ option.label }}</span
+                          >
+                          <span class="text-[10px] text-gray-500 dark:text-slate-400">{{
                             option.description
                           }}</span>
                         </div>
                         <Check
                           v-if="formData.status === option.value"
-                          class="w-4 h-4 text-emerald-600 ml-auto"
+                          class="w-4 h-4 text-emerald-600 dark:text-emerald-400 ml-auto"
                         />
                       </div>
                     </div>
@@ -518,18 +547,20 @@ const getStatusColor = (status) => {
                 </div>
               </div>
 
-              <div class="pt-4 flex gap-3 border-t border-gray-100 mt-4">
+              <div
+                class="pt-4 flex gap-3 border-t border-gray-100 dark:border-slate-700 mt-4"
+              >
                 <button
                   type="button"
                   @click="$emit('close')"
-                  class="flex-1 py-2.5 text-gray-600 bg-white border border-gray-200 hover:bg-gray-50 rounded-xl text-sm font-medium transition-colors"
+                  class="flex-1 py-2.5 text-gray-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700 rounded-xl text-sm font-medium transition-colors"
                 >
                   ยกเลิก
                 </button>
                 <button
                   type="submit"
                   :disabled="loading"
-                  class="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-medium shadow-lg shadow-emerald-200 flex items-center justify-center gap-2 transition-all active:scale-95"
+                  class="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-500 text-white rounded-xl text-sm font-medium shadow-lg shadow-emerald-200 dark:shadow-none flex items-center justify-center gap-2 transition-all active:scale-95"
                 >
                   <span>{{ loading ? "กำลังบันทึก..." : "บันทึกข้อมูล" }}</span>
                 </button>
@@ -552,5 +583,10 @@ const getStatusColor = (status) => {
 .custom-scrollbar::-webkit-scrollbar-thumb {
   background: #cbd5e1;
   border-radius: 10px;
+}
+
+/* ✅ Dark Mode Scrollbar */
+:global(.dark) .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #475569;
 }
 </style>
