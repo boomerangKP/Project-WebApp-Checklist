@@ -51,6 +51,7 @@ const fetchEmployees = async () => {
       .select(
         "employees_id, employees_code, employees_firstname, employees_lastname, employees_position, employees_department, employees_gender, employees_phone, employees_status, email, role, notification_email, employees_photo, created_at"
       )
+      .is("deleted_at", null) // ✅ เพิ่มบรรทัดนี้: กรองเฉพาะคนที่ยังไม่ถูกลบ (Soft Delete)
       .order("created_at", { ascending: false });
 
     if (error) throw error;
@@ -121,7 +122,7 @@ const openEdit = (emp) => {
 const openDelete = async (emp) => {
   const confirm = await swalConfirm(
     "ยืนยันการลบพนักงาน?",
-    `คุณต้องการลบคุณ ${emp.employees_firstname} ${emp.employees_lastname} ออกจากระบบใช่หรือไม่? ข้อมูลนี้จะไม่สามารถกู้คืนได้`,
+    `ข้อมูลของ ${emp.employees_firstname} ${emp.employees_lastname} จะถูกซ่อนไว้ (Soft Delete) และสามารถกู้คืนได้โดย Admin`,
     "ลบข้อมูล"
   );
 
@@ -191,17 +192,23 @@ const handleSave = async (formData) => {
   }
 };
 
-// --- 5. CRUD: Delete ---
+// --- 5. CRUD: Delete (Soft Delete) ---
 const handleDeleteConfirm = async (empToDelete) => {
   submitting.value = true;
   try {
+    // ✅ จุดสำคัญ: เปลี่ยนจาก .delete() เป็น .update()
+    // เพื่อแก้ปัญหา Foreign Key Constraint Error และเก็บประวัติไว้
     const { error } = await supabase
       .from("employees")
-      .delete()
+      .update({
+        employees_status: "inactive", // เปลี่ยนสถานะเป็นไม่ใช้งาน
+        deleted_at: new Date(), // 🟢 หัวใจสำคัญ: ประทับเวลาตาย
+      })
       .eq("employees_id", empToDelete.employees_id);
 
     if (error) throw error;
 
+    // ลบออกจาก list หน้าเว็บทันที
     employees.value = employees.value.filter(
       (e) => e.employees_id !== empToDelete.employees_id
     );
