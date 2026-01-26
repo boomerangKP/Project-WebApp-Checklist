@@ -11,9 +11,10 @@ import {
   ShieldCheck,
   SprayCan,
   User,
+  X, // เพิ่มปุ่ม X สำหรับปิดบนมือถือ
 } from "lucide-vue-next";
 import { useRouter } from "vue-router";
-import { useSwal } from "@/composables/useSwal"; // ✅ 1. เรียกใช้ useSwal
+import { useSwal } from "@/composables/useSwal";
 import dayjs from "dayjs";
 import "dayjs/locale/th";
 import buddhistEra from "dayjs/plugin/buddhistEra";
@@ -30,7 +31,6 @@ const unreadCount = computed(() => notifications.value.filter((n) => !n.is_read)
 let realtimeSubscription = null;
 const containerRef = ref(null);
 
-// ✅ 2. ดึง Swal ตัวที่แต่งธีมแล้วมาใช้
 const { Swal } = useSwal();
 
 // --- Helper Functions ---
@@ -92,7 +92,6 @@ const handleClick = async (noti) => {
 
 const toggleDropdown = () => (showDropdown.value = !showDropdown.value);
 
-// ✅ ฟังก์ชัน อ่านทั้งหมด (ใช้ Mixin จาก Swal ที่แต่งธีมแล้ว)
 const markAllRead = async () => {
   if (unreadCount.value === 0) return;
 
@@ -109,9 +108,7 @@ const markAllRead = async () => {
   Toast.fire({ icon: "success", title: "อ่านทั้งหมดแล้ว" });
 };
 
-// ✅ ฟังก์ชัน ลบทั้งหมด
 const deleteAll = async () => {
-  // ใช้ Swal จาก useSwal และกำหนด Custom Class เพื่อให้ปุ่มลบเป็นสีแดง
   const result = await Swal.fire({
     title: "ล้างประวัติแจ้งเตือน?",
     text: "ข้อความทั้งหมดจะหายไปและกู้คืนไม่ได้",
@@ -120,7 +117,6 @@ const deleteAll = async () => {
     confirmButtonText: "ลบเลย",
     cancelButtonText: "ยกเลิก",
     reverseButtons: true,
-    // Override class ปุ่มให้เป็นสีแดง (Danger) แต่ยังคง Dark Mode ไว้
     customClass: {
       popup:
         "bg-white dark:bg-slate-800 text-gray-900 dark:text-white font-noto rounded-2xl border border-gray-200 dark:border-slate-700 shadow-xl",
@@ -246,12 +242,20 @@ onUnmounted(() => {
 
     <div
       v-if="showDropdown"
-      class="absolute right-0 mt-3 w-[400px] bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-100 dark:border-slate-700 z-[999] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200"
+      class="fixed inset-0 bg-black/40 backdrop-blur-sm z-[998] sm:hidden"
+      @click="showDropdown = false"
+    ></div>
+
+    <div
+      v-if="showDropdown"
+      class="bg-white dark:bg-slate-800 shadow-2xl border border-gray-100 dark:border-slate-700 overflow-hidden animate-in fade-in zoom-in-95 duration-200 z-[999] /* 📱 Mobile: Fixed Center & Full Width */ fixed top-20 left-4 right-4 rounded-xl max-h-[80vh] flex flex-col /* 🖥️ Desktop: Absolute Dropdown & Fixed Width */ sm:absolute sm:inset-auto sm:top-full sm:right-0 sm:mt-3 sm:w-[450px] sm:max-h sm:rounded-xl origin-top-right"
     >
       <div
-        class="px-5 py-4 flex justify-between items-center bg-white dark:bg-slate-800 border-b border-gray-100 dark:border-slate-700"
+        class="px-4 py-3 sm:px-5 sm:py-4 flex justify-between items-center bg-white dark:bg-slate-800 border-b border-gray-100 dark:border-slate-700 shrink-0"
       >
-        <h3 class="font-bold text-gray-800 dark:text-white text-lg">การแจ้งเตือน</h3>
+        <h3 class="font-bold text-gray-800 dark:text-white text-base sm:text-lg">
+          การแจ้งเตือน
+        </h3>
 
         <div class="flex items-center gap-2">
           <button
@@ -261,7 +265,7 @@ onUnmounted(() => {
             title="ลบประวัติทั้งหมด"
           >
             <Trash2 class="w-3.5 h-3.5" />
-            <span>ล้างประวัติ</span>
+            <span class="sm:inline hidden">ล้างประวัติ</span>
           </button>
 
           <div
@@ -273,15 +277,23 @@ onUnmounted(() => {
             v-if="unreadCount > 0"
             @click.stop="markAllRead"
             class="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all"
+            title="อ่านทั้งหมด"
           >
             <CheckCheck class="w-3.5 h-3.5" />
-            <span>อ่านทั้งหมด</span>
+            <span class="sm:inline hidden">อ่านทั้งหมด</span>
+          </button>
+
+          <button
+            @click="showDropdown = false"
+            class="sm:hidden ml-2 p-1 text-gray-400 hover:bg-gray-100 rounded-full"
+          >
+            <X class="w-5 h-5" />
           </button>
         </div>
       </div>
 
       <div
-        class="max-h-[450px] overflow-y-auto bg-gray-50/30 dark:bg-slate-900/30 p-2 space-y-2 custom-scrollbar"
+        class="overflow-y-auto bg-gray-50/30 dark:bg-slate-900/30 p-2 space-y-2 custom-scrollbar flex-1 sm:max-h-[450px]"
       >
         <div
           v-if="notifications.length === 0"
@@ -299,7 +311,7 @@ onUnmounted(() => {
           v-for="noti in notifications"
           :key="noti.id"
           @click="handleClick(noti)"
-          class="relative p-3 rounded-xl border cursor-pointer transition-all hover:shadow-md group"
+          class="relative p-2 sm:p-3 rounded-xl border cursor-pointer transition-all hover:shadow-md group"
           :class="
             noti.is_read
               ? 'bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 opacity-75 hover:opacity-100'
@@ -311,13 +323,13 @@ onUnmounted(() => {
             class="absolute top-3 right-3 w-2.5 h-2.5 bg-blue-600 rounded-full shadow-sm ring-2 ring-white dark:ring-slate-700"
           ></div>
 
-          <div class="flex gap-4">
+          <div class="flex gap-3 sm:gap-4">
             <div
-              class="w-[45%] flex gap-3 items-center border-r border-gray-300/50 dark:border-slate-600/50 pr-2"
+              class="w-[40%] sm:w-[45%] flex gap-2 sm:gap-3 items-center border-r border-gray-300/50 dark:border-slate-600/50 pr-2"
             >
               <div class="flex-shrink-0">
                 <div
-                  class="w-12 h-12 rounded-full overflow-hidden border-2 border-white dark:border-slate-600 shadow-sm relative"
+                  class="w-10 h-10 sm:w-12 sm:h-12 rounded-full overflow-hidden border-2 border-white dark:border-slate-600 shadow-sm relative"
                 >
                   <img
                     v-if="noti.employees?.employees_photo"
@@ -339,32 +351,36 @@ onUnmounted(() => {
                     <component
                       v-else
                       :is="getRoleConfig(noti.employees?.role).icon"
-                      class="w-6 h-6"
+                      class="w-5 h-5 sm:w-6 sm:h-6"
                     />
                   </div>
                 </div>
               </div>
               <div class="min-w-0">
-                <h4 class="font-bold text-gray-900 dark:text-white text-sm truncate">
+                <h4
+                  class="font-bold text-gray-900 dark:text-white text-xs sm:text-sm truncate"
+                >
                   {{ noti.title }}
                 </h4>
-                <p class="text-[10px] text-gray-500 dark:text-slate-400">
+                <p class="text-[10px] text-gray-500 dark:text-slate-400 truncate">
                   พนักงานทำความสะอาด
                 </p>
               </div>
             </div>
 
-            <div class="flex-1 flex flex-col justify-center pl-1">
-              <h4 class="font-bold text-gray-900 dark:text-white text-sm">
+            <div class="flex-1 flex flex-col justify-center pl-1 min-w-0">
+              <h4
+                class="font-bold text-gray-900 dark:text-white text-xs sm:text-sm truncate"
+              >
                 {{ parseMessage(noti.message).location }}
               </h4>
               <div
-                class="flex items-center gap-2 mt-1 text-[10px] text-gray-500 dark:text-slate-400"
+                class="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1 text-[10px] text-gray-500 dark:text-slate-400"
               >
-                <span class="flex items-center gap-0.5"
+                <span class="flex items-center gap-0.5 whitespace-nowrap"
                   ><Calendar class="w-3 h-3" /> {{ formatDate(noti.created_at) }}</span
                 >
-                <span class="flex items-center gap-0.5"
+                <span class="flex items-center gap-0.5 whitespace-nowrap"
                   ><Clock class="w-3 h-3" /> {{ getSlotName(noti.created_at) }}</span
                 >
               </div>

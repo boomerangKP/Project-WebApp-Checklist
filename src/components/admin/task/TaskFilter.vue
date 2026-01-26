@@ -29,7 +29,7 @@ const props = defineProps({
   startDate: String,
   endDate: String,
   searchSuggestions: { type: Array, default: () => [] },
-  dateRange: { type: String, default: "today" }, // รับค่าจาก Store
+  dateRange: { type: String, default: "today" },
 });
 
 const emit = defineEmits([
@@ -47,11 +47,9 @@ const emit = defineEmits([
 // --- State ---
 const activeDropdown = ref(null);
 const showSearchSuggestions = ref(false);
-
-// ✅ สร้างตัวแปร Local เพื่อให้ UI อัปเดตทันทีที่กด (แก้ปัญหากดแล้วนิ่ง)
 const currentRange = ref(props.dateRange);
 
-// Sync จาก Props เข้า Local (กรณีโหลดหน้าใหม่แล้วมีค่าเดิม)
+// Sync Props
 watch(
   () => props.dateRange,
   (val) => {
@@ -90,14 +88,10 @@ const displayThaiDate = (isoDate) => {
 const openStartCalendar = () => startInputRef.value?.showPicker();
 const openEndCalendar = () => endInputRef.value?.showPicker();
 
-// ✅ Watch Local State แทน Props (กดปุ๊บ คำนวณปั๊บ)
 watch(currentRange, (newVal) => {
-  // 1. ส่งค่า dateRange กลับไปเก็บที่ Store
   emit("update:dateRange", newVal);
-
   if (newVal === "custom") return;
 
-  // 2. คำนวณวันที่
   const end = new Date();
   const start = new Date();
   if (newVal === "today") {
@@ -111,7 +105,6 @@ watch(currentRange, (newVal) => {
     start.setDate(1);
   }
 
-  // 3. ส่งวันที่ไปกรองข้อมูล
   emit("update:startDate", start.toISOString().slice(0, 10));
   emit("update:endDate", end.toISOString().slice(0, 10));
 });
@@ -123,7 +116,6 @@ watch([customStart, customEnd], () => {
   }
 });
 
-// Sync custom inputs
 watch(
   () => props.startDate,
   (val) => {
@@ -141,17 +133,13 @@ watch(
 const toggleDropdown = (name) => {
   activeDropdown.value = activeDropdown.value === name ? null : name;
 };
-
 const closeDropdown = () => {
   activeDropdown.value = null;
 };
-
 const selectDateRange = (val) => {
-  // ✅ อัปเดต Local ทันที UI จะเปลี่ยนทันที
   currentRange.value = val;
   closeDropdown();
 };
-
 const selectMaid = (val) => {
   emit("update:selectedMaid", val);
   closeDropdown();
@@ -172,30 +160,34 @@ const selectSuggestion = (val) => {
 
 const highlightMatch = (text, query) => {
   if (!query || !text) return text;
-  const strText = String(text);
-  const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const regex = new RegExp(`(${escapedQuery})`, "gi");
-  return strText.replace(
+  const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi");
+  return String(text).replace(
     regex,
     '<span class="font-bold text-indigo-600 dark:text-indigo-400">$1</span>'
   );
 };
 
 const resetFilters = () => {
-  currentRange.value = "today"; // รีเซ็ต Local
+  currentRange.value = "today";
   emit("update:searchQuery", "");
   emit("update:selectedMaid", "all");
+  // ✅ เพิ่ม: ถ้ามีการเลือกรายการค้างไว้ ให้ยกเลิกด้วยเมื่อกด Reset
+  if (props.isSelectionMode) {
+    emit("toggleSelectionMode");
+  }
 };
 
 const handleCustomSearch = () => {
   emit("refresh");
 };
 
-const hasFilters = computed(() => {
-  return (
-    props.searchQuery || props.selectedMaid !== "all" || currentRange.value !== "today"
-  );
-});
+const hasFilters = computed(
+  () =>
+    props.searchQuery ||
+    props.selectedMaid !== "all" ||
+    currentRange.value !== "today" ||
+    props.isSelectionMode // ✅ นับ Selection Mode เป็น Filter ด้วย จะได้กด Reset ได้
+);
 
 const handleClickOutside = (e) => {
   if (!e.target.closest(".custom-dropdown-container")) {
@@ -284,7 +276,7 @@ onUnmounted(() => window.removeEventListener("click", handleClickOutside));
           </div>
         </div>
 
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2 justify-end">
           <button
             @click="$emit('refresh')"
             class="h-10 w-10 flex items-center justify-center rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-700 shadow-sm transition-colors shrink-0"
@@ -329,23 +321,27 @@ onUnmounted(() => window.removeEventListener("click", handleClickOutside));
     <div
       class="grid grid-cols-1 md:grid-cols-12 gap-3 bg-white dark:bg-slate-800 p-3 rounded-xl border border-gray-200 dark:border-slate-700 shadow-sm items-center transition-colors duration-300"
     >
-      <div class="md:col-span-6 lg:col-span-6 flex items-center gap-2">
+      <div
+        class="md:col-span-6 lg:col-span-6 flex flex-col sm:flex-row items-stretch sm:items-center gap-2"
+      >
         <div class="relative custom-dropdown-container shrink-0">
           <button
             @click="toggleDropdown('date')"
-            class="h-10 px-3 rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs font-medium text-gray-700 dark:text-gray-200 flex items-center gap-2 hover:border-indigo-500 transition-colors shadow-sm"
+            class="h-10 px-3 w-full sm:w-auto rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs font-medium text-gray-700 dark:text-gray-200 flex items-center justify-between sm:justify-start gap-2 hover:border-indigo-500 transition-colors shadow-sm"
             :class="{
               'ring-2 ring-indigo-500 border-indigo-500': activeDropdown === 'date',
             }"
           >
-            <CalendarIcon class="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
-            <span class="truncate max-w-[80px] text-left">{{ currentDateLabel }}</span>
+            <div class="flex items-center gap-2">
+              <CalendarIcon class="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
+              <span class="truncate max-w-[120px] text-left">{{ currentDateLabel }}</span>
+            </div>
             <ChevronDown class="h-3 w-3 text-gray-400" />
           </button>
 
           <div
             v-if="activeDropdown === 'date'"
-            class="absolute top-full left-0 mt-1 w-[160px] bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-xl z-50 animate-in fade-in zoom-in-95 p-1"
+            class="absolute top-full left-0 mt-1 w-full sm:w-[160px] bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-xl z-50 animate-in fade-in zoom-in-95 p-1"
           >
             <div
               v-for="option in dateOptions"
@@ -464,7 +460,7 @@ onUnmounted(() => window.removeEventListener("click", handleClickOutside));
         </div>
       </div>
 
-      <div class="md:col-span-1 flex justify-center md:justify-end items-center h-10">
+      <div class="md:col-span-1 flex justify-end md:justify-end items-center h-10">
         <button
           v-if="hasFilters"
           @click="resetFilters"

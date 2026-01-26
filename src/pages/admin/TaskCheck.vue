@@ -72,13 +72,15 @@ const openTaskDetail = (id) => router.push({ path: `/admin/check/${id}` });
 </script>
 
 <template>
-  <div class="space-y-6 flex-1 flex flex-col">
+  <div class="space-y-4 lg:space-y-6 flex-1 flex flex-col">
     <div class="shrink-0 flex items-center justify-between">
-      <h1 class="text-2xl font-bold text-gray-800 dark:text-white">รายการตรวจสอบงาน</h1>
+      <h1 class="text-xl lg:text-2xl font-bold text-gray-800 dark:text-white">
+        รายการตรวจสอบงาน
+      </h1>
     </div>
 
     <div
-      class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 overflow-hidden flex flex-col h-[calc(100vh-195px)] relative transition-colors duration-300"
+      class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 overflow-hidden flex flex-col h-[calc(100vh-140px)] lg:h-[calc(100vh-195px)] relative transition-colors duration-300"
     >
       <div
         class="p-4 border-b border-gray-100 dark:border-slate-700 shrink-0 bg-white dark:bg-slate-800 z-5"

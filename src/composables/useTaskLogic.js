@@ -1,6 +1,6 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { supabase } from '@/lib/supabase'
-import { useSwal } from '@/composables/useSwal' // ✅ 1. เปลี่ยนจาก import 'sweetalert2' มาเป็น useSwal
+import { useSwal } from '@/composables/useSwal'
 import { useUserStore } from '@/stores/user'
 import { useTaskFilterStore } from '@/stores/taskFilters'
 import { storeToRefs } from 'pinia'
@@ -8,9 +8,9 @@ import { storeToRefs } from 'pinia'
 export function useTaskLogic() {
   const userStore = useUserStore()
   const filterStore = useTaskFilterStore()
-  const { Swal } = useSwal() // ✅ 2. ดึงตัวแปร Swal ที่แต่ง Dark Mode แล้วมาใช้
+  const { Swal } = useSwal()
 
-  // --- ดึง State จาก Store (เหมือนเดิม) ---
+  // --- ดึง State จาก Store ---
   const {
     activeTab,
     searchQuery,
@@ -113,7 +113,6 @@ export function useTaskLogic() {
       })
     } catch (err) {
       console.error('Fetch Error:', err)
-      // ✅ Swal ตรงนี้จะใช้ธีม Dark Mode อัตโนมัติ
       Swal.fire('Error', `โหลดข้อมูลไม่สำเร็จ: ${err.message}`, 'error')
     } finally {
       loading.value = false
@@ -180,7 +179,6 @@ export function useTaskLogic() {
         return;
     }
 
-    // ✅ Popup ยืนยันตรงนี้จะเป็นสีเข้มถ้าเปิด Dark Mode
     const result = await Swal.fire({
       title: `ยืนยันการตรวจสอบ ${selectedIds.value.length} รายการ?`,
       text: 'รายการที่เลือกทั้งหมดจะถูกเปลี่ยนสถานะเป็น "ตรวจแล้ว"',
@@ -223,6 +221,13 @@ export function useTaskLogic() {
     currentPage.value = 1
     selectedIds.value = []
     isSelectionMode.value = false
+  })
+
+  // ✅ เพิ่ม Watcher นี้เพื่อแก้ปัญหา: เมื่อ isSelectionMode เป็น false (กด "ยกเลิก" จากที่ไหนก็ได้) ให้ล้าง selectedIds ทันที
+  watch(isSelectionMode, (newVal) => {
+    if (!newVal) {
+      selectedIds.value = []
+    }
   })
 
   watch([startDate, endDate], () => {

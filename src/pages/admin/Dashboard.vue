@@ -11,6 +11,7 @@ import {
   Filter,
   ChevronDown,
   Check,
+  Calendar, // ✅ มี Calendar แล้วถูกต้องครับ
 } from "lucide-vue-next";
 
 // Components
@@ -49,7 +50,7 @@ const stats = ref({
 const recentActivities = ref([]);
 const chartData = ref({ labels: [], datasets: [] });
 
-// --- Chart Configuration (คงเดิม + ปรับสี Dark Mode นิดหน่อย) ---
+// --- Chart Configuration ---
 const chartOptions = {
   responsive: true,
   maintainAspectRatio: false,
@@ -61,8 +62,6 @@ const chartOptions = {
         usePointStyle: true,
         boxWidth: 8,
         font: { family: "'Noto Sans Thai', sans-serif" },
-        // ✅ ปรับสีตัวหนังสือใน Legend ให้รองรับ Dark Mode (ChartJS ไม่รองรับ Class, ต้องใช้สี)
-        // color: '#94a3b8' // ถ้าจะแก้ต้องทำ dynamic แต่เบื้องต้นปล่อย default ไว้ก่อน หรือใช้สีเทากลางๆ
       },
     },
   },
@@ -70,7 +69,7 @@ const chartOptions = {
   scales: {
     y: {
       beginAtZero: true,
-      grid: { color: "#f3f4f6" }, // อาจจะมองไม่เห็นใน Dark Mode แต่ไม่เป็นไร
+      grid: { color: "#f3f4f6" },
       ticks: { precision: 0, font: { family: "'Noto Sans Thai', sans-serif" } },
     },
     x: {
@@ -119,7 +118,6 @@ const handleClickOutside = (e) => {
 
 // --- Logic คำนวณข้อมูลตาม Filter ---
 const calculateDashboardData = () => {
-  // 1. Filter ข้อมูลตามตึกที่เลือก
   let filteredLocations = rawLocations.value;
   let filteredSessions = rawSessions.value;
 
@@ -132,7 +130,6 @@ const calculateDashboardData = () => {
     );
   }
 
-  // 2. คำนวณ Stats Cards
   const targetPerShift = filteredLocations.length;
 
   const morningSessions = filteredSessions.filter(
@@ -181,7 +178,6 @@ const calculateDashboardData = () => {
     averageRating: avgRating,
   };
 
-  // 3. อัปเดต Chart
   chartData.value = {
     labels: ["รอตรวจสอบ", "เรียบร้อย", "พบปัญหา"],
     datasets: [
@@ -204,7 +200,6 @@ const calculateDashboardData = () => {
     ],
   };
 
-  // 4. อัปเดต Recent Activity
   recentActivities.value = filteredSessions.slice(0, 50);
 };
 
@@ -280,12 +275,10 @@ const fetchData = async () => {
 
     rawLocations.value = allLocations;
 
-    // ดึงรายชื่อตึก
     const buildings = [...new Set(allLocations.map((l) => l.locations_building))].sort();
     uniqueBuildings.value = buildings;
 
     // 2. Fetch Sessions
-    // 🔥 แก้ไขจุดนี้: ระบุ FK ของ employees ให้ชัดเจน (เพื่อแก้ PGRST201)
     const { data: sessions, error } = await supabase
       .from("check_sessions")
       .select(
@@ -320,6 +313,14 @@ const fetchData = async () => {
     isRefreshing.value = false;
   }
 };
+
+// ✅ สร้างตัวแปรเก็บวันที่แบบเป๊ะๆ (ใช้ตัวนี้ใน Template)
+const currentDate = new Date().toLocaleDateString("th-TH", {
+  year: "numeric",
+  month: "long",
+  day: "numeric",
+  weekday: "long", // เพิ่มวันในสัปดาห์ เช่น "วันศุกร์ที่ 25..."
+});
 
 watch(selectedBuilding, () => {
   calculateDashboardData();
@@ -364,12 +365,13 @@ onUnmounted(() => {
         <h1 class="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">
           Dashboard
         </h1>
-        <p class="text-gray-500 dark:text-slate-400 mt-1 flex items-center gap-2">
+        <p class="text-gray-500 dark:text-slate-400 mt-1 flex-wrap items-center gap-2">
           ภาพรวมการทำงานประจำวันที่
           <span
-            class="font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 px-2 py-0.5 rounded-md border border-indigo-100 dark:border-indigo-800"
+            class="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold text-gray-600 dark:text-slate-300 whitespace-nowrap"
           >
-            {{ new Date().toLocaleDateString("th-TH", { dateStyle: "long" }) }}
+            <Calendar class="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
+            <span>{{ currentDate }}</span>
           </span>
         </p>
       </div>
@@ -472,9 +474,9 @@ onUnmounted(() => {
     <div v-else class="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <StatsCards :stats="stats" />
 
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
         <div
-          class="lg:col-span-2 bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-slate-700 h-[480px] flex flex-col relative overflow-hidden"
+          class="lg:col-span-2 bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-slate-700 min-h-[400px] lg:h-[480px] flex flex-col relative overflow-hidden"
         >
           <h3
             class="font-bold text-gray-800 dark:text-white mb-6 flex items-center gap-2 text-lg"
@@ -490,7 +492,7 @@ onUnmounted(() => {
         </div>
 
         <div
-          class="bg-white dark:bg-slate-800 rounded-3xl shadow-sm border border-gray-100 dark:border-slate-700 p-6 flex flex-col h-[480px] relative overflow-hidden"
+          class="bg-white dark:bg-slate-800 rounded-3xl shadow-sm border border-gray-100 dark:border-slate-700 p-6 flex flex-col min-h-[400px] lg:h-[480px] relative overflow-hidden"
         >
           <h3
             class="font-bold text-gray-800 dark:text-white mb-4 flex items-center justify-between gap-2 text-lg"
