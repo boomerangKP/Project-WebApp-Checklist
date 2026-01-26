@@ -21,6 +21,8 @@ import {
   User,
   ShieldCheck,
   SprayCan,
+  History, // ✅ เพิ่ม icon History
+  FileEdit, // ✅ เพิ่ม icon Edit
 } from "lucide-vue-next";
 
 const route = useRoute();
@@ -33,6 +35,7 @@ const taskId = route.params.id;
 // --- State ---
 const session = ref(null);
 const checkResults = ref([]);
+const auditLogs = ref([]); // ✅ เก็บประวัติการแก้ไข
 const loading = ref(true);
 const submitting = ref(false);
 
@@ -42,6 +45,41 @@ const ALLOWED_MANAGERS = ["admin", "user"];
 const canManage = computed(() => {
   const currentRole = userStore.profile?.role || "maid";
   return ALLOWED_MANAGERS.includes(currentRole);
+});
+
+// --- Timeline Computed (หัวใจสำคัญ) ---
+const activityTimeline = computed(() => {
+  if (!session.value) return [];
+
+  const timeline = [];
+
+  // 1. จุดเริ่มต้น: เวลาที่ส่งงานครั้งแรก (Created)
+  timeline.push({
+    type: "created",
+    title: "ส่งงานครั้งแรก",
+    time: session.value.created_at,
+    user: session.value.employees, // คนส่งคนแรก
+    icon: CheckCircle2,
+    color: "text-green-500 bg-green-50 border-green-200",
+  });
+
+  // 2. จุดแก้ไข: เอามาจาก audit_logs (Updated)
+  if (auditLogs.value && auditLogs.value.length > 0) {
+    auditLogs.value.forEach((log, index) => {
+      timeline.push({
+        type: "updated",
+        title: `แก้ไขข้อมูล ครั้งที่ ${index + 1}`,
+        time: log.created_at,
+        user: log.employees, // คนที่มาแก้ (อาจเป็นคนเดิมหรือคนอื่น)
+        detail: log.new_value, // รายละเอียดการแก้ (ถ้ามี)
+        icon: FileEdit,
+        color: "text-orange-500 bg-orange-50 border-orange-200",
+      });
+    });
+  }
+
+  // เรียงลำดับจาก ใหม่ -> เก่า (ล่าสุดอยู่บน)
+  return timeline.sort((a, b) => new Date(b.time) - new Date(a.time));
 });
 
 const getRoleLabel = (r) => {
@@ -95,6 +133,7 @@ const getRoleConfig = (role) => {
 // --- Fetch Data ---
 const fetchTaskDetail = async () => {
   try {
+    // 1. ดึงข้อมูลงานหลัก
     const { data: sessionData, error: sessionError } = await supabase
       .from("check_sessions")
       .select(
@@ -106,6 +145,7 @@ const fetchTaskDetail = async () => {
     if (sessionError) throw sessionError;
     session.value = sessionData;
 
+    // 2. ดึงรายการ Checklist
     const { data: resultData, error: resultError } = await supabase
       .from("check_results")
       .select(`*, check_items (check_items_name, check_items_description)`)
@@ -114,6 +154,18 @@ const fetchTaskDetail = async () => {
 
     if (resultError) throw resultError;
     checkResults.value = resultData;
+
+    // 3. ✅ ดึงประวัติการแก้ไข (Audit Logs)
+    const { data: logData, error: logError } = await supabase
+      .from("audit_logs")
+      .select(`*, employees (employees_firstname, employees_lastname)`)
+      .eq("table_name", "check_sessions")
+      .eq("record_id", taskId)
+      .order("created_at", { ascending: true }); // เรียงเก่าไปใหม่เพื่อรันเลขครั้งที่
+
+    if (!logError) {
+      auditLogs.value = logData || [];
+    }
   } catch (err) {
     console.error("Error fetching task:", err);
     Swal.fire("เกิดข้อผิดพลาด", "ไม่สามารถโหลดข้อมูลงานได้", "error");
@@ -121,7 +173,7 @@ const fetchTaskDetail = async () => {
   }
 };
 
-// --- Action Handlers ---
+// --- Action Handlers (เหมือนเดิม) ---
 const handleApprove = async () => {
   if (!canManage.value) return;
   const result = await Swal.fire({
@@ -202,7 +254,6 @@ const handleReset = async () => {
   }
 };
 
-// --- Database Update ---
 const updateStatusInDB = async (status, reasonInput) => {
   submitting.value = true;
   try {
@@ -246,6 +297,12 @@ const formatDate = (d) =>
         year: "2-digit",
       })
     : "-";
+const formatTime = (d) =>
+  d
+    ? new Date(d).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }) +
+      " น."
+    : "-";
+
 const isCompleted = computed(() =>
   ["approved", "rejected"].includes(session.value?.check_sessions_status)
 );
@@ -271,7 +328,6 @@ onMounted(async () => {
       >
         <ArrowLeft class="w-5 h-5 mr-2" /> ย้อนกลับ
       </button>
-
       <div
         class="flex items-center justify-center gap-2 text-xs sm:text-sm text-gray-500 dark:text-slate-400 bg-gray-100 dark:bg-slate-800 px-3 py-2 sm:py-1 rounded-lg sm:rounded-full w-full sm:w-auto"
       >
@@ -331,9 +387,8 @@ onMounted(async () => {
               </div>
             </div>
           </div>
-
           <div
-            class="px-4 py-1.5 rounded-full font-bold text-white flex items-center justify-center gap-2 text-xs sm:text-sm shadow-sm w-full sm:w-auto"
+            class="px-4 py-1.5 rounded-full font-bold text-white flex items-center justify-center gap-2 text-xs sm:text-sm shadow-sm w-full sm:w-[130px]"
             :class="{
               'bg-yellow-400 dark:bg-yellow-500': !isCompleted,
               'bg-green-500 dark:bg-green-600':
@@ -388,7 +443,6 @@ onMounted(async () => {
                     {{ item.check_items?.check_items_description || "-" }}
                   </div>
                 </div>
-
                 <div
                   v-if="['pass', 'true'].includes(item.check_results_status)"
                   class="flex items-center gap-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2 py-1 rounded-md font-bold text-[10px] sm:text-xs shrink-0 whitespace-nowrap"
@@ -404,7 +458,6 @@ onMounted(async () => {
                   ><span class="sm:hidden">ตก</span>
                 </div>
               </div>
-
               <div
                 v-if="item.check_results_detail"
                 class="text-xs text-gray-600 dark:text-gray-300 bg-yellow-50 dark:bg-yellow-900/20 p-2 rounded-md border border-yellow-100 dark:border-yellow-800 flex items-start gap-2"
@@ -412,12 +465,12 @@ onMounted(async () => {
                 <MessageSquare
                   class="w-3 h-3 mt-0.5 text-yellow-600 dark:text-yellow-400 shrink-0"
                 />
-                <span>
-                  <span class="font-bold text-yellow-600 dark:text-yellow-400"
+                <span
+                  ><span class="font-bold text-yellow-600 dark:text-yellow-400"
                     >หมายเหตุ:</span
                   >
-                  {{ item.check_results_detail }}
-                </span>
+                  {{ item.check_results_detail }}</span
+                >
               </div>
             </div>
           </div>
@@ -455,13 +508,67 @@ onMounted(async () => {
               }}</span>
             </div>
           </div>
-
           <div class="font-bold text-lg text-gray-800 dark:text-white">
             {{ session.employees?.employees_firstname }}
             {{ session.employees?.employees_lastname }}
           </div>
           <div class="text-gray-400 dark:text-slate-500 font-light mt-0.5 text-xs">
             ตำแหน่ง: {{ getRoleLabel(session.employees?.role) }}
+          </div>
+        </div>
+
+        <div
+          v-if="auditLogs.length > 0"
+          class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-4 transition-colors duration-300"
+        >
+          <h3
+            class="font-bold text-gray-700 dark:text-slate-300 flex items-center gap-2 mb-4 text-sm border-b border-gray-100 dark:border-slate-700 pb-2"
+          >
+            <History class="w-4 h-4 text-orange-500" /> ประวัติการดำเนินการ (Timeline)
+          </h3>
+
+          <div class="relative pl-2">
+            <div
+              class="absolute left-[15px] top-2 bottom-4 w-0.5 bg-gray-200 dark:bg-slate-600"
+            ></div>
+
+            <div class="space-y-6">
+              <div
+                v-for="(event, idx) in activityTimeline"
+                :key="idx"
+                class="relative flex items-start gap-3"
+              >
+                <div
+                  :class="`relative z-10 w-8 h-8 rounded-full border-2 flex items-center justify-center shrink-0 ${event.color}`"
+                >
+                  <component :is="event.icon" class="w-4 h-4" />
+                </div>
+
+                <div class="flex-1 pt-1">
+                  <div class="flex justify-between items-start">
+                    <span
+                      class="font-bold text-xs sm:text-sm text-gray-800 dark:text-white"
+                      >{{ event.title }}</span
+                    >
+                    <span
+                      class="text-[10px] sm:text-xs text-gray-400 whitespace-nowrap"
+                      >{{ formatTime(event.time) }}</span
+                    >
+                  </div>
+                  <div
+                    class="text-[10px] sm:text-xs text-gray-500 dark:text-slate-400 mt-0.5"
+                  >
+                    โดย: {{ event.user?.employees_firstname || "ไม่ระบุ" }}
+                  </div>
+                  <div
+                    v-if="event.detail"
+                    class="text-[10px] text-gray-400 mt-1 italic bg-gray-50 dark:bg-slate-900 px-2 py-1 rounded"
+                  >
+                    {{ event.detail }}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -518,7 +625,6 @@ onMounted(async () => {
           <h3 class="text-lg font-bold text-gray-800 dark:text-white mb-3 text-center">
             การดำเนินการ
           </h3>
-
           <div v-if="isCompleted" class="text-center space-y-3">
             <div
               class="p-3 rounded-lg bg-gray-50 dark:bg-slate-900 border border-gray-100 dark:border-slate-700"
@@ -556,7 +662,6 @@ onMounted(async () => {
               <RotateCcw class="w-3 h-3" /> ต้องการเปลี่ยนแปลงผลตรวจ?
             </button>
           </div>
-
           <div v-else>
             <div v-if="canManage" class="space-y-3">
               <button

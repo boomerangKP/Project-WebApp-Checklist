@@ -3,8 +3,11 @@ import { ref, onMounted, computed, watch, onUnmounted, h, render } from "vue";
 import { useRouter } from "vue-router";
 import { useUserStore } from "@/stores/user";
 import { supabase } from "@/lib/supabase";
+import { useJobChecks } from "@/composables/useJobChecks"; // ✅ เรียกใช้ Composable
 import { ArrowLeft, Loader2, Save, CheckCircle2, XCircle } from "lucide-vue-next";
 import Swal from "sweetalert2";
+import dayjs from "dayjs";
+import "dayjs/locale/th";
 
 // Import Components
 import LocationSelector from "@/components/maid/manual/LocationSelector.vue";
@@ -12,10 +15,11 @@ import CheckList from "@/components/maid/manual/CheckList.vue";
 
 const router = useRouter();
 const userStore = useUserStore();
+const { checkExistingSession } = useJobChecks(); // ✅ ดึงฟังก์ชันมาใช้
 
 // --- State ---
 const loading = ref(true);
-const submitting = ref(false); // ใช้คุมปุ่ม Loading
+const submitting = ref(false);
 
 // --- Data ---
 const locations = ref([]);
@@ -72,43 +76,27 @@ const getIconHtml = (component, classes = "") => {
   return div.innerHTML;
 };
 
-// --- 📍 Helper: ดึง GPS (Robust Version: แก้ปัญหา Timeout) ---
+// --- 📍 Helper: ดึง GPS ---
 const getCurrentLocation = () => {
   return new Promise((resolve) => {
     if (!navigator.geolocation) {
       resolve(null);
       return;
     }
-    // 1. ลองขอแบบแม่นยำสูงก่อน (High Accuracy)
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        resolve({ lat: pos.coords.latitude, long: pos.coords.longitude });
-      },
-      (error) => {
-        console.warn("High accuracy GPS failed, trying low accuracy...", error.message);
-
-        // 2. แผนสำรอง: ขอแบบธรรมดา (Low Accuracy)
+      (pos) => resolve({ lat: pos.coords.latitude, long: pos.coords.longitude }),
+      (err) => {
+        console.warn("GPS High Accuracy failed:", err.message);
         navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            resolve({ lat: pos.coords.latitude, long: pos.coords.longitude });
-          },
+          (pos2) => resolve({ lat: pos2.coords.latitude, long: pos2.coords.longitude }),
           (err2) => {
-            // 3. ถ้ายังไม่ได้อีก ให้ยอมแพ้ แต่ไม่ Throw Error (ส่ง null)
-            console.error("GPS Failed completely:", err2.message);
+            console.error("GPS Failed:", err2.message);
             resolve(null);
           },
-          {
-            enableHighAccuracy: false, // ปิดโหมดแม่นยำ (ใช้เสา/WiFi)
-            timeout: 10000, // ให้เวลา 10 วิ
-            maximumAge: 0,
-          }
+          { enableHighAccuracy: false, timeout: 10000, maximumAge: 0 }
         );
       },
-      {
-        enableHighAccuracy: true, // เปิดโหมดแม่นยำ
-        timeout: 5000, // ให้เวลา 5 วิ (ถ้าเกินนี้ไปแผน 2)
-        maximumAge: 0,
-      }
+      { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
     );
   });
 };
@@ -173,7 +161,7 @@ const fetchInitialData = async () => {
   }
 };
 
-// --- 🔥 Submit Logic ---
+// --- 🔥 Submit Logic (รวม 5 Case) ---
 const onRequestSubmit = async () => {
   if (!selectedLocation.value) {
     Swal.fire({
@@ -234,111 +222,130 @@ const onRequestSubmit = async () => {
 
   if (!result.isConfirmed) return;
 
-  // 2. เริ่ม Process ส่งงาน
   try {
     submitting.value = true;
-
-    // ⏳ Fake Delay
     await new Promise((r) => setTimeout(r, 500));
-
-    // 📍 ดึง GPS (ใช้ฟังก์ชันใหม่ที่แก้แล้ว)
     const gps = await getCurrentLocation();
 
-    const d = new Date();
-    const localDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
-      2,
-      "0"
-    )}-${String(d.getDate()).padStart(2, "0")}`;
+    // ✅ 1. ใช้ Composable เช็คงานซ้ำ (Logic กลาง)
+    const { existingSession, slotStartTime, todayStr } = await checkExistingSession(
+      selectedLocation.value
+    );
 
-    // 🕵️ เช็คงานซ้ำ / งานค้าง
-    const { data: existingSession } = await supabase
-      .from("check_sessions")
-      .select("check_sessions_id, check_sessions_status, created_at, edit_count")
-      .eq("locations_id", selectedLocation.value)
-      .eq("employees_id", userStore.profile.employees_id)
-      .eq("check_sessions_date", localDate)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    // =========================================================
+    // 🕵️ LOGIC การตัดสินใจ (Decision Tree)
+    // =========================================================
 
-    // --- กรณี A: เจองานเดิม ---
+    // --- กรณี A: เจองานเดิม (Duplicate Found) ---
     if (existingSession) {
-      // 1. ถ้างานเดิมสถานะไม่ใช่ waiting (ถูกตรวจแล้ว) -> แจ้งเตือนก่อนส่งใหม่
-      if (existingSession.check_sessions_status !== "waiting") {
-        const statusMap = {
-            approved: 'อนุมัติแล้ว/ผ่าน',
-            pass: 'ผ่านแล้ว',
-            rejected: 'ส่งกลับแก้ไข',
-            fail: 'ไม่ผ่าน',
-            fixed: 'แก้ไขแล้ว'
-        };
-        const statusText = statusMap[existingSession.check_sessions_status] || existingSession.check_sessions_status;
+      const isMyWork = existingSession.employees_id === userStore.profile.employees_id;
+      const workerName = isMyWork
+        ? "คุณ"
+        : existingSession.employees?.employees_firstname
+        ? `${existingSession.employees.employees_firstname} ${existingSession.employees.employees_lastname}`
+        : "พนักงานท่านอื่น";
+      const status = existingSession.check_sessions_status;
+      const time = dayjs(existingSession.created_at).locale("th").format("HH:mm น.");
 
-        // 🚨 แจ้งเตือน (แยกปุ่มให้ชัดเจน)
-        const confirmNew = await Swal.fire({
-            title: 'มีการส่งงานจุดนี้ไปแล้ว',
-            html: `งานล่าสุดสถานะ: <b class="text-indigo-600">${statusText}</b><br>คุณต้องการส่งเป็น <b>"รายการใหม่"</b> ใช่หรือไม่?`,
-            icon: 'info',
-            showCancelButton: true,
-            confirmButtonText: 'ใช่ ส่งรายการใหม่',
-            cancelButtonText: 'ยกเลิก',
-            confirmButtonColor: '#3b82f6',
-            reverseButtons: true
+      // 🟢 Case 3: ตรวจเสร็จแล้ว (Approved) -> จบงาน ห้ามแก้ ห้ามซ้ำ
+      if (status === "approved") {
+        await Swal.fire({
+          icon: "success",
+          title: "งานนี้เสร็จสมบูรณ์แล้ว",
+          html: `งานนี้ถูกตรวจและอนุมัติเรียบร้อยแล้ว<br><span class="text-sm text-gray-500">ไม่จำเป็นต้องส่งซ้ำครับ</span>`,
+          confirmButtonColor: "#16a34a",
         });
+        submitting.value = false;
+        router.replace("/maid/home");
+        return;
+      }
 
-        // ❌ ถ้ากด "ยกเลิก" หรือปิด Popup -> หยุดทันที
-        if (!confirmNew.isConfirmed) {
-            submitting.value = false;
-            return;
+      // 🟡 Case 2 & 4: รอตรวจ (Waiting) หรือ โดนสั่งแก้ (Rejected)
+      // อนุญาตให้ "แก้ไขงานเดิม" ได้ (Update)
+      if (status === "waiting" || status === "rejected") {
+        // ถ้าเป็นงานคนอื่น -> บล็อก (Case 1) พร้อมรายละเอียดครบ
+        if (!isMyWork) {
+          const statusText = status === "rejected" ? "กำลังแก้ไข" : "รอตรวจสอบ";
+          await Swal.fire({
+            title: "มีผู้ส่งงานนี้ไปแล้ว",
+            html: `
+                    <div class="text-left bg-gray-50 p-4 rounded-lg border border-gray-200 mt-2 text-sm space-y-2">
+                        <div class="flex justify-between"><span>ผู้ส่ง:</span> <span class="font-bold text-gray-800">${workerName}</span></div>
+                        <div class="flex justify-between"><span>สถานะ:</span> <span class="font-bold text-indigo-600">${statusText}</span></div>
+                        <div class="flex justify-between"><span>เวลา:</span> <span class="font-bold text-gray-800">${time}</span></div>
+                    </div>
+                    <div class="mt-4 text-xs text-red-500 font-medium text-center">ไม่อนุญาตให้ส่งงานซ้ำในรอบเดียวกัน</div>
+                 `,
+            icon: "warning",
+            confirmButtonText: "กลับหน้าหลัก",
+            confirmButtonColor: "#4f46e5",
+            allowOutsideClick: false,
+          });
+          submitting.value = false;
+          router.replace("/maid/home");
+          return;
         }
-        
-        // ✅ ถ้ากด "ยืนยัน" -> ปล่อยไหลลงไป Insert ข้างล่าง
 
-      } else {
-        // 2. ถ้างานเดิมเป็น Waiting (รอตรวจ) -> ให้แก้ไขได้ภายใน 30 นาที
-        const taskTime = new Date(existingSession.created_at).getTime();
-        const nowTime = new Date().getTime();
-        const diffMinutes = (nowTime - taskTime) / (1000 * 60);
+        // 🔥🔥🔥 [เพิ่ม] เช็คโควต้าการแก้ไข (Max Edit Limit) 🔥🔥🔥
+        const MAX_EDITS = 3;
+        const currentEdits = existingSession.edit_count || 0;
 
-        if (diffMinutes > 30) {
-          throw new Error("หมดเวลาแก้ไขงานเดิม (เกิน 30 นาที) กรุณาติดต่อหัวหน้างาน");
+        if (currentEdits >= MAX_EDITS) {
+          await Swal.fire({
+            icon: "error",
+            title: "เกินโควต้าการแก้ไข",
+            html: `งานนี้ถูกแก้ไขไปแล้ว <b>${currentEdits}</b> ครั้ง<br>ซึ่งครบจำนวนที่กำหนดไว้แล้ว<br><span class="text-sm text-gray-500">กรุณาติดต่อ Admin หากต้องการแก้ไขเพิ่มเติม</span>`,
+            confirmButtonText: "เข้าใจแล้ว",
+            confirmButtonColor: "#d33",
+          });
+          submitting.value = false;
+          return; // ❌ จบการทำงานทันที ห้ามไปต่อ
         }
 
-        // 🔥 แก้ไขตรงนี้: แยก 3 ทางเลือก (แก้ไข / สร้างใหม่ / ยกเลิก)
+        // ถ้าเป็นงานตัวเอง -> ถามยืนยันการอัปเดต (Case 2, 4)
         const confirmEdit = await Swal.fire({
-          title: "พบงานที่ส่งไปแล้ว",
-          text: `คุณเพิ่งส่งงานจุดนี้ไปเมื่อ ${Math.floor(
-            diffMinutes
-          )} นาทีที่แล้ว`,
-          icon: "warning",
-          showDenyButton: true,   // ✅ ปุ่มทางเลือกที่ 2 (สร้างใหม่)
-          showCancelButton: true, // ✅ ปุ่มยกเลิก
-          confirmButtonText: "ใช่ แก้ไขอันเดิม",
-          denyButtonText: "สร้างรายการใหม่",
+          title: "พบงานที่คุณเพิ่งส่ง",
+          html: `สถานะ: <b>${
+            status === "rejected" ? "ต้องแก้ไข" : "รอตรวจสอบ"
+          }</b><br>แก้ไขไปแล้ว: <b>${currentEdits}/${MAX_EDITS}</b> ครั้ง<br>ต้องการอัปเดตข้อมูลใช่หรือไม่?`,
+          icon: "question",
+          showCancelButton: true,
+          confirmButtonText: "ใช่ อัปเดตรายการเดิม",
           cancelButtonText: "ยกเลิก",
           confirmButtonColor: "#f59e0b",
-          denyButtonColor: "#16a34a",
-          cancelButtonColor: "#6b7280",
           reverseButtons: true,
         });
 
-        // 🟢 ทางเลือก 1: แก้ไขอันเดิม (Confirmed)
         if (confirmEdit.isConfirmed) {
-          // UPDATE Logic
+          // ✅ UPDATE LOGIC (Case 5: Fixed Slot, Audit Trail)
           const { error: updateErr } = await supabase
             .from("check_sessions")
             .update({
-              check_sessions_status: "waiting", // ✅ บังคับ Waiting
-              check_sessions_time_start: new Date().toLocaleTimeString("en-GB"),
+              check_sessions_status: "waiting", // กลับมารอตรวจเสมอ
+              // ❌ check_sessions_time_start: ... // ห้ามแก้เวลาเริ่ม!
               lat: gps?.lat || null,
               long: gps?.long || null,
               edit_count: (existingSession.edit_count || 0) + 1,
+              updated_at: new Date(), // เวลาแก้ไขล่าสุด
+              employees_id: userStore.profile.employees_id, // เปลี่ยนคนรับผิดชอบเป็นคนล่าสุด
             })
             .eq("check_sessions_id", existingSession.check_sessions_id);
 
           if (updateErr) throw updateErr;
 
-          // ลบ Results เก่า ใส่ใหม่
+          // 🔥 บันทึก Audit Log (Case 5)
+          await supabase.from("audit_logs").insert({
+            table_name: "check_sessions",
+            record_id: existingSession.check_sessions_id,
+            action: "UPDATE",
+            old_value: status, // เก็บสั้นๆ
+            new_value: "waiting",
+            employees_id: userStore.profile.employees_id,
+            ip_address: "app-client",
+            user_agent: navigator.userAgent,
+          });
+
+          // ลบผลตรวจเก่า ใส่ใหม่
           await supabase
             .from("check_results")
             .delete()
@@ -352,28 +359,25 @@ const onRequestSubmit = async () => {
           }));
           await supabase.from("check_results").insert(resultsData);
 
-          await Swal.fire({ icon: "success", title: "แก้ไขงานเรียบร้อย!", timer: 1500 });
+          await Swal.fire({ icon: "success", title: "บันทึกการแก้ไขแล้ว!", timer: 1500 });
           router.replace("/maid/home");
           return;
-        } 
-        // 🔴 ทางเลือก 2: ยกเลิก / ปิดหน้าต่าง (Dismissed) -> หยุดทันที
-        else if (confirmEdit.isDismissed) {
-           submitting.value = false;
-           return;
+        } else {
+          submitting.value = false;
+          return;
         }
-        
-        // 🔵 ทางเลือก 3: สร้างรายการใหม่ (Denied) -> ปล่อยไหลลงไป Insert ข้างล่าง
       }
     }
 
     // --- กรณี B: สร้างงานใหม่ (INSERT) ---
+    // (ทำงานเมื่อยังไม่มีใครส่งงานใน Slot นี้)
     const sessionData = {
       locations_id: selectedLocation.value,
       restroom_types_id: selectedType.value,
       employees_id: userStore.profile.employees_id,
-      check_sessions_date: localDate,
-      check_sessions_time_start: new Date().toLocaleTimeString("en-GB"),
-      check_sessions_status: "waiting", // ✅ บังคับ Waiting
+      check_sessions_date: todayStr,
+      check_sessions_time_start: slotStartTime,
+      check_sessions_status: "waiting",
       lat: gps?.lat || null,
       long: gps?.long || null,
       edit_count: 0,
@@ -384,28 +388,69 @@ const onRequestSubmit = async () => {
       .insert(sessionData)
       .select()
       .single();
-    if (sessErr) throw new Error(sessErr.message);
 
+    // ดัก Error เผื่อ Race Condition (Case 1: กดพร้อมกันเป๊ะ)
+    if (sessErr) {
+      if (sessErr.code === "23505" || sessErr.message.includes("unique_job_per_slot")) {
+        // ดึงข้อมูลคนตัดหน้ามาแสดง (ถ้ามี)
+        const { existingSession: conflictJob } = await checkExistingSession(
+          selectedLocation.value
+        );
+        let conflictName = "พนักงานท่านอื่น";
+        let conflictTime = "-";
+        let conflictStatus = "ไม่ทราบสถานะ";
+
+        if (conflictJob) {
+          if (conflictJob.employees) {
+            conflictName = `${conflictJob.employees.employees_firstname} ${conflictJob.employees.employees_lastname}`;
+          }
+          conflictTime = dayjs(conflictJob.created_at).locale("th").format("HH:mm น.");
+          const statusMap = {
+            waiting: "รอตรวจสอบ",
+            approved: "ตรวจแล้ว (ผ่าน)",
+            pass: "ผ่านแล้ว",
+            rejected: "กำลังแก้ไข",
+            fail: "ไม่ผ่าน",
+          };
+          conflictStatus =
+            statusMap[conflictJob.check_sessions_status] ||
+            conflictJob.check_sessions_status;
+        }
+
+        await Swal.fire({
+          title: "มีผู้ส่งงานนี้ไปแล้ว",
+          html: `
+                    <div class="text-left bg-gray-50 p-4 rounded-lg border border-gray-200 mt-2 text-sm space-y-2">
+                        <div class="flex justify-between"><span>ผู้ส่ง:</span> <span class="font-bold text-gray-800">${conflictName}</span></div>
+                        <div class="flex justify-between"><span>สถานะ:</span> <span class="font-bold text-indigo-600">${conflictStatus}</span></div>
+                        <div class="flex justify-between"><span>เวลา:</span> <span class="font-bold text-gray-800">${conflictTime}</span></div>
+                    </div>
+                    <div class="mt-4 text-xs text-red-500 font-medium text-center">ไม่อนุญาตให้ส่งงานซ้ำในรอบเดียวกัน</div>
+                 `,
+          icon: "warning",
+          confirmButtonText: "ตกลง",
+          confirmButtonColor: "#4f46e5",
+        });
+        router.replace("/maid/home");
+        return;
+      }
+      throw sessErr;
+    }
+
+    // Insert Results
     const resultsData = checkListItems.value.map((item) => ({
       check_sessions_id: session.check_sessions_id,
       check_items_id: item.check_items_id,
       check_results_status: item.status,
       check_results_detail: item.detail || null,
     }));
+    await supabase.from("check_results").insert(resultsData);
 
-    const { error: resErr } = await supabase.from("check_results").insert(resultsData);
-    if (resErr) throw new Error(resErr.message);
-
-    await Swal.fire({
-      icon: "success",
-      title: "ส่งงานเรียบร้อย!",
-      text: "บันทึกข้อมูลสำเร็จแล้ว",
-      confirmButtonText: "กลับหน้าหลัก",
-      confirmButtonColor: "#16a34a",
-      allowOutsideClick: false,
-    }).then(() => router.replace("/maid/home"));
+    await Swal.fire({ icon: "success", title: "ส่งงานเรียบร้อย!", timer: 1500 });
+    router.replace("/maid/home");
   } catch (error) {
-    Swal.fire("เกิดข้อผิดพลาด", error.message, "error");
+    console.error(error);
+    Swal.fire("เกิดข้อผิดพลาด", error.message || "Error", "error");
   } finally {
     submitting.value = false;
   }
