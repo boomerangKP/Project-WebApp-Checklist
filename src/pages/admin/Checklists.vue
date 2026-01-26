@@ -29,6 +29,7 @@ const fetchData = async () => {
     const { data, error } = await supabase
       .from("check_items")
       .select("*")
+      .is("deleted_at", null) // ✅ กรองเฉพาะข้อมูลที่ยังไม่ถูกลบ (Soft Delete)
       .order("check_items_order");
     if (error) throw error;
     checkItems.value = data || [];
@@ -157,26 +158,29 @@ const handleSave = async (submitData) => {
 };
 
 const handleDelete = async (id) => {
-  // ✅ ใช้ swalConfirm แบบกำหนดเอง (เพื่อให้ปุ่มลบเป็นสีแดง)
+  // ✅ ใช้ swalConfirm แบบกำหนดเอง (เพื่อให้ปุ่มลบเป็นสีแดงและข้อความชัดเจน)
   const result = await Swal.fire({
     title: "ยืนยันการลบ?",
-    text: "ข้อมูลที่ลบจะไม่สามารถกู้คืนได้",
+    text: "ข้อมูลจะถูกซ่อนไว้ (Soft Delete) และสามารถกู้คืนได้โดย Admin",
     icon: "warning",
     showCancelButton: true,
     confirmButtonText: "ลบเลย!",
     cancelButtonText: "ยกเลิก",
-    // ไม่ต้องกำหนด class ปุ่ม confirm/cancel เพราะ useSwal จัดการให้แล้ว
-    // แต่ถ้าอยากได้สีแดงสำหรับปุ่มลบ useSwal จะเช็ค icon: 'warning' ให้เองอัตโนมัติ (ในโค้ด useSwal ล่าสุดที่ผมให้ไป)
   });
 
   if (!result.isConfirmed) return;
 
   try {
     loading.value = true;
+    // ✅ Soft Delete: อัปเดตสถานะและเวลาที่ลบ
     const { error } = await supabase
       .from("check_items")
-      .delete()
+      .update({
+        check_items_status: "inactive", // เปลี่ยนสถานะเป็นไม่ใช้งาน
+        deleted_at: new Date(),         // 🟢 หัวใจสำคัญ: ประทับเวลาตาย
+      })
       .eq("check_items_id", id);
+      
     if (error) throw error;
 
     await fetchData();
@@ -217,6 +221,7 @@ onMounted(fetchData);
     <ChecklistTable
       :items="checkItems"
       :loading="loading"
+      :highlightId="editingId"
       @edit="openModal"
       @delete="handleDelete"
     />

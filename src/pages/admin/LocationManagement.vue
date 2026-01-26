@@ -45,6 +45,7 @@ const fetchData = async () => {
       supabase
         .from("locations")
         .select("*, restroom_types(*)")
+        .is("deleted_at", null) // ✅ กรองเฉพาะข้อมูลที่ยังไม่ถูกลบ (Soft Delete)
         .order("locations_id", { ascending: false }),
       supabase.from("restroom_types").select("*").eq("restroom_types_status", "active"),
     ]);
@@ -200,18 +201,25 @@ const handleSave = async (formData) => {
   }
 };
 
-// 🔥 ลบข้อมูล (Delete)
+// 🔥 ลบข้อมูล (Soft Delete)
 const handleDelete = async (id) => {
   const isConfirmed = await swalConfirm(
     "ยืนยันการลบ?",
-    "ข้อมูลนี้จะหายไปถาวร ไม่สามารถกู้คืนได้",
+    "ข้อมูลจะถูกซ่อนไว้ (Soft Delete) และสามารถกู้คืนได้โดย Admin", // เปลี่ยนข้อความให้ชัดเจน
     "ลบเลย!"
   );
 
   if (isConfirmed) {
     try {
       loading.value = true;
-      const { error } = await supabase.from("locations").delete().eq("locations_id", id);
+      // ✅ Soft Delete: อัปเดตสถานะและเวลาที่ลบ แทนการลบจริง
+      const { error } = await supabase
+        .from("locations")
+        .update({
+          locations_status: "inactive", // เปลี่ยนสถานะเป็นไม่ใช้งาน
+          deleted_at: new Date(), // บันทึกเวลาที่ลบ
+        })
+        .eq("locations_id", id);
 
       if (error) throw error;
 
