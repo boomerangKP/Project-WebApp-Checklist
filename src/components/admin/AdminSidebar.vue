@@ -19,17 +19,26 @@ import {
   Database,
   PanelLeftClose,
   PanelLeftOpen,
+  X,
 } from "lucide-vue-next";
 
+// ✅ 1. รับ Props isOpen จาก Layout
+const props = defineProps({
+  isOpen: { type: Boolean, default: false },
+});
+
+// ✅ 2. เตรียม Event สำหรับปิดเมนู
+const emit = defineEmits(["close"]);
+
 const route = useRoute();
-const isCollapsed = ref(false); // เริ่มต้นแบบกางออก
+const isCollapsed = ref(false);
 const expandedMenus = ref({});
 
 const handleMenuClick = (item) => {
   if (isCollapsed.value) {
-    isCollapsed.value = false; // กางออกทันที
+    isCollapsed.value = false;
     if (item.children) {
-      expandedMenus.value[item.name] = true; // เปิดลูกให้ด้วย
+      expandedMenus.value[item.name] = true;
     }
   } else {
     if (item.children) {
@@ -38,13 +47,27 @@ const handleMenuClick = (item) => {
   }
 };
 
+const onLinkClick = () => {
+  if (window.innerWidth < 1024) {
+    emit("close");
+  }
+};
+
+// ✅ 3. เพิ่ม property 'desktopOnly' ให้กับเมนูที่ไม่จำเป็นบนมือถือ
 const menuItems = [
-  { name: "แดชบอร์ด", path: "/admin", icon: LayoutDashboard },
-  { name: "ตรวจสอบงาน", path: "/admin/check", icon: ClipboardList },
-  { name: "ข้อมูลพนักงาน", path: "/admin/employees", icon: Users },
+  { name: "แดชบอร์ด", path: "/admin", icon: LayoutDashboard }, // โชว์ตลอด
+
+  { name: "ตรวจสอบงาน", path: "/admin/check", icon: ClipboardList, desktopOnly: true }, // ❌ ซ่อนบนมือถือ
+  {
+    name: "ข้อมูลพนักงาน",
+    path: "/admin/employees",
+    icon: Users,
+    desktopOnly: true, // ❌ ซ่อนบนมือถือ
+  },
   {
     name: "รายงานผล",
     icon: FileText,
+    desktopOnly: true, // ❌ ซ่อนบนมือถือ
     children: [
       { name: "ประวัติการทำงาน", path: "/admin/report", icon: UserCheck },
       { name: "คะแนนประเมิน", path: "/admin/satisfaction", icon: Heart },
@@ -53,6 +76,7 @@ const menuItems = [
   {
     name: "จัดการข้อมูล",
     icon: Database,
+    desktopOnly: true, // ❌ ซ่อนบนมือถือ
     children: [
       { name: "สถานที่", path: "/admin/locations", icon: MapPin },
       { name: "รายการตรวจ ", path: "/admin/checklists", icon: ListChecks },
@@ -64,21 +88,38 @@ const menuItems = [
 </script>
 
 <template>
+  <div
+    v-if="isOpen"
+    class="fixed inset-0 z-[998] bg-black/50 lg:hidden backdrop-blur-sm transition-opacity"
+    @click="$emit('close')"
+  ></div>
+
   <aside
-    class="bg-[#0f172a] dark:bg-slate-900 text-white flex flex-col flex-shrink-0 transition-all duration-300 ease-in-out h-screen sticky top-0 border-r border-gray-800 dark:border-slate-800 z-[999] font-noto"
-    :class="isCollapsed ? 'w-20' : 'w-64'"
+    class="bg-[#0f172a] dark:bg-slate-900 text-white flex flex-col flex-shrink-0 transition-all duration-300 ease-in-out h-screen z-[999] font-noto fixed inset-y-0 left-0 lg:static border-r border-gray-800 dark:border-slate-800"
+    :class="[
+      isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
+      isCollapsed ? 'lg:w-20' : 'lg:w-64',
+      'w-64',
+    ]"
   >
     <div
-      class="h-16 flex items-center bg-[#0f172a] dark:bg-slate-900 border-b border-gray-800 dark:border-slate-800 overflow-hidden shrink-0"
-      :class="isCollapsed ? 'justify-center px-0' : 'px-6'"
+      class="h-16 flex items-center bg-[#0f172a] dark:bg-slate-900 border-b border-gray-800 dark:border-slate-800 shrink-0 relative"
+      :class="isCollapsed ? 'lg:justify-center lg:px-0' : 'px-6'"
     >
       <button
         @click="isCollapsed = !isCollapsed"
-        class="p-1.5 rounded-lg hover:bg-gray-800 dark:hover:bg-slate-800 text-gray-400 hover:text-white transition-colors focus:outline-none"
+        class="hidden lg:block p-1.5 rounded-lg hover:bg-gray-800 dark:hover:bg-slate-800 text-gray-400 hover:text-white transition-colors focus:outline-none"
         :class="{ 'mr-3': !isCollapsed }"
         :title="isCollapsed ? 'ขยายเมนู' : 'ย่อเมนู'"
       >
         <component :is="!isCollapsed ? PanelLeftClose : PanelLeftOpen" class="w-5 h-5" />
+      </button>
+
+      <button
+        @click="$emit('close')"
+        class="lg:hidden absolute right-4 p-1 text-gray-400 hover:text-white"
+      >
+        <X class="w-6 h-6" />
       </button>
 
       <div
@@ -95,18 +136,24 @@ const menuItems = [
 
     <nav
       class="flex-1 py-6 px-3 space-y-1 custom-scrollbar"
-      :class="isCollapsed ? 'overflow-visible' : 'overflow-y-auto'"
+      :class="isCollapsed ? 'lg:overflow-visible' : 'overflow-y-auto'"
     >
-      <div v-for="item in menuItems" :key="item.name" class="relative group">
+      <div
+        v-for="item in menuItems"
+        :key="item.name"
+        class="relative group"
+        :class="{ 'hidden lg:block': item.desktopOnly }"
+      >
         <router-link
           v-if="!item.children"
           :to="item.path"
+          @click="onLinkClick"
           class="flex items-center px-3 py-2.5 rounded-xl transition-all duration-200 whitespace-nowrap relative"
           :class="[
             route.path === item.path
               ? 'bg-[#38b6ff] text-white font-bold shadow-blue-500/20 shadow-md'
               : 'text-gray-400 dark:text-gray-400 hover:bg-gray-800 dark:hover:bg-slate-800 hover:text-[#38b6ff] dark:hover:text-[#38b6ff]',
-            isCollapsed ? 'justify-center' : '',
+            isCollapsed ? 'lg:justify-center' : '',
           ]"
         >
           <component
@@ -117,11 +164,13 @@ const menuItems = [
               route.path === item.path ? 'text-white' : '',
             ]"
           />
-          <span v-show="!isCollapsed">{{ item.name }}</span>
+          <span v-show="!isCollapsed" class="lg:block" :class="{ hidden: isCollapsed }">{{
+            item.name
+          }}</span>
 
           <div
             v-if="isCollapsed"
-            class="absolute left-14 top-1.5 bg-gray-900 dark:bg-slate-800 text-white text-xs px-3 py-1.5 rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-[1000] whitespace-nowrap border border-gray-700 dark:border-slate-700 shadow-xl"
+            class="hidden lg:block absolute left-14 top-1.5 bg-gray-900 dark:bg-slate-800 text-white text-xs px-3 py-1.5 rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-[1000] whitespace-nowrap border border-gray-700 dark:border-slate-700 shadow-xl"
           >
             {{ item.name }}
           </div>
@@ -135,7 +184,7 @@ const menuItems = [
               item.children.some((child) => child.path === route.fullPath)
                 ? 'text-white'
                 : '',
-              isCollapsed ? 'justify-center' : '',
+              isCollapsed ? 'lg:justify-center' : '',
             ]"
           >
             <component
@@ -147,7 +196,11 @@ const menuItems = [
               ]"
             />
 
-            <div v-show="!isCollapsed" class="flex-1 flex justify-between items-center">
+            <div
+              v-show="!isCollapsed"
+              class="flex-1 flex justify-between items-center lg:flex"
+              :class="{ hidden: isCollapsed }"
+            >
               <span :class="expandedMenus[item.name] ? 'font-medium text-white' : ''">{{
                 item.name
               }}</span>
@@ -160,7 +213,7 @@ const menuItems = [
 
           <div
             v-if="isCollapsed"
-            class="hidden group-hover:block absolute left-[70px] top-0 w-48 bg-[#1e293b] dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-700 dark:border-slate-700 p-2 z-[1000]"
+            class="hidden lg:group-hover:block absolute left-[70px] top-0 w-48 bg-[#1e293b] dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-700 dark:border-slate-700 p-2 z-[1000]"
           >
             <div
               class="px-3 py-2 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase border-b border-gray-700 dark:border-slate-700 mb-2"
@@ -171,6 +224,7 @@ const menuItems = [
               v-for="child in item.children"
               :key="child.path"
               :to="child.path"
+              @click="onLinkClick"
               class="block px-3 py-2 rounded-lg text-sm text-gray-300 dark:text-gray-300 hover:text-white hover:bg-[#38b6ff] transition-colors mb-1"
               :class="
                 route.fullPath === child.path ? 'bg-[#38b6ff] text-white font-bold' : ''
@@ -183,11 +237,13 @@ const menuItems = [
           <div
             v-if="item.children && expandedMenus[item.name] && !isCollapsed"
             class="mt-1 ml-5 pl-4 space-y-1 border-l border-gray-700 dark:border-slate-700"
+            :class="{ 'lg:hidden': isCollapsed }"
           >
             <router-link
               v-for="child in item.children"
               :key="child.path"
               :to="child.path"
+              @click="onLinkClick"
               class="flex items-center py-2 px-4 rounded-lg text-sm transition-all duration-200 relative"
               :class="
                 route.fullPath === child.path

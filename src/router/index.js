@@ -112,12 +112,18 @@ const router = createRouter({
         },
         {
           path: '',
+          name: 'maid-root', // ✅ เพิ่ม name ให้ชัดเจน
           redirect: { name: 'maid-home' }
         },
         {
-          path: '/maid/scan',
+          path: 'scan', // ✅ ปรับ path ให้ clean ขึ้น (เอา /maid/ ออกเพราะอยู่ใน children แล้ว)
           name: 'maid-scan',
           component: () => import('@/pages/maid/ScanQR.vue')
+        },
+        {
+          path: 'job/:id', // ✅ ย้าย maid-job มาอยู่ใน children ของ MaidLayout จะได้ใช้ Layout เดียวกัน
+          name: 'maid-job',
+          component: () => import('@/pages/maid/JobSubmit.vue')
         }
       ]
     },
@@ -133,18 +139,16 @@ const router = createRouter({
     // --- 5. Others ---
     {
       path: '/',
-      redirect: '/login'
+      name: 'root',
+      redirect: to => {
+        // Logic การ Redirect หน้าแรกจะไปอยู่ที่ Navigation Guard ด้านล่าง
+        return { name: 'login' }
+      }
     },
     {
       path: '/feedback/:id',
       name: 'feedback',
       component: () => import('@/pages/customer/Feedback.vue')
-    },
-    {
-      path: '/maid/job/:id',
-      name: 'maid-job',
-      component: () => import('@/pages/maid/JobSubmit.vue'),
-      meta: { requiresAuth: true }
     },
     {
       path: '/:pathMatch(.*)*',
@@ -163,7 +167,7 @@ router.beforeEach(async (to, from, next) => {
   // 1. No Session (Not Logged In)
   if (!session) {
     // If route requires auth -> Redirect to Login
-    if (to.meta.requiresAuth) return next('/login')
+    if (to.meta.requiresAuth) return next({ name: 'login' })
     // If Public route -> Allow
     return next()
   }
@@ -181,49 +185,52 @@ router.beforeEach(async (to, from, next) => {
     } catch (err) {
       console.error('Auth Error:', err)
       await userStore.clearSession() // Clear session for safety
-      return next('/login')
+      return next({ name: 'login' })
     }
   }
 
   const role = userStore.profile.role
 
   // 3. Prevent logged-in users from accessing Login page again
-  if (to.path === '/login') {
-    const Toast = Swal.mixin({
-      toast: true,
-      position: 'top-end',
-      showConfirmButton: false,
-      timer: 2000,
-      timerProgressBar: true,
-      didOpen: (toast) => {
-        toast.addEventListener('mouseenter', Swal.stopTimer)
-        toast.addEventListener('mouseleave', Swal.resumeTimer)
-      }
-    })
+  if (to.path === '/login' || to.path === '/') {
+    // ถ้ามาจากหน้าอื่นที่ไม่ใช่ login ให้แจ้งเตือน แต่ถ้าเพิ่งเปิดเว็บมาที่ /login ให้ redirect เงียบๆ
+    if (to.path === '/login' && from.name) {
+        const Toast = Swal.mixin({
+            toast: true,
+            position: 'top-end',
+            showConfirmButton: false,
+            timer: 2000,
+            timerProgressBar: true,
+            didOpen: (toast) => {
+                toast.addEventListener('mouseenter', Swal.stopTimer)
+                toast.addEventListener('mouseleave', Swal.resumeTimer)
+            }
+        })
 
-    Toast.fire({
-      icon: 'info',
-      title: 'คุณเข้าสู่ระบบอยู่แล้ว', // "You are already logged in"
-      text: 'กำลังพาไปหน้าหลัก...' // "Redirecting to home..."
-    })
+        Toast.fire({
+            icon: 'info',
+            title: 'คุณเข้าสู่ระบบอยู่แล้ว',
+            text: 'กำลังพาไปหน้าหลัก...'
+        })
+    }
 
     // Redirect based on Role (using Constants)
-    if (role === ROLES.ADMIN) return next('/admin')
-    if ([ROLES.MAID, ROLES.CLEANER].includes(role)) return next('/maid/home')
-    return next('/')
+    if (role === ROLES.ADMIN) return next({ name: 'admin-dashboard' })
+    if ([ROLES.MAID, ROLES.CLEANER].includes(role)) return next({ name: 'maid-home' })
+    return next()
   }
 
   // 4. Permission Check based on Route Meta Role
   if (to.meta.role) {
     // Admin Zone
     if (to.meta.role === ROLES.ADMIN && role !== ROLES.ADMIN) {
-      return next('/login')
+      return next({ name: 'login' })
     }
 
     // Maid Zone (Allows Cleaner as well)
     if (to.meta.role === ROLES.MAID) {
       if (![ROLES.MAID, ROLES.CLEANER].includes(role)) {
-        return next('/login')
+        return next({ name: 'login' })
       }
     }
   }
