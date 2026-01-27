@@ -558,7 +558,12 @@ onMounted(async () => {
                   <div
                     class="text-[10px] sm:text-xs text-gray-500 dark:text-slate-400 mt-0.5"
                   >
-                    โดย: {{ event.user?.employees_firstname || "ไม่ระบุ" }}
+                    โดย:
+                    {{
+                      event.user
+                        ? `${event.user.employees_firstname} ${event.user.employees_lastname}`
+                        : "ไม่ระบุ"
+                    }}
                   </div>
                   <div
                     v-if="event.detail"
