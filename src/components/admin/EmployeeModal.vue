@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, onMounted, onUnmounted } from "vue";
+import { ref, watch, onMounted, onUnmounted, computed } from "vue";
 import {
   Loader2,
   X,
@@ -11,6 +11,7 @@ import {
   RotateCcw,
   Trash2,
   Bell,
+  Plus, // ✅ ใช้ icon นี้สำหรับปุ่มเพิ่ม
 } from "lucide-vue-next";
 import { supabase } from "@/lib/supabase";
 import { useSwal } from "@/composables/useSwal";
@@ -26,7 +27,7 @@ const props = defineProps({
 });
 
 const emit = defineEmits(["close", "save"]);
-const { swalError } = useSwal();
+const { swalError, Swal } = useSwal(); // ✅ ดึง Swal มาใช้สำหรับ Popup กรอกข้อมูล
 
 // ... (State เดิม) ...
 const emailError = ref("");
@@ -60,14 +61,80 @@ const form = ref({
 const isGeneratingCode = ref(false);
 const activeDropdown = ref(null);
 
-// ... (Functions เดิม: Dropdown, Reset, GenerateCode) ...
+// ✅ ตัวเลือก (Options) ใช้ ref เพื่อให้เพิ่มค่าใหม่ได้
+const genderOptions = [
+  { value: "ชาย", label: "ชาย" },
+  { value: "หญิง", label: "หญิง" },
+  { value: "อื่นๆ", label: "อื่นๆ" },
+];
+
+const departmentOptions = ref([{ value: "แผนกซ่อมบำรุง", label: "แผนกซ่อมบำรุง" }]);
+
+const roleOptions = ref([
+  { value: "admin", label: "ผู้ดูแลระบบ" },
+  { value: "maid", label: "แม่บ้าน" },
+  { value: "user", label: "พนักงานทั่วไป" },
+  { value: "cleaner", label: "พนักงานทำความสะอาด" },
+]);
+
+const statusOptions = [
+  { value: "active", label: "ปกติ" },
+  { value: "inactive", label: "ไม่เคลื่อนไหว" },
+  { value: "suspended", label: "ระงับ" },
+];
+
+// ... (Functions เดิม) ...
 const toggleDropdown = (name) => {
   activeDropdown.value = activeDropdown.value === name ? null : name;
 };
+
 const selectOption = (field, value) => {
   form.value[field] = value;
   activeDropdown.value = null;
 };
+
+// ✅ ฟังก์ชันสำหรับกดปุ่มเพิ่มข้อมูลใหม่ (ใช้ Swal Input)
+const handleAddNew = async (field) => {
+  activeDropdown.value = null; // ปิด Dropdown ก่อน
+
+  const fieldLabel = field === "department" ? "แผนก" : "บทบาท";
+
+  const { value: text } = await Swal.fire({
+    title: `เพิ่ม${fieldLabel}ใหม่`,
+    input: "text",
+    inputLabel: `ระบุชื่อ${fieldLabel}`,
+    inputPlaceholder: `พิมพ์ชื่อ${fieldLabel}...`,
+    showCancelButton: true,
+    confirmButtonText: "เพิ่ม",
+    cancelButtonText: "ยกเลิก",
+    confirmButtonColor: "#4f46e5",
+    inputValidator: (value) => {
+      if (!value) {
+        return "กรุณาระบุข้อมูล";
+      }
+    },
+  });
+
+  if (text) {
+    const newValue = text.trim();
+    const newOption = { value: newValue, label: newValue };
+
+    if (field === "department") {
+      // เช็คซ้ำก่อนเพิ่ม
+      if (!departmentOptions.value.find((o) => o.value === newValue)) {
+        departmentOptions.value.push(newOption);
+      }
+      form.value.department = newValue;
+    } else if (field === "role") {
+      const roleValue = newValue.toLowerCase(); // แปลง role key เป็นตัวเล็ก
+      if (!roleOptions.value.find((o) => o.value === roleValue)) {
+        roleOptions.value.push({ value: roleValue, label: newValue });
+      }
+      form.value.role = roleValue;
+    }
+  }
+};
+
 const handleClickOutside = (e) => {
   if (!e.target.closest(".custom-dropdown-container")) activeDropdown.value = null;
 };
@@ -75,27 +142,11 @@ const handleClickOutside = (e) => {
 onMounted(() => window.addEventListener("click", handleClickOutside));
 onUnmounted(() => window.removeEventListener("click", handleClickOutside));
 
-const genderOptions = [
-  { value: "ชาย", label: "ชาย" },
-  { value: "หญิง", label: "หญิง" },
-  { value: "อื่นๆ", label: "อื่นๆ" },
-];
-const departmentOptions = [{ value: "แผนกซ่อมบำรุง", label: "แผนกซ่อมบำรุง" }];
-const roleOptions = [
-  { value: "admin", label: "ผู้ดูแลระบบ" },
-  { value: "maid", label: "แม่บ้าน" },
-  { value: "user", label: "พนักงานทั่วไป" },
-  { value: "cleaner", label: "พนักงานทำความสะอาด" },
-];
-const statusOptions = [
-  { value: "active", label: "ปกติ" },
-  { value: "inactive", label: "ไม่เคลื่อนไหว" },
-  { value: "suspended", label: "ระงับ" },
-];
-
 const getLabel = (options, value, placeholder) => {
-  const found = options.find((opt) => opt.value === value);
-  return found ? found.label : placeholder;
+  // รองรับ options ที่เป็น ref หรือ array ปกติ
+  const opts = Array.isArray(options) ? options : options.value;
+  const found = opts.find((opt) => opt.value === value);
+  return found ? found.label : value || placeholder;
 };
 
 const resetForm = () => {
@@ -256,6 +307,24 @@ watch(
         notification_email: newData.notification_email || "",
         employees_photo: newData.employees_photo || null,
       };
+
+      // ✅ Logic: ถ้าค่าเดิมไม่อยู่ใน List ให้เพิ่มเข้าไปชั่วคราว
+      if (
+        form.value.department &&
+        !departmentOptions.value.find((o) => o.value === form.value.department)
+      ) {
+        departmentOptions.value.push({
+          value: form.value.department,
+          label: form.value.department,
+        });
+      }
+      if (
+        form.value.role &&
+        !roleOptions.value.find((o) => o.value === form.value.role)
+      ) {
+        roleOptions.value.push({ value: form.value.role, label: form.value.role });
+      }
+
       imagePreview.value = newData.employees_photo || null;
       emailError.value = "";
     }
@@ -543,10 +612,9 @@ const handleSubmit = async () => {
                     class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase"
                     >แผนก <span class="text-red-500">*</span></label
                   >
-                  <button
-                    type="button"
+                  <div
                     @click="toggleDropdown('department')"
-                    class="w-full border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-left bg-white dark:bg-slate-900 focus:ring-2 focus:ring-indigo-500 transition-all flex items-center justify-between"
+                    class="w-full border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-left bg-white dark:bg-slate-900 cursor-pointer flex items-center justify-between hover:border-indigo-500 transition-colors"
                     :class="{
                       'ring-2 ring-indigo-500 border-indigo-500':
                         activeDropdown === 'department',
@@ -566,23 +634,35 @@ const handleSubmit = async () => {
                       class="w-4 h-4 text-gray-400 dark:text-gray-500"
                       :class="{ 'rotate-180': activeDropdown === 'department' }"
                     />
-                  </button>
+                  </div>
+
                   <div
                     v-if="activeDropdown === 'department'"
                     class="absolute z-50 w-full mt-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg overflow-hidden animate-in fade-in zoom-in-95"
                   >
-                    <div class="p-1">
+                    <div class="max-h-48 overflow-y-auto p-1 custom-scrollbar">
                       <div
                         v-for="option in departmentOptions"
                         :key="option.value"
                         @click="selectOption('department', option.value)"
                         class="px-3 py-2 rounded-md hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-sm cursor-pointer flex items-center justify-between text-gray-700 dark:text-gray-200"
                       >
-                        <span>{{ option.label }}</span
-                        ><Check
+                        <span>{{ option.label }}</span>
+                        <Check
                           v-if="form.department === option.value"
                           class="w-4 h-4 text-indigo-600 dark:text-indigo-400"
                         />
+                      </div>
+
+                      <div
+                        class="border-t border-gray-100 dark:border-slate-700 mt-1 pt-1"
+                      >
+                        <div
+                          @click="handleAddNew('department')"
+                          class="px-3 py-2 rounded-md text-indigo-600 dark:text-indigo-400 text-sm cursor-pointer flex items-center gap-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/40 font-medium"
+                        >
+                          <Plus class="w-4 h-4" /> เพิ่มแผนกใหม่...
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -595,10 +675,9 @@ const handleSubmit = async () => {
                     class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase"
                     >บทบาท (Role) <span class="text-red-500">*</span></label
                   >
-                  <button
-                    type="button"
+                  <div
                     @click="toggleDropdown('role')"
-                    class="w-full border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-left bg-white dark:bg-slate-900 focus:ring-2 focus:ring-indigo-500 transition-all flex items-center justify-between"
+                    class="w-full border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-left bg-white dark:bg-slate-900 cursor-pointer flex items-center justify-between hover:border-indigo-500 transition-colors"
                     :class="{
                       'ring-2 ring-indigo-500 border-indigo-500':
                         activeDropdown === 'role',
@@ -616,23 +695,34 @@ const handleSubmit = async () => {
                       class="w-4 h-4 text-gray-400 dark:text-gray-500"
                       :class="{ 'rotate-180': activeDropdown === 'role' }"
                     />
-                  </button>
+                  </div>
                   <div
                     v-if="activeDropdown === 'role'"
                     class="absolute z-50 w-full mt-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg overflow-hidden animate-in fade-in zoom-in-95"
                   >
-                    <div class="p-1">
+                    <div class="max-h-48 overflow-y-auto p-1 custom-scrollbar">
                       <div
                         v-for="option in roleOptions"
                         :key="option.value"
                         @click="selectOption('role', option.value)"
                         class="px-3 py-2 rounded-md hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-sm cursor-pointer flex items-center justify-between text-gray-700 dark:text-gray-200"
                       >
-                        <span>{{ option.label }}</span
-                        ><Check
+                        <span>{{ option.label }}</span>
+                        <Check
                           v-if="form.role === option.value"
                           class="w-4 h-4 text-indigo-600 dark:text-indigo-400"
                         />
+                      </div>
+
+                      <div
+                        class="border-t border-gray-100 dark:border-slate-700 mt-1 pt-1"
+                      >
+                        <div
+                          @click="handleAddNew('role')"
+                          class="px-3 py-2 rounded-md text-indigo-600 dark:text-indigo-400 text-sm cursor-pointer flex items-center gap-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/40 font-medium"
+                        >
+                          <Plus class="w-4 h-4" /> เพิ่มบทบาทใหม่...
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -676,8 +766,8 @@ const handleSubmit = async () => {
                         @click="selectOption('status', option.value)"
                         class="px-3 py-2 rounded-md hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-sm cursor-pointer flex items-center justify-between text-gray-700 dark:text-gray-200"
                       >
-                        <span>{{ option.label }}</span
-                        ><Check
+                        <span>{{ option.label }}</span>
+                        <Check
                           v-if="form.status === option.value"
                           class="w-4 h-4 text-indigo-600 dark:text-indigo-400"
                         />
