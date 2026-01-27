@@ -43,7 +43,7 @@ export function useJobChecks() {
       `)
       .eq('locations_id', locationId)
       .eq('check_sessions_date', todayStr)
-      .eq('check_sessions_time_start', slotStartTime)
+      // .eq('check_sessions_time_start', slotStartTime)
       .maybeSingle()
 
     return { 
