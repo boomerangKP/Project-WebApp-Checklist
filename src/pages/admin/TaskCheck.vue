@@ -39,7 +39,7 @@ const openTaskDetail = (id) => router.push({ path: `/admin/check/${id}` });
 </script>
 
 <template>
-  <div class="flex flex-col h-[calc(100vh-10px)] sm:h-full gap-3 sm:gap-4 pb-0">
+  <div class="flex flex-col h-[calc(100vh-5px)] sm:h-full gap-3 sm:gap-4 pb-0">
     
     <div class="shrink-0 space-y-2 sm:space-y-4">
       <div class="flex items-center justify-between px-1">

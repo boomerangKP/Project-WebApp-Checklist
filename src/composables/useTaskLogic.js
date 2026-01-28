@@ -54,6 +54,7 @@ export function useTaskLogic() {
         await fetchTimeSlots()
       }
 
+      // ✅ แก้ไข: ใช้ checked_by และลบ approved_by ที่ทำให้เกิด Error ออก
       let query = supabase
         .from('check_sessions')
         .select(`
@@ -63,6 +64,7 @@ export function useTaskLogic() {
           check_sessions_status,
           created_at,
           checked_at,
+          checked_by, 
           employees:employees!check_sessions_employees_id_fkey (
             employees_firstname,
             employees_lastname,
@@ -119,7 +121,7 @@ export function useTaskLogic() {
     }
   }
 
-  // --- Filter & Pagination ---
+  // --- Filter & Pagination (คงเดิม) ---
   const uniqueMaids = computed(() => [...new Set(tasks.value.map(t => t.maidName))])
 
   const filteredTasks = computed(() => tasks.value.filter(t => {
@@ -199,7 +201,8 @@ export function useTaskLogic() {
             check_sessions_status: 'approved',
             updated_at: new Date(),
             checked_at: new Date().toISOString(),
-            checked_by: userStore.profile.employees_id
+            // ✅ แก้ไข: ใช้ checked_by ตามที่ Database คุณมีอยู่จริง
+            checked_by: userStore.profile.employees_id 
           })
           .in('check_sessions_id', selectedIds.value)
 
@@ -223,7 +226,6 @@ export function useTaskLogic() {
     isSelectionMode.value = false
   })
 
-  // ✅ เพิ่ม Watcher นี้เพื่อแก้ปัญหา: เมื่อ isSelectionMode เป็น false (กด "ยกเลิก" จากที่ไหนก็ได้) ให้ล้าง selectedIds ทันที
   watch(isSelectionMode, (newVal) => {
     if (!newVal) {
       selectedIds.value = []

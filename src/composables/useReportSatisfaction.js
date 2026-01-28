@@ -2,6 +2,18 @@ import { ref, watch, onMounted, onUnmounted } from "vue";
 import { supabase } from "@/lib/supabase";
 import Swal from "sweetalert2";
 
+// ✅ 1. เพิ่ม Polyfill Buffer (สำคัญมากสำหรับ Vite + xlsx-js-style)
+import * as XLSX_Standard from "xlsx";
+if (typeof window !== 'undefined') {
+    if (!window.Buffer) {
+        window.Buffer = function(arg) { return new Uint8Array(arg); };
+        window.Buffer.allocUnsafe = (len) => new Uint8Array(len);
+        window.Buffer.alloc = (len) => new Uint8Array(len);
+        window.Buffer.isBuffer = () => false;
+        window.Buffer.from = (data) => new Uint8Array(data);
+    }
+}
+
 export function useReportSatisfaction() {
   // --- State ---
   const loading = ref(false);
@@ -47,21 +59,21 @@ export function useReportSatisfaction() {
     } else if (filter === 'custom') {
       // Logic Custom Range
       if (!customStart.value || !customEnd.value) return null;
-      
+
       const s = new Date(customStart.value);
       const e = new Date(customEnd.value);
-      
+
       s.setHours(0, 0, 0, 0);
       e.setHours(23, 59, 59, 999);
 
       const diffTime = Math.abs(e - s);
-      const diffMonths = diffTime / (1000 * 60 * 60 * 24 * 30); 
-      
+      const diffMonths = diffTime / (1000 * 60 * 60 * 24 * 30);
+
       if (diffMonths > 4) {
          Swal.fire("ช่วงเวลาเกินกำหนด", "กรุณาเลือกช่วงเวลาไม่เกิน 4 เดือน", "warning");
-         return null; 
+         return null;
       }
-      
+
       return { start: s.toISOString(), end: e.toISOString() };
     } else {
       return null; // 'all'
@@ -98,7 +110,7 @@ export function useReportSatisfaction() {
       let query = supabase
         .from("feedbacks")
         .select(`
-          *, 
+          *,
           locations (
             locations_name,
             locations_building,
@@ -108,7 +120,7 @@ export function useReportSatisfaction() {
         .order("created_at", { ascending: false });
 
       const range = getDateRange(dateFilter.value);
-      
+
       if (dateFilter.value === 'custom' && !range) {
           loading.value = false;
           return;
@@ -219,19 +231,28 @@ export function useReportSatisfaction() {
     };
   };
 
-  // --- 5. Export Excel (แก้ให้ใช้ getDateRange แบบใหม่) ---
+  // --- 5. Export Excel (แก้ไขเพื่อรองรับ Vite + Blob) ---
   const exportToExcel = async () => {
     try {
-      const XLSX = await import("xlsx-js-style");
+      // ✅ 2. Dynamic Import
+      let XLSX;
+      try {
+        const module = await import("xlsx-js-style");
+        XLSX = module.default || module;
+      } catch (e) {
+        console.warn("xlsx-js-style load failed, falling back to standard xlsx");
+        XLSX = XLSX_Standard;
+      }
+
       const now = new Date();
       const range = getDateRange(dateFilter.value);
       let startDate = range ? new Date(range.start) : null;
-      
+
       if (!startDate && feedbacks.value.length > 0) {
         startDate = new Date(feedbacks.value[feedbacks.value.length - 1].created_at);
       }
-      
-      const dateRangeStr = startDate 
+
+      const dateRangeStr = startDate
         ? `ประจำวันที่ ${formatDateTH(startDate)} - ${formatDateTH(range ? range.end : now)}`
         : `ข้อมูลทั้งหมด ณ วันที่ ${formatDateTH(now)}`;
 
@@ -239,7 +260,7 @@ export function useReportSatisfaction() {
         const dateObj = new Date(f.created_at);
         const dateStr = dateObj.toLocaleDateString("th-TH", { year: 'numeric', month: '2-digit', day: '2-digit' });
         const timeStr = dateObj.toLocaleTimeString("th-TH", { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-        
+
         const row = [
           timeStr, dateStr, f.locations?.locations_name || '-', f.locations?.locations_building || '-', f.locations?.locations_floor || '-', f.rating || '-',
         ];
@@ -257,8 +278,8 @@ export function useReportSatisfaction() {
       });
 
       const ws_data = [
-        ["รายงานคะแนนแบบประเมินความพึงพอใจการบริการด้านความสะอาด"], 
-        [dateRangeStr], 
+        ["รายงานคะแนนแบบประเมินความพึงพอใจการบริการด้านความสะอาด"],
+        [dateRangeStr],
         [ "ประทับเวลา", "วัน/เดือน/ปี", "สถานที่", "อาคาร", "ชั้น", "คะแนน\nเฉลี่ย", "คะแนนแต่ละหัวข้อประเมิน", "", "", "", "", "", "", "", "", "", "", "", "", "ข้อเสนอแนะ" ],
         [ "", "", "", "", "", "", ...Object.keys(topicsMap.value).sort((a, b) => Number(a) - Number(b)).map(id => topicsMap.value[id] || `หัวข้อ ${id}`), "" ]
       ];
@@ -271,13 +292,15 @@ export function useReportSatisfaction() {
             for (let C = range.s.c; C <= range.e.c; ++C) {
               const cell_address = XLSX.utils.encode_cell({ r: R, c: C });
               if (!worksheet[cell_address]) continue;
+              if(!worksheet[cell_address].s) worksheet[cell_address].s = {}; // Ensure style obj exists
               worksheet[cell_address].s = {
                 font: { name: "TH Sarabun New", sz: 14 },
                 alignment: { horizontal: "center", vertical: "center", wrapText: true },
                 border: { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } }
               };
               if (R < 4) {
-                 worksheet[cell_address].s.font.normal = true; 
+                 if(!worksheet[cell_address].s.font) worksheet[cell_address].s.font = {};
+                 worksheet[cell_address].s.font.bold = true;
                  worksheet[cell_address].s.fill = { fgColor: { rgb: "EFEFEF" } };
                  if (R === 0) worksheet[cell_address].s.font.sz = 18;
               }
@@ -286,22 +309,30 @@ export function useReportSatisfaction() {
       }
       worksheet['!merges'] = [
         { s: { r: 0, c: 0 }, e: { r: 0, c: 19 } }, { s: { r: 1, c: 0 }, e: { r: 1, c: 19 } }, { s: { r: 2, c: 6 }, e: { r: 2, c: 18 } },
-        { s: { r: 2, c: 0 }, e: { r: 3, c: 0 } }, { s: { r: 2, c: 1 }, e: { r: 3, c: 1 } }, { s: { r: 2, c: 2 }, e: { r: 3, c: 2 } }, 
-        { s: { r: 2, c: 3 }, e: { r: 3, c: 3 } }, { s: { r: 2, c: 4 }, e: { r: 3, c: 4 } }, { s: { r: 2, c: 5 }, e: { r: 3, c: 5 } }, 
-        { s: { r: 2, c: 19 }, e: { r: 3, c: 19 } } 
+        { s: { r: 2, c: 0 }, e: { r: 3, c: 0 } }, { s: { r: 2, c: 1 }, e: { r: 3, c: 1 } }, { s: { r: 2, c: 2 }, e: { r: 3, c: 2 } },
+        { s: { r: 2, c: 3 }, e: { r: 3, c: 3 } }, { s: { r: 2, c: 4 }, e: { r: 3, c: 4 } }, { s: { r: 2, c: 5 }, e: { r: 3, c: 5 } },
+        { s: { r: 2, c: 19 }, e: { r: 3, c: 19 } }
       ];
       worksheet['!cols'] = [{ wch: 12 }, { wch: 15 }, { wch: 20 }, { wch: 10 }, { wch: 8 }, { wch: 10 }, ...Array(13).fill({ wch: 15 }), { wch: 45 }];
       worksheet['!rows'] = [{ hpt: 35 }, { hpt: 30 }, { hpt: 25 }];
+
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Feedback Report");
-      XLSX.writeFile(workbook, `Feedback_Report_${new Date().toISOString().slice(0,10)}.xlsx`);
-      // สร้างชื่อไฟล์
+
       const fileName = `Feedback_Report_${new Date().toISOString().slice(0,10)}.xlsx`;
-      
-      // สั่งดาวน์โหลด
-      XLSX.writeFile(workbook, fileName);
-      
-      // ✅✅✅ เพิ่มบรรทัดนี้: ส่งชื่อไฟล์กลับไปให้หน้าเว็บรู้
+
+      // ✅ 3. Manual Download (Blob) เพื่อแก้ปัญหา fs error
+      const wbout = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+      const blob = new Blob([wbout], { type: 'application/octet-stream' });
+      const url = window.URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = fileName;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      window.URL.revokeObjectURL(url);
+
       return fileName;
     } catch (error) {
       console.error("Export Failed:", error);
@@ -321,9 +352,9 @@ export function useReportSatisfaction() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'feedbacks' },
-        () => { 
+        () => {
             // เมื่อมีข้อมูลใหม่ ให้โหลดข้อมูลซ้ำทันที
-            fetchData(); 
+            fetchData();
         }
       )
       .subscribe();
@@ -348,7 +379,7 @@ export function useReportSatisfaction() {
     await fetchTopics();
     await fetchData();
     // 🔥 บรรทัดนี้สำคัญมาก ห้ามหาย!
-    subscribeRealtime(); 
+    subscribeRealtime();
   });
 
   onUnmounted(() => {

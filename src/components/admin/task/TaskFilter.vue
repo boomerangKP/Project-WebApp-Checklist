@@ -201,7 +201,7 @@ onUnmounted(() => window.removeEventListener("click", handleClickOutside));
 </script>
 
 <template>
-  <div class="flex flex-col gap-4 rounded-xl border border-gray-200 bg-white dark:border-slate-700 shadow-sm">
+  <div class="flex flex-col rounded-xl border border-gray-200 bg-white dark:bg-slate-800 dark:border-slate-700 shadow-sm">
     <div
       class="flex flex-col md:flex-row md:items-center justify-between gap-3  p-2  transition-colors duration-300 "
     >
@@ -296,7 +296,7 @@ onUnmounted(() => window.removeEventListener("click", handleClickOutside));
               "
             >
               <CheckSquare class="w-4 h-4" />
-              <span class="hidden sm:inline">{{
+              <span class=" sm:inline">{{
                 isSelectionMode ? "ยกเลิก" : "เลือกรายการ"
               }}</span>
             </button>
@@ -311,7 +311,7 @@ onUnmounted(() => window.removeEventListener("click", handleClickOutside));
                 class="w-4 h-4"
                 :class="isAllSelected ? 'text-indigo-600 dark:text-indigo-400' : ''"
               />
-              <span class="hidden sm:inline">ทั้งหมด</span>
+              <span class=" sm:inline">ทั้งหมด</span>
             </button>
           </div>
         </div>

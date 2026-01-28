@@ -4,29 +4,34 @@ import 'dayjs/locale/th'
 
 export function useJobChecks() {
   
-  // 1. ฟังก์ชันหา Slot เวลาปัจจุบัน
+  // 1. ฟังก์ชันหา Slot เวลาปัจจุบัน จากตาราง time_slots
   const getCurrentTimeSlot = async () => {
-    const now = dayjs().format('HH:mm:ss')
+    const now = dayjs().format('HH:mm:ss') // จะได้รูปแบบ "14:30:00" ตรงกับ Database
+    
     const { data } = await supabase
       .from('time_slots')
       .select('*')
-      .lte('time_slots_start', now)
-      .gt('time_slots_end', now)
+      .lte('time_slots_start', now) // เวลาเริ่ม ต้องน้อยกว่าหรือเท่ากับ ปัจจุบัน
+      .gt('time_slots_end', now)    // เวลาจบ ต้องมากกว่า ปัจจุบัน
       .single()
+      
     return data
   }
 
   // 2. ฟังก์ชันเช็คงานซ้ำ (Core Logic)
-  // คืนค่าทั้งข้อมูลงานที่ซ้ำ และข้อมูลเวลาที่ใช้เช็ค
   const checkExistingSession = async (locationId) => {
     const currentSlot = await getCurrentTimeSlot()
     
-    // ถ้าไม่มี Slot (นอกเวลา) ให้ใช้เวลาปัจจุบันเป็นตัวตั้ง
-    const slotStartTime = currentSlot ? currentSlot.time_slots_start : dayjs().format('HH:mm:ss')
+    // ✅ Logic เวลา:
+    // - ถ้าเจอ Slot ใน DB: ใช้เวลาเริ่มของ Slot นั้น (เช่น "07:00:00") เป็นตัวเช็ค
+    // - ถ้าไม่เจอ (นอกเวลา): ใช้ "ต้นชั่วโมง" ปัจจุบัน (เช่น "19:00:00") เป็นตัวเช็ค เพื่อกัน Spam
+    const slotStartTime = currentSlot 
+      ? currentSlot.time_slots_start 
+      : dayjs().startOf('hour').format('HH:mm:ss')
+
     const todayStr = dayjs().format('YYYY-MM-DD')
 
-    // Query ไปยัง Database
-    // ✅ จุดสำคัญ: ระบุ FK Constraint ชัดเจน (!check_sessions_employees_id_fkey) เพื่อไม่ให้ Supabase งง
+    // Query หาว่าใน "วันและรอบเวลานี้" มีการส่งงานหรือยัง
     const { data } = await supabase
       .from('check_sessions')
       .select(`
@@ -43,14 +48,14 @@ export function useJobChecks() {
       `)
       .eq('locations_id', locationId)
       .eq('check_sessions_date', todayStr)
-      // .eq('check_sessions_time_start', slotStartTime)
+      .eq('check_sessions_time_start', slotStartTime) // ✅ เช็คเจาะจงรอบเวลา
       .maybeSingle()
 
     return { 
-      existingSession: data, // ข้อมูลงานที่เจอ (หรือ null ถ้าไม่เจอ)
-      currentSlot,           // ข้อมูล Slot ปัจจุบัน
-      slotStartTime,         // เวลาเริ่มงานของ Slot นี้ (เอาไปใช้ตอน Insert)
-      todayStr               // วันที่ (เอาไปใช้ตอน Insert)
+      existingSession: data, 
+      currentSlot,           
+      slotStartTime,         
+      todayStr               
     }
   }
 
