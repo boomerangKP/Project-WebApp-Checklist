@@ -24,7 +24,7 @@ const isSidebarOpen = ref(false);
       <AdminHeader @toggle-sidebar="isSidebarOpen = !isSidebarOpen" />
 
       <main
-        class="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 dark:bg-slate-900 p-6 relative transition-colors duration-300"
+        class="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 dark:bg-slate-900 p-6 relative transition-colors duration-300 w-full"
       >
         <router-view v-slot="{ Component }">
           <transition name="fade" mode="out-in">

@@ -57,7 +57,7 @@ const onLinkClick = () => {
 const menuItems = [
   { name: "แดชบอร์ด", path: "/admin", icon: LayoutDashboard }, // โชว์ตลอด
 
-  { name: "ตรวจสอบงาน", path: "/admin/check", icon: ClipboardList, desktopOnly: true }, // ❌ ซ่อนบนมือถือ
+  { name: "ตรวจสอบงาน", path: "/admin/check", icon: ClipboardList }, // ❌ ซ่อนบนมือถือ desktopOnly: true
   {
     name: "ข้อมูลพนักงาน",
     path: "/admin/employees",

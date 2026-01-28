@@ -201,9 +201,9 @@ onUnmounted(() => window.removeEventListener("click", handleClickOutside));
 </script>
 
 <template>
-  <div class="flex flex-col gap-4">
+  <div class="flex flex-col gap-4 rounded-xl border border-gray-200 bg-white dark:border-slate-700 shadow-sm">
     <div
-      class="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-white dark:bg-slate-800 p-2 rounded-xl border border-gray-200 dark:border-slate-700 shadow-sm transition-colors duration-300"
+      class="flex flex-col md:flex-row md:items-center justify-between gap-3  p-2  transition-colors duration-300 "
     >
       <div
         class="flex overflow-x-auto custom-scrollbar gap-2 flex-1 min-w-0 items-center pb-1 md:pb-0"
@@ -319,7 +319,7 @@ onUnmounted(() => window.removeEventListener("click", handleClickOutside));
     </div>
 
     <div
-      class="grid grid-cols-1 md:grid-cols-12 gap-3 bg-white dark:bg-slate-800 p-3 rounded-xl border border-gray-200 dark:border-slate-700 shadow-sm items-center transition-colors duration-300"
+      class="grid grid-cols-1 md:grid-cols-12 gap-3  p-3 items-center transition-colors duration-300"
     >
       <div
         class="md:col-span-6 lg:col-span-6 flex flex-col sm:flex-row items-stretch sm:items-center gap-2"
@@ -327,7 +327,7 @@ onUnmounted(() => window.removeEventListener("click", handleClickOutside));
         <div class="relative custom-dropdown-container shrink-0">
           <button
             @click="toggleDropdown('date')"
-            class="h-10 px-3 w-full sm:w-auto rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs font-medium text-gray-700 dark:text-gray-200 flex items-center justify-between sm:justify-start gap-2 hover:border-indigo-500 transition-colors shadow-sm"
+            class="h-10 px-3 w-full sm:w-auto rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs font-medium text-gray-700 dark:text-gray-200 flex items-center justify-between sm:justify-start gap-2 hover:border-indigo-500 transition-colors"
             :class="{
               'ring-2 ring-indigo-500 border-indigo-500': activeDropdown === 'date',
             }"
