@@ -227,15 +227,15 @@ onUnmounted(() => {
       <Bell class="w-6 h-6" />
       <span
         v-if="unreadCount > 0"
-        class="absolute top-0 right-0 flex h-4 w-4 transform translate-x-1 -translate-y-1"
+        class="absolute top-0 right-0 flex transform translate-x-1 -translate-y-1"
       >
         <span
           class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"
         ></span>
         <span
-          class="relative inline-flex rounded-full h-4 w-4 bg-red-500 text-[10px] text-white justify-center items-center font-bold shadow-sm border border-white dark:border-slate-800"
+          class="relative inline-flex rounded-full h-4 min-w-[1rem] w-auto px-1 bg-red-500 text-[10px] text-white justify-center items-center font-bold shadow-sm border border-white dark:border-slate-800"
         >
-          {{ unreadCount > 9 ? "9+" : unreadCount }}
+          {{ unreadCount > 999 ? "999+" : unreadCount }}
         </span>
       </span>
     </button>

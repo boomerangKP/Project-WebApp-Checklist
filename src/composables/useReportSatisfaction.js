@@ -2,7 +2,8 @@ import { ref, watch, onMounted, onUnmounted } from "vue";
 import { supabase } from "@/lib/supabase";
 import Swal from "sweetalert2";
 
-// ✅ 1. เพิ่ม Polyfill Buffer (สำคัญมากสำหรับ Vite + xlsx-js-style)
+// ✅ 1. เพิ่ม Polyfill Buffer (จำเป็นสำหรับ xlsx-js-style บน Vite)
+// ต้องวางไว้บนสุด เพื่อให้ทำงานก่อน Library จะถูกโหลด
 import * as XLSX_Standard from "xlsx";
 if (typeof window !== 'undefined') {
     if (!window.Buffer) {
@@ -42,9 +43,9 @@ export function useReportSatisfaction() {
   const getDateRange = (filter) => {
     const now = new Date();
     const start = new Date();
-    const end = new Date(); // ✅ แก้ไข: ให้ end เป็นตัวแปรที่ปรับค่าได้
+    const end = new Date(); 
 
-    // ✅ ตั้งค่า end ให้เป็น "จบวัน" เสมอ (แก้ปัญหา Realtime ไม่ขึ้นเพราะเวลาเครื่องช้ากว่า Server)
+    // ✅ ตั้งค่า end ให้เป็น "จบวัน" เสมอ
     end.setHours(23, 59, 59, 999);
 
     if (filter === 'today') {
@@ -103,7 +104,7 @@ export function useReportSatisfaction() {
 
   // --- 2. Fetch Data ---
   const fetchData = async () => {
-    // ถ้ามีข้อมูลอยู่แล้ว (เช่น Realtime update) ไม่ต้องขึ้น Loading หมุนๆ ให้รำคาญตา
+    // ถ้ามีข้อมูลอยู่แล้ว ไม่ต้องขึ้น Loading
     if (feedbacks.value.length === 0) loading.value = true;
 
     try {
@@ -144,7 +145,7 @@ export function useReportSatisfaction() {
     }
   };
 
-  // --- 3. Calculate Stats (คงเดิม) ---
+  // --- 3. Calculate Stats ---
   const calculateStats = (data) => {
     if (!data.length) {
       stats.value = { totalReviews: 0, averageRating: "0.0", topTopic: "-", topScore: "0.0", lowTopic: "-", lowScore: "0.0" };
@@ -183,7 +184,7 @@ export function useReportSatisfaction() {
     };
   };
 
-  // --- 4. Generate Charts (คงเดิม) ---
+  // --- 4. Generate Charts ---
   const generateCharts = (data) => {
     const dateMap = {};
     data.forEach(item => {
@@ -231,7 +232,7 @@ export function useReportSatisfaction() {
     };
   };
 
-  // --- 5. Export Excel (แก้ไขเพื่อรองรับ Vite + Blob) ---
+  // --- 5. Export Excel ---
   const exportToExcel = async () => {
     try {
       // ✅ 2. Dynamic Import
@@ -292,7 +293,7 @@ export function useReportSatisfaction() {
             for (let C = range.s.c; C <= range.e.c; ++C) {
               const cell_address = XLSX.utils.encode_cell({ r: R, c: C });
               if (!worksheet[cell_address]) continue;
-              if(!worksheet[cell_address].s) worksheet[cell_address].s = {}; // Ensure style obj exists
+              if(!worksheet[cell_address].s) worksheet[cell_address].s = {}; 
               worksheet[cell_address].s = {
                 font: { name: "TH Sarabun New", sz: 14 },
                 alignment: { horizontal: "center", vertical: "center", wrapText: true },
@@ -321,7 +322,9 @@ export function useReportSatisfaction() {
 
       const fileName = `Feedback_Report_${new Date().toISOString().slice(0,10)}.xlsx`;
 
-      // ✅ 3. Manual Download (Blob) เพื่อแก้ปัญหา fs error
+      // 🚫 ลบ: XLSX.writeFile(workbook, fileName); (ตัวต้นเหตุ Error fs/buffer)
+      
+      // ✅ 3. Manual Download (Blob) เพื่อแก้ปัญหา fs error แบบชัวร์ๆ
       const wbout = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
       const blob = new Blob([wbout], { type: 'application/octet-stream' });
       const url = window.URL.createObjectURL(blob);
@@ -341,19 +344,16 @@ export function useReportSatisfaction() {
     }
   };
 
-  // --- Realtime Subscription (เช็คดีๆ ว่าฟังก์ชันนี้ต้องอยู่และถูกเรียก) ---
+  // --- Realtime Subscription ---
   const subscribeRealtime = () => {
-    // 1. ล้าง Channel เก่าทิ้ง
     if (realtimeChannel.value) supabase.removeChannel(realtimeChannel.value);
 
-    // 2. สร้าง Channel ใหม่
     realtimeChannel.value = supabase
       .channel('public:feedbacks')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'feedbacks' },
         () => {
-            // เมื่อมีข้อมูลใหม่ ให้โหลดข้อมูลซ้ำทันที
             fetchData();
         }
       )
@@ -362,7 +362,6 @@ export function useReportSatisfaction() {
 
   // Watchers
   watch(dateFilter, (newVal) => {
-      // ถ้าเลือก custom ไม่ต้องโหลด (รอ user กดปุ่มค้นหา)
       if (newVal !== 'custom') {
           fetchData();
       }
@@ -378,7 +377,6 @@ export function useReportSatisfaction() {
   onMounted(async () => {
     await fetchTopics();
     await fetchData();
-    // 🔥 บรรทัดนี้สำคัญมาก ห้ามหาย!
     subscribeRealtime();
   });
 

@@ -39,13 +39,16 @@ const handleExport = async () => {
     });
     return;
   }
+  const startDateTh = startDateObj.toLocaleDateString("th-TH", { dateStyle: "long" });
+  const endDateTh = endDateObj.toLocaleDateString("th-TH", { dateStyle: "long" });
 
   const confirmResult = await Swal.fire({
     title: "ยืนยันการดาวน์โหลด?",
-    text: `ต้องการดาวน์โหลดรายงานตั้งแต่วันที่ ${startDateObj.toLocaleDateString(
-      "th-TH",
-      { dateStyle: "long" }
-    )} ถึง ${endDateObj.toLocaleDateString("th-TH", { dateStyle: "long" })} ใช่หรือไม่?`,
+    html: `
+      ต้องการดาวน์โหลดรายงานตั้งแต่วันที่ <br/>
+      <b class="text-indigo-600 dark:text-indigo-400">${startDateTh}</b> ถึง <b class="text-indigo-600 dark:text-indigo-400">${endDateTh}</b> <br/>
+      ใช่หรือไม่?
+    `,
     icon: "question",
     showCancelButton: true,
     confirmButtonText: "ใช่, ดาวน์โหลด",
