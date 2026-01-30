@@ -1,6 +1,6 @@
 <script setup>
 import { ref } from "vue";
-import { X, Loader2, Printer, Phone, Mail, MessageCircle } from "lucide-vue-next";
+import { X, Loader2, Printer, LayoutGrid, Columns } from "lucide-vue-next"; // เอา RectangleVertical ออก
 import princLogo from "@/assets/logo-header.png";
 import { usePrintQR } from "@/composables/usePrintQR";
 
@@ -17,8 +17,11 @@ const emit = defineEmits(["close", "confirm"]);
 const printableContent = ref(null);
 const { printContent } = usePrintQR();
 
+// ✅ 1. ตั้งค่า Default เป็น 3 (เหมือนเดิม)
+const gridColumns = ref(3);
+
 const handlePrint = () => {
-  printContent(printableContent.value);
+  printContent(printableContent.value, gridColumns.value);
 };
 </script>
 
@@ -41,6 +44,28 @@ const handlePrint = () => {
             จำนวน {{ selectedCount }} รายการ
           </p>
         </div>
+
+        <div class="flex items-center gap-2 bg-white dark:bg-slate-800 p-1 rounded-lg border border-gray-200 dark:border-slate-700 mx-4">
+            <button 
+                @click="gridColumns = 2"
+                class="p-2 rounded-md transition-all flex items-center gap-2 text-sm font-medium"
+                :class="gridColumns === 2 ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400 shadow-sm' : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-700'"
+                title="2 คอลัมน์"
+            >
+                <Columns class="w-4 h-4" />
+                <span class="hidden sm:inline">2 คอลัมน์</span>
+            </button>
+            <button 
+                @click="gridColumns = 3"
+                class="p-2 rounded-md transition-all flex items-center gap-2 text-sm font-medium"
+                :class="gridColumns === 3 ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400 shadow-sm' : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-700'"
+                title="3 คอลัมน์"
+            >
+                <LayoutGrid class="w-4 h-4" />
+                <span class="hidden sm:inline">3 คอลัมน์</span>
+            </button>
+        </div>
+
         <button
           @click="$emit('close')"
           class="p-2 hover:bg-gray-200 dark:hover:bg-slate-700 rounded-full text-gray-500 dark:text-slate-400 transition-colors"
@@ -65,7 +90,11 @@ const handlePrint = () => {
         <div
           v-else
           ref="printableContent"
-          class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full max-w-[21cm] mx-auto bg-white p-8 shadow-sm"
+          class="grid gap-6 w-full max-w-[21cm] mx-auto bg-white p-8 shadow-sm transition-all duration-300"
+          :class="{
+              'grid-cols-2': gridColumns === 2,
+              'grid-cols-3': gridColumns === 3
+          }"
         >
           <div
             v-for="loc in selectedLocations"
@@ -90,8 +119,13 @@ const handlePrint = () => {
               >
                 SCAN
               </div>
+              
               <div
-                class="qr-box w-[100px] h-[100px] border border-gray-900 p-1 flex items-center justify-center mt-2"
+                class="qr-box border border-gray-900 p-1 flex items-center justify-center mt-2 transition-all duration-300"
+                :class="{
+                    'w-[100px] h-[100px]': gridColumns === 3,
+                    'w-[140px] h-[140px]': gridColumns === 2
+                }"
               >
                 <img
                   v-if="qrDataUrls[loc.locations_id]"
@@ -174,7 +208,6 @@ const handlePrint = () => {
   border-radius: 10px;
 }
 
-/* ✅ Dark Mode Scrollbar */
 :global(.dark) .custom-scrollbar::-webkit-scrollbar-thumb {
   background: #475569;
 }

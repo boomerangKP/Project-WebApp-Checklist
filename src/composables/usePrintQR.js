@@ -2,7 +2,8 @@
 
 export function usePrintQR() {
   
-  const printContent = (contentRef) => {
+  // ✅ เพิ่ม Parameter columns (default = 3) เพื่อรับค่าจำนวนคอลัมน์
+  const printContent = (contentRef, columns = 3) => {
     if (!contentRef) return;
 
     // 1. สร้าง Iframe (ซ่อนไว้นอกจอ)
@@ -30,7 +31,7 @@ export function usePrintQR() {
             /* --- 1. Global Reset & Page Setup --- */
             * { box-sizing: border-box; }
             
-            /* ✅ แก้ไข: ย้าย Margin มาที่ @page เพื่อให้มีผลทุกหน้า (1, 2, 3...) */
+            /* ย้าย Margin มาที่ @page เพื่อให้มีผลทุกหน้า (1, 2, 3...) */
             @page { 
               size: A4 portrait; 
               margin: 10mm; /* เว้นขอบ 1cm ทุกด้าน ทุกหน้า */
@@ -46,11 +47,11 @@ export function usePrintQR() {
               print-color-adjust: exact;
             }
 
-            /* --- 2. Grid Layout (3 คอลัมน์) --- */
+            /* --- 2. Grid Layout (ปรับตาม columns ที่ส่งมา) --- */
             .print-grid-layout {
               display: grid;
-              /* ใช้ 1fr เพื่อให้แบ่งช่องเท่าๆ กันตามพื้นที่กระดาษจริง */
-              grid-template-columns: repeat(3, 1fr); 
+              /* ✅ ใช้ค่า columns ที่รับมา */
+              grid-template-columns: repeat(${columns}, 1fr); 
               column-gap: 5mm; /* ช่องว่างแนวตั้ง */
               row-gap: 5mm;    /* ช่องว่างแนวนอน */
               width: 100%;
@@ -109,8 +110,8 @@ export function usePrintQR() {
             }
             /* กล่องสี่เหลี่ยม QR */
             .sticker-card > div:nth-child(2) > div:last-child {
-               width: 2.8cm !important;  /* ✅ ล็อคกว้าง 2.8cm */
-               height: 2.8cm !important; /* ✅ ล็อคสูง 2.8cm */
+               width: 2.8cm !important;  /* ล็อคกว้าง 2.8cm */
+               height: 2.8cm !important; /* ล็อคสูง 2.8cm */
                border: 1px solid #000;
                display: flex; align-items: center; justify-content: center;
                margin-top: 5px;
@@ -129,8 +130,8 @@ export function usePrintQR() {
             h2 { 
                 font-size: 10pt !important; 
                 font-weight: bold; 
-                margin: 0 0 2px 0; /* ✅ เพิ่มระยะห่างด้านล่าง 4px */
-                line-height: 1.4;  /* ✅ เพิ่มความสูงบรรทัดเป็น 1.4 (สระจะไม่ทับ) */
+                margin: 0 0 2px 0; /* เพิ่มระยะห่างด้านล่าง 4px */
+                line-height: 1.4;  /* เพิ่มความสูงบรรทัดเป็น 1.4 (สระจะไม่ทับ) */
                 text-align: center; 
                 color: #000;
             }
@@ -138,7 +139,7 @@ export function usePrintQR() {
             /* รองหัวข้อ: ประเมินความสะอาด */
             p { 
                 font-size: 8pt !important; 
-                margin: 0 0 6px 0; /* ✅ เพิ่มระยะห่างด้านล่าง 6px (ก่อนขึ้นชั้น/อาคาร) */
+                margin: 0 0 6px 0; /* เพิ่มระยะห่างด้านล่าง 6px (ก่อนขึ้นชั้น/อาคาร) */
                 color: #555; 
                 text-align: center; 
             }
@@ -156,8 +157,8 @@ export function usePrintQR() {
             .sticker-card > div:nth-child(3) > div { 
                 font-size: 11pt !important; 
                 font-weight: bold; 
-                line-height: 1.4;    /* ✅ เพิ่มความสูงบรรทัด */
-                margin-bottom: 2px;  /* ✅ เว้นระยะห่างจากชื่อห้องนิดนึง */
+                line-height: 1.4;    /* เพิ่มความสูงบรรทัด */
+                margin-bottom: 2px;  /* เว้นระยะห่างจากชื่อห้องนิดนึง */
                 margin-top: 4px;
                 color: #000;
             }
