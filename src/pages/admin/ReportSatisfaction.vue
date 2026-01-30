@@ -3,7 +3,6 @@ import { ref, computed, watch } from "vue";
 import {
   FileSpreadsheet,
   Loader2,
-  Heart,
   Calendar as CalendarIcon,
   ArrowRight,
   Search,
@@ -11,14 +10,13 @@ import {
   Check,
 } from "lucide-vue-next";
 import { useReportSatisfaction } from "@/composables/useReportSatisfaction";
-import { useSwal } from "@/composables/useSwal"; // ✅ 1. เปลี่ยน import
+import { useSwal } from "@/composables/useSwal";
 
 // Components
 import StatsCards from "@/components/admin/report/StatsCards.vue";
 import FeedbackCharts from "@/components/admin/report/FeedbackCharts.vue";
 import RecentFeedbackTable from "@/components/admin/report/RecentFeedbackTable.vue";
 
-// ✅ 2. เรียกใช้ Swal ธีม Dark Mode
 const { Swal } = useSwal();
 
 const {
@@ -33,6 +31,37 @@ const {
   topicChartData,
   exportToExcel,
 } = useReportSatisfaction();
+
+// --- Helper: คำนวณช่วงวันที่จริงเพื่อใช้แสดงใน Popup ---
+const getActualDateRange = () => {
+  const now = new Date();
+  let start = new Date();
+  let end = new Date();
+
+  // Logic เดียวกับ Backend แต่เอามาใช้แสดงผล
+  if (dateFilter.value === 'today') {
+    start.setHours(0, 0, 0, 0);
+  } else if (dateFilter.value === 'week') {
+    const day = start.getDay() || 7;
+    if (day !== 1) start.setHours(-24 * (day - 1));
+    start.setHours(0, 0, 0, 0);
+  } else if (dateFilter.value === 'month') {
+    start.setDate(1);
+    start.setHours(0, 0, 0, 0);
+  } else if (dateFilter.value === 'custom') {
+    if (customStart.value) start = new Date(customStart.value);
+    if (customEnd.value) end = new Date(customEnd.value);
+  }
+
+  // ป้องกัน Error กรณีวันที่ไม่ถูกต้อง
+  if (isNaN(start.getTime())) start = new Date();
+  if (isNaN(end.getTime())) end = new Date();
+
+  return {
+    startStr: start.toLocaleDateString("th-TH", { dateStyle: "long" }),
+    endStr: end.toLocaleDateString("th-TH", { dateStyle: "long" })
+  };
+};
 
 // --- Calendar Logic ---
 const startInputRef = ref(null);
@@ -89,18 +118,21 @@ const confirmExport = () => {
     return;
   }
 
-  const filterText = selectedFilterLabel.value;
+  // ✅ เรียกฟังก์ชันคำนวณวันที่จริง
+  const { startStr, endStr } = getActualDateRange();
 
-  // ✅ 3. ใช้ Swal ที่รองรับ Dark Mode (ตัดสี Hardcode ออก)
   Swal.fire({
     title: "ยืนยันการดาวน์โหลด?",
-    // ปรับ HTML class ให้รองรับ Dark Mode
-    html: `คุณต้องการดาวน์โหลดรายงาน <b>"${filterText}"</b> <br/> จำนวนทั้งสิ้น <b class="text-emerald-600 dark:text-emerald-400 text-lg">${count}</b> รายการ`,
+    // ✅ แสดงข้อความตาม Format ที่ต้องการ
+    html: `
+      ต้องการดาวน์โหลดรายงานตั้งแต่วันที่ <br/>
+      <b class="text-indigo-600 dark:text-indigo-400">${startStr}</b> ถึง <b class="text-indigo-600 dark:text-indigo-400">${endStr}</b> <br/><br/>
+      จำนวนทั้งสิ้น <b class="text-emerald-600 dark:text-emerald-400 text-lg">${count}</b> รายการ
+    `,
     icon: "question",
     showCancelButton: true,
     confirmButtonText: "ใช่, ดาวน์โหลดเลย",
     cancelButtonText: "ยกเลิก",
-    // ลบ confirmButtonColor/cancelButtonColor ออก เพื่อให้ Theme กลางจัดการสีให้ (จะเป็นสีฟ้าตามธีม หรือถ้าอยากได้สีเขียวต้อง override class เอง)
   }).then(async (result) => {
     if (result.isConfirmed) {
       isExporting.value = true;
@@ -109,14 +141,15 @@ const confirmExport = () => {
       const fileName = await exportToExcel();
 
       isExporting.value = false;
-
-      Swal.fire({
-        icon: "success",
-        title: "ดาวน์โหลดเรียบร้อย!",
-        text: `ไฟล์ ${fileName} ถูกบันทึกลงในเครื่องของคุณแล้ว`,
-        timer: 2000,
-        showConfirmButton: false,
-      });
+      if (fileName) {
+          Swal.fire({
+            icon: "success",
+            title: "ดาวน์โหลดเรียบร้อย!",
+            text: `ไฟล์ ${fileName} ถูกบันทึกลงในเครื่องของคุณแล้ว`,
+            timer: 2000,
+            showConfirmButton: false,
+          });
+      }
     }
   });
 };
@@ -126,9 +159,7 @@ const confirmExport = () => {
   <div class="space-y-6 pb-10">
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
       <div>
-        <h1
-          class="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2"
-        >
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
           รายงานความพึงพอใจ
         </h1>
         <p class="text-gray-500 dark:text-slate-400 text-sm mt-1">
@@ -169,20 +200,11 @@ const confirmExport = () => {
                 "
               >
                 {{ option.label }}
-
-                <Check
-                  v-if="dateFilter === option.value"
-                  class="w-4 h-4 text-indigo-600 dark:text-indigo-400"
-                />
+                <Check v-if="dateFilter === option.value" class="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
               </button>
             </div>
           </div>
-
-          <div
-            v-if="isFilterOpen"
-            @click="isFilterOpen = false"
-            class="fixed inset-0 z-10"
-          />
+          <div v-if="isFilterOpen" @click="isFilterOpen = false" class="fixed inset-0 z-10" />
         </div>
 
         <div
@@ -190,45 +212,25 @@ const confirmExport = () => {
           class="flex items-center gap-2 bg-white dark:bg-slate-800 p-1 rounded-lg border border-gray-200 dark:border-slate-700 shadow-sm animate-in fade-in slide-in-from-right-4 h-10"
         >
           <div class="relative group cursor-pointer h-full" @click="openStartCalendar">
-            <div
-              class="flex items-center gap-2 bg-gray-50 dark:bg-slate-900 hover:bg-gray-100 dark:hover:bg-slate-800 border border-transparent hover:border-indigo-200 dark:hover:border-indigo-700 rounded px-3 h-full transition-all"
-            >
+            <div class="flex items-center gap-2 bg-gray-50 dark:bg-slate-900 hover:bg-gray-100 dark:hover:bg-slate-800 border border-transparent hover:border-indigo-200 dark:hover:border-indigo-700 rounded px-3 h-full transition-all">
               <CalendarIcon class="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
-              <span
-                class="text-xs font-medium text-gray-700 dark:text-white min-w-[70px] text-center whitespace-nowrap"
-              >
+              <span class="text-xs font-medium text-gray-700 dark:text-white min-w-[70px] text-center whitespace-nowrap">
                 {{ displayThaiDate(customStart) }}
               </span>
             </div>
-
-            <input
-              ref="startInputRef"
-              type="date"
-              v-model="customStart"
-              class="absolute bottom-0 left-0 w-0 h-0 opacity-0 pointer-events-none"
-            />
+            <input ref="startInputRef" type="date" v-model="customStart" class="absolute bottom-0 left-0 w-0 h-0 opacity-0 pointer-events-none" />
           </div>
 
           <ArrowRight class="w-3 h-3 text-gray-300 dark:text-slate-600" />
 
           <div class="relative group cursor-pointer h-full" @click="openEndCalendar">
-            <div
-              class="flex items-center gap-2 bg-gray-50 dark:bg-slate-900 hover:bg-gray-100 dark:hover:bg-slate-800 border border-transparent hover:border-indigo-200 dark:hover:border-indigo-700 rounded px-3 h-full transition-all"
-            >
+            <div class="flex items-center gap-2 bg-gray-50 dark:bg-slate-900 hover:bg-gray-100 dark:hover:bg-slate-800 border border-transparent hover:border-indigo-200 dark:hover:border-indigo-700 rounded px-3 h-full transition-all">
               <CalendarIcon class="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
-              <span
-                class="text-xs font-medium text-gray-700 dark:text-white min-w-[70px] text-center whitespace-nowrap"
-              >
+              <span class="text-xs font-medium text-gray-700 dark:text-white min-w-[70px] text-center whitespace-nowrap">
                 {{ displayThaiDate(customEnd) }}
               </span>
             </div>
-
-            <input
-              ref="endInputRef"
-              type="date"
-              v-model="customEnd"
-              class="absolute bottom-0 left-0 w-0 h-0 opacity-0 pointer-events-none"
-            />
+            <input ref="endInputRef" type="date" v-model="customEnd" class="absolute bottom-0 left-0 w-0 h-0 opacity-0 pointer-events-none" />
           </div>
 
           <button

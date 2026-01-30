@@ -14,6 +14,7 @@ const CHECK_WIDTH = 1024;
 const ALLOWED_MOBILE_PAGES = [
   "admin-dashboard",
   "task-detail",
+  "check-tasks",
   // "check-tasks-scan" // เผื่อมีหน้าสแกน QR
 ];
 
