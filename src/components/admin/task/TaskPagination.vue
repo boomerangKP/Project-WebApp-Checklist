@@ -29,9 +29,9 @@ defineEmits(["update:itemsPerPage", "changePage"]);
           @change="$emit('update:itemsPerPage', Number($event.target.value))"
           class="border border-gray-300 dark:border-slate-600 rounded-lg px-2 py-1 bg-white dark:bg-slate-700 text-gray-700 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-colors"
         >
-          <option :value="10">10</option>
-          <option :value="20">20</option>
-          <option :value="50">50</option>
+          <option :value="100">100</option>
+          <option :value="200">200</option>
+          <option :value="500">500</option>
         </select>
         <span class="text-gray-500 dark:text-slate-400 hidden sm:inline"
           >รายการ/หน้า</span
