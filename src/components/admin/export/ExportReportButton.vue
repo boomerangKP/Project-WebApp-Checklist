@@ -19,7 +19,7 @@ const { Swal } = useSwal();
 const isExporting = ref(false);
 
 const handleExport = async () => {
-  // 1. Validation
+  // 1. Validation (คงเดิม)
   const start =
     props.startDate ||
     new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
@@ -70,11 +70,7 @@ const handleExport = async () => {
       XLSX = XLSX_Standard;
     }
 
-    const startDateTh = startDateObj.toLocaleDateString("th-TH", { dateStyle: "long" });
-    const endDateTh = endDateObj.toLocaleDateString("th-TH", { dateStyle: "long" });
-
-    // 2. Fetch Data
-    // ✅ สำคัญ: ต้องเรียง ascending: true (เก่าไปใหม่) เพื่อให้นับ 1, 2, 3 ได้ถูกต้อง
+    // 2. Fetch Data (คงเดิม)
     const { data: rawLogs, error } = await supabase
       .from("check_sessions")
       .select(
@@ -103,7 +99,7 @@ const handleExport = async () => {
       )
       .gte("created_at", start)
       .lte("created_at", end)
-      .order("created_at", { ascending: true }); // เก่า -> ใหม่
+      .order("created_at", { ascending: true });
 
     if (error) throw error;
     if (!rawLogs || rawLogs.length === 0) {
@@ -112,12 +108,13 @@ const handleExport = async () => {
     }
 
     // ------------------------------------------------------------------
-    // ✅ LOGIC การนับครั้ง (Round Calculator)
+    // ✅ 3. Process Data (ปรับใหม่ให้ตรงตามภาพ)
     // ------------------------------------------------------------------
-    const roundTracker = {}; // เก็บสถานะการนับ: { "วันที่_สถานที่_กะ": จำนวนครั้ง }
+    const roundTracker = {};
+    const rows = [];
 
     rawLogs.forEach(log => {
-        // 1. ระบุกะ (ตัดที่ 12:00 น.)
+        // คำนวณกะและรอบ (คงเดิม)
         let isMorning = true;
         const createdAt = new Date(log.created_at);
         if (log.time_slots && log.time_slots.time_slots_start) {
@@ -127,123 +124,116 @@ const handleExport = async () => {
             isMorning = createdAt.getHours() < 12;
         }
 
-        // 2. สร้าง Key เพื่อแยกกลุ่มนับ
-        // Key นี้จะทำให้ เช้า กับ บ่าย แยกกันนับคนละกอง (บ่ายเริ่ม 1 ใหม่)
         const shiftKey = isMorning ? 'M' : 'A';
         const groupKey = `${log.check_sessions_date}_${log.locations_id}_${shiftKey}`;
 
-        // 3. เริ่มนับ
         if (!roundTracker[groupKey]) {
             roundTracker[groupKey] = 0;
         }
-        roundTracker[groupKey]++; // เพิ่มลำดับทีละ 1
+        roundTracker[groupKey]++;
 
-        // 4. แปะค่าที่คำนวณได้ ใส่กลับไปใน object
-        log.calculated_round = roundTracker[groupKey];
-        log.is_morning_calculated = isMorning;
-    });
-    // ------------------------------------------------------------------
+        // เตรียมข้อมูลแสดงผล
+        const logDate = new Date(log.check_sessions_date);
+        const logDateStr = logDate.toLocaleDateString("th-TH", { day: '2-digit', month: '2-digit', year: 'numeric' });
+        const timeStr = createdAt.toLocaleTimeString("th-TH", { hour: '2-digit', minute: '2-digit' });
 
-    // 3. Process Data for Excel
-    const rows = [];
+        // ข้อมูลการตรวจ (Inspector info)
+        let checkDateStr = "";
+        let checkTimeStr = "";
+        let inspectorName = "";
 
-    rawLogs.forEach((log) => {
-      const logDate = new Date(log.check_sessions_date);
-      const logDateStr = logDate.toLocaleDateString("th-TH", { day: '2-digit', month: '2-digit', year: 'numeric' });
-      const createdAt = new Date(log.created_at);
-      const timeStr = createdAt.toLocaleTimeString("th-TH", { hour: '2-digit', minute: '2-digit' });
+        if (['approved', 'rejected', 'fixed'].includes(log.check_sessions_status)) {
+             const updateAt = new Date(log.updated_at || log.created_at);
+             checkDateStr = updateAt.toLocaleDateString("th-TH", { day: '2-digit', month: '2-digit', year: 'numeric' });
+             checkTimeStr = updateAt.toLocaleTimeString("th-TH", { hour: '2-digit', minute: '2-digit' });
 
-      let checkDateStr = "-";
-      let checkTimeStr = "-";
-      let inspectorName = "-";
+             if (log.inspector) {
+                 inspectorName = `${log.inspector.employees_firstname} ${log.inspector.employees_lastname}`;
+             } else {
+                 inspectorName = log.check_sessions_status === 'approved' ? 'Admin' : '';
+             }
+        }
 
-      if (['approved', 'rejected', 'fixed'].includes(log.check_sessions_status)) {
-         const updateAt = new Date(log.updated_at || log.created_at);
-         checkDateStr = updateAt.toLocaleDateString("th-TH", { day: '2-digit', month: '2-digit', year: 'numeric' });
-         checkTimeStr = updateAt.toLocaleTimeString("th-TH", { hour: '2-digit', minute: '2-digit' });
+        const statusTh = translateStatus(log.check_sessions_status);
 
-         if (log.inspector) {
-             inspectorName = `${log.inspector.employees_firstname} ${log.inspector.employees_lastname}`;
-         } else {
-             inspectorName = log.check_sessions_status === 'approved' ? 'Admin' : '-';
-         }
-      }
+        // ✅ Push ข้อมูลแบบ 1 Row ต่อ 1 Transaction (ตามภาพ)
+        rows.push({
+            id: log.check_sessions_id,
+            dateRaw: log.check_sessions_date, // ไว้สำหรับ Sort
+            createdAtRaw: createdAt, // ไว้สำหรับ Sort
 
-      const isMorning = log.is_morning_calculated;
-      const roundNum = log.calculated_round; // ✅ ใช้ค่าที่คำนวณใหม่
+            // Column A-G
+            date: logDateStr,
+            empName: `${log.employees?.employees_firstname || ''} ${log.employees?.employees_lastname || ''}`.trim(),
+            building: log.locations?.locations_building || '-',
+            floor: isNaN(Number(log.locations?.locations_floor)) ? log.locations?.locations_floor : Number(log.locations?.locations_floor),
+            location: log.locations?.locations_name || '-',
 
-      const statusTh = translateStatus(log.check_sessions_status);
+            // Column H-J (ข้อมูลงานทำความสะอาด)
+            round: roundTracker[groupKey],
+            timestamp: timeStr,
+            shift: isMorning ? 'เช้า' : 'บ่าย',
 
-      rows.push({
-          id: log.check_sessions_id,
-          dateRaw: log.check_sessions_date,
-          date: logDateStr,
-          empName: `${log.employees?.employees_firstname || ''} ${log.employees?.employees_lastname || ''}`.trim(),
-          building: log.locations?.locations_building || '-',
-          floor: isNaN(Number(log.locations?.locations_floor)) ? log.locations?.locations_floor : Number(log.locations?.locations_floor),
-          location: log.locations?.locations_name || '-',
+            // Column K-N (ข้อมูลติดตามงาน)
+            status: statusTh,
+            checkDate: checkDateStr,
+            checkTime: checkTimeStr,
+            inspector: inspectorName,
 
-          round: roundNum, // 1, 2, 3... (รีเซ็ตเมื่อขึ้นบ่าย)
-
-          timeMorning: isMorning ? timeStr : '-',
-          timeAfternoon: !isMorning ? timeStr : '-',
-          checkMorning: isMorning ? '✓' : '-',
-          checkAfternoon: !isMorning ? '✓' : '-',
-          status: statusTh,
-          checkDate: checkDateStr,
-          checkTime: checkTimeStr,
-          inspector: inspectorName,
-          remark: log.supervisor_comment || '-'
-      });
+            // Column O
+            remark: log.supervisor_comment || ''
+        });
     });
 
-    // เรียงลำดับ Excel: วันที่ -> อาคาร -> ชั้น -> เวลา (เช้าไปบ่าย)
+    // เรียงลำดับ Excel: วันที่ -> อาคาร -> ชั้น -> เวลา
     rows.sort((a, b) => {
         if (a.dateRaw !== b.dateRaw) return a.dateRaw.localeCompare(b.dateRaw);
         if (a.building !== b.building) return a.building.localeCompare(b.building);
         if (a.floor !== b.floor) return a.floor - b.floor;
-
-        // เรียงตามเวลา: เช้ามาก่อนบ่าย
-        if (a.timeMorning !== '-' && b.timeMorning === '-') return -1;
-        if (a.timeMorning === '-' && b.timeMorning !== '-') return 1;
-
-        // ถ้าช่วงเดียวกัน เรียงตามครั้งที่
-        return a.round - b.round;
+        return a.createdAtRaw - b.createdAtRaw; // เรียงตามเวลาที่เกิดขึ้นจริง
     });
 
-    // 4. Create Excel Data
+    // ------------------------------------------------------------------
+    // ✅ 4. Create Excel Layout (ปรับ Header ตามภาพ)
+    // ------------------------------------------------------------------
     const ws_data = [
       [{ v: "รายงานสรุปการทำความสะอาด (Maid Report)" }],
       [{ v: `ช่วงวันที่: ${startDateTh} ถึง ${endDateTh}` }],
+      // Header Row 1 (Main Headers)
       [
         "ลำดับ", "รหัสงาน", "วัน/เดือน/ปี", "ชื่อพนักงาน", "อาคาร", "ชั้น", "ชื่อจุดตรวจ",
-        "ประทับเวลาล่าสุด", "", "",
-        "ช่วงการทำงาน", "",
-        "สถานะการติดตามงาน", "", "", "",
-        "หมายเหตุ"
+        "ข้อมูลงานทำความสะอาด", "", "", // H, I, J
+        "ข้อมูลติดตามงาน", "", "", "",  // K, L, M, N
+        "หมายเหตุ" // O
       ],
+      // Header Row 2 (Sub Headers)
       [
-        "", "", "", "", "", "", "",
-        "ครั้งที่", "เช้า", "บ่าย",
-        "เช้า", "บ่าย",
-        "สถานะ", "วัน/เดือน/ปี", "เวลา", "ผู้ตรวจ",
-        ""
+        "", "", "", "", "", "", "", // Skip A-G
+        "ครั้งที่", "ประทับเวลา", "ช่วงการทำงาน", // Sub H-J
+        "สถานะ", "วัน/เดือน/ปี", "เวลา", "ชื่อผู้ตรวจ", // Sub K-N
+        "" // Skip O
       ]
     ];
 
+    // ใส่ข้อมูล
     rows.forEach((r, i) => {
       ws_data.push([
         i + 1, r.id, r.date, r.empName, r.building, r.floor, r.location,
-        r.round, r.timeMorning, r.timeAfternoon, r.checkMorning, r.checkAfternoon,
-        r.status, r.checkDate, r.checkTime, r.inspector, r.remark
+        r.round, r.timestamp, r.shift,
+        r.status, r.checkDate, r.checkTime, r.inspector,
+        r.remark
       ]);
     });
 
     const ws = XLSX.utils.aoa_to_sheet(ws_data);
 
+    // ✅ กำหนดการ Merge Cells (ปรับใหม่ตามภาพ)
     ws["!merges"] = [
-      { s: { r: 0, c: 0 }, e: { r: 0, c: 16 } },
-      { s: { r: 1, c: 0 }, e: { r: 1, c: 16 } },
+      // Title Row 1 & 2
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 14 } },
+      { s: { r: 1, c: 0 }, e: { r: 1, c: 14 } },
+
+      // Merge Vertical (A-G) ลำดับ ถึง จุดตรวจ
       { s: { r: 2, c: 0 }, e: { r: 3, c: 0 } },
       { s: { r: 2, c: 1 }, e: { r: 3, c: 1 } },
       { s: { r: 2, c: 2 }, e: { r: 3, c: 2 } },
@@ -251,12 +241,16 @@ const handleExport = async () => {
       { s: { r: 2, c: 4 }, e: { r: 3, c: 4 } },
       { s: { r: 2, c: 5 }, e: { r: 3, c: 5 } },
       { s: { r: 2, c: 6 }, e: { r: 3, c: 6 } },
-      { s: { r: 2, c: 16 }, e: { r: 3, c: 16 } },
-      { s: { r: 2, c: 7 }, e: { r: 2, c: 9 } },
-      { s: { r: 2, c: 10 }, e: { r: 2, c: 11 } },
-      { s: { r: 2, c: 12 }, e: { r: 2, c: 15 } },
+
+      // Merge Horizontal Group Headers
+      { s: { r: 2, c: 7 }, e: { r: 2, c: 9 } },  // ข้อมูลงานทำความสะอาด (ครอบ 3 คอลัมน์)
+      { s: { r: 2, c: 10 }, e: { r: 2, c: 13 } }, // ข้อมูลติดตามงาน (ครอบ 4 คอลัมน์)
+
+      // Merge Vertical (O) หมายเหตุ
+      { s: { r: 2, c: 14 }, e: { r: 3, c: 14 } },
     ];
 
+    // ✅ Styling
     if (ws["!ref"] && XLSX.utils.decode_range) {
       const range = XLSX.utils.decode_range(ws["!ref"]);
       for (let R = range.s.r; R <= range.e.r; ++R) {
@@ -264,31 +258,48 @@ const handleExport = async () => {
           const cell_address = XLSX.utils.encode_cell({ r: R, c: C });
           if (!ws[cell_address]) continue;
           if (!ws[cell_address].s) ws[cell_address].s = {};
+
           ws[cell_address].s = {
             font: { name: "TH Sarabun New", sz: 14 },
             alignment: { horizontal: "center", vertical: "center", wrapText: true },
             border: { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } },
           };
+
+          // Header Styles
           if (R < 4) {
             ws[cell_address].s.font.bold = true;
             ws[cell_address].s.fill = { fgColor: { rgb: "EFEFEF" } };
-            if (R === 0) ws[cell_address].s.font.sz = 18;
+            if (R === 0) ws[cell_address].s.font.sz = 18; // Title ใหญ่
+            if (R === 1) ws[cell_address].s.alignment.horizontal = "left"; // วันที่ชิดซ้าย
           }
         }
       }
     }
 
+    // กำหนดความกว้างคอลัมน์
     ws["!cols"] = [
-      { wch: 6 }, { wch: 8 }, { wch: 12 }, { wch: 20 }, { wch: 6 }, { wch: 5 }, { wch: 20 },
-      { wch: 6 }, { wch: 8 }, { wch: 8 }, { wch: 6 }, { wch: 6 }, { wch: 12 },
-      { wch: 12 }, { wch: 8 }, { wch: 15 }, { wch: 20 },
+      { wch: 6 },  // ลำดับ
+      { wch: 8 },  // รหัสงาน
+      { wch: 12 }, // วันที่
+      { wch: 20 }, // พนักงาน
+      { wch: 6 },  // อาคาร
+      { wch: 5 },  // ชั้น
+      { wch: 20 }, // จุดตรวจ
+      { wch: 6 },  // ครั้งที่
+      { wch: 10 }, // ประทับเวลา
+      { wch: 10 }, // ช่วงการทำงาน
+      { wch: 12 }, // สถานะ
+      { wch: 12 }, // วันที่ตรวจ
+      { wch: 8 },  // เวลาตรวจ
+      { wch: 15 }, // ผู้ตรวจ
+      { wch: 20 }, // หมายเหตุ
     ];
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Maid Report");
     const fileName = `Maid_Report_${new Date().toISOString().slice(0, 10)}.xlsx`;
 
-    // Manual Download (Blob)
+    // Download
     const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
     const blob = new Blob([wbout], { type: 'application/octet-stream' });
     const url = window.URL.createObjectURL(blob);
@@ -317,7 +328,7 @@ const handleExport = async () => {
 
 const translateStatus = (status) => {
   const map = {
-    pass: "เรียบร้อย",
+    pass: "รอดรวจ", // ตามภาพเขียนว่า รอดรวจ (หรือ รอตรวจ)
     approved: "ตรวจแล้ว",
     fixed: "แก้ไขแล้ว",
     fail: "พบปัญหา",

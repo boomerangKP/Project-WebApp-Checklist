@@ -267,7 +267,7 @@ onUnmounted(() => window.removeEventListener("click", handleClickOutside));
         >
           <tr>
             <th class="px-4 py-2.5 font-medium whitespace-nowrap w-[120px]">รหัสงาน</th>
-            <th class="px-4 py-2.5 font-medium whitespace-nowrap">วันที่</th>
+            <th class="px-4 py-2.5 font-medium whitespace-nowrap">วัน/เดือน/ปี</th>
             <th class="px-4 py-2.5 font-medium whitespace-nowrap text-center">เวลา</th>
             <th class="px-4 py-2.5 font-medium whitespace-nowrap">พนักงาน</th>
             <th class="px-4 py-2.5 font-medium whitespace-nowrap">ชื่อจุดตรวจ</th>
@@ -452,9 +452,9 @@ onUnmounted(() => window.removeEventListener("click", handleClickOutside));
           v-model="itemsPerPage"
           class="border border-gray-300 dark:border-slate-600 rounded px-1 py-0.5 focus:ring-1 bg-white dark:bg-slate-700 dark:text-white cursor-pointer"
         >
-          <option :value="10">10</option>
-          <option :value="20">20</option>
-          <option :value="50">50</option>
+          <option :value="100">100</option>
+          <option :value="200">200</option>
+          <option :value="500">500</option>
         </select>
       </div>
       <div class="flex items-center gap-1">
