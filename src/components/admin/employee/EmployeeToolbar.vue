@@ -37,6 +37,7 @@ const roleOptions = [
   { value: "maid", label: "แม่บ้าน" },
   { value: "cleaner", label: "พนักงานทำความสะอาด" },
   { value: "user", label: "พนักงานทั่วไป" },
+  { value: "supervisor", label: "หัวหน้าพนักงาน" },
 ];
 
 const statusOptions = [

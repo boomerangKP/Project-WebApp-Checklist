@@ -19,7 +19,7 @@ const { Swal } = useSwal();
 const isExporting = ref(false);
 
 const handleExport = async () => {
-  // 1. Validation (คงเดิม)
+  // 1. Validation
   const start =
     props.startDate ||
     new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
@@ -70,7 +70,7 @@ const handleExport = async () => {
       XLSX = XLSX_Standard;
     }
 
-    // 2. Fetch Data (คงเดิม)
+    // 2. Fetch Data
     const { data: rawLogs, error } = await supabase
       .from("check_sessions")
       .select(
@@ -93,9 +93,11 @@ const handleExport = async () => {
         ),
         inspector:employees!check_sessions_checked_by_fkey (
             employees_firstname,
-            employees_lastname
+            employees_lastname,
+            role
         )
         `
+        // 👆 ✅ ดึง role ของผู้ตรวจมาด้วย
       )
       .gte("created_at", start)
       .lte("created_at", end)
@@ -108,13 +110,24 @@ const handleExport = async () => {
     }
 
     // ------------------------------------------------------------------
-    // ✅ 3. Process Data (ปรับใหม่ให้ตรงตามภาพ)
+    // ✅ 3. Process Data
     // ------------------------------------------------------------------
     const roundTracker = {};
     const rows = [];
 
+    // ฟังก์ชันแปลงชื่อตำแหน่งเป็นภาษาไทย
+    const getRoleName = (role) => {
+        const map = {
+            admin: 'ผู้ดูแลระบบ',
+            supervisor: 'หัวหน้างาน',
+            user: 'พนักงานทั่วไป',
+            maid: 'แม่บ้าน',
+            cleaner: 'พนักงานทำความสะอาด'
+        };
+        return map[role] || role || '-';
+    };
+
     rawLogs.forEach(log => {
-        // คำนวณกะและรอบ (คงเดิม)
         let isMorning = true;
         const createdAt = new Date(log.created_at);
         if (log.time_slots && log.time_slots.time_slots_start) {
@@ -132,15 +145,14 @@ const handleExport = async () => {
         }
         roundTracker[groupKey]++;
 
-        // เตรียมข้อมูลแสดงผล
         const logDate = new Date(log.check_sessions_date);
         const logDateStr = logDate.toLocaleDateString("th-TH", { day: '2-digit', month: '2-digit', year: 'numeric' });
         const timeStr = createdAt.toLocaleTimeString("th-TH", { hour: '2-digit', minute: '2-digit' });
 
-        // ข้อมูลการตรวจ (Inspector info)
         let checkDateStr = "";
         let checkTimeStr = "";
         let inspectorName = "";
+        let inspectorRole = ""; // ✅ ตัวแปรสำหรับเก็บตำแหน่ง
 
         if (['approved', 'rejected', 'fixed'].includes(log.check_sessions_status)) {
              const updateAt = new Date(log.updated_at || log.created_at);
@@ -149,91 +161,91 @@ const handleExport = async () => {
 
              if (log.inspector) {
                  inspectorName = `${log.inspector.employees_firstname} ${log.inspector.employees_lastname}`;
+                 inspectorRole = getRoleName(log.inspector.role); // ✅ ดึงตำแหน่งมาใส่
              } else {
-                 inspectorName = log.check_sessions_status === 'approved' ? 'Admin' : '';
+                 // กรณีระบบ Auto Approve หรือไม่มี Inspector
+                 if (log.check_sessions_status === 'approved') {
+                    inspectorName = 'Admin (System)';
+                    inspectorRole = 'ผู้ดูแลระบบ';
+                 }
              }
         }
 
         const statusTh = translateStatus(log.check_sessions_status);
 
-        // ✅ Push ข้อมูลแบบ 1 Row ต่อ 1 Transaction (ตามภาพ)
         rows.push({
             id: log.check_sessions_id,
-            dateRaw: log.check_sessions_date, // ไว้สำหรับ Sort
-            createdAtRaw: createdAt, // ไว้สำหรับ Sort
-
-            // Column A-G
+            dateRaw: log.check_sessions_date,
+            createdAtRaw: createdAt,
+            
             date: logDateStr,
             empName: `${log.employees?.employees_firstname || ''} ${log.employees?.employees_lastname || ''}`.trim(),
             building: log.locations?.locations_building || '-',
             floor: isNaN(Number(log.locations?.locations_floor)) ? log.locations?.locations_floor : Number(log.locations?.locations_floor),
             location: log.locations?.locations_name || '-',
 
-            // Column H-J (ข้อมูลงานทำความสะอาด)
             round: roundTracker[groupKey],
             timestamp: timeStr,
             shift: isMorning ? 'เช้า' : 'บ่าย',
 
-            // Column K-N (ข้อมูลติดตามงาน)
+            // ข้อมูลการตรวจ
             status: statusTh,
             checkDate: checkDateStr,
             checkTime: checkTimeStr,
-            inspector: inspectorName,
-
-            // Column O
+            inspector: inspectorName, 
+            inspectorRole: inspectorRole, // ✅ เพิ่มคอลัมน์นี้
+            
             remark: log.supervisor_comment || ''
         });
     });
 
-    // เรียงลำดับ Excel: วันที่ -> อาคาร -> ชั้น -> เวลา
     rows.sort((a, b) => {
         if (a.dateRaw !== b.dateRaw) return a.dateRaw.localeCompare(b.dateRaw);
         if (a.building !== b.building) return a.building.localeCompare(b.building);
         if (a.floor !== b.floor) return a.floor - b.floor;
-        return a.createdAtRaw - b.createdAtRaw; // เรียงตามเวลาที่เกิดขึ้นจริง
+        return a.createdAtRaw - b.createdAtRaw;
     });
 
     // ------------------------------------------------------------------
-    // ✅ 4. Create Excel Layout (ปรับ Header ตามภาพ)
+    // ✅ 4. Create Excel Layout (ปรับโครงสร้างใหม่)
     // ------------------------------------------------------------------
     const ws_data = [
       [{ v: "รายงานสรุปการทำความสะอาด (Maid Report)" }],
       [{ v: `ช่วงวันที่: ${startDateTh} ถึง ${endDateTh}` }],
-      // Header Row 1 (Main Headers)
+      // Row 2 (Headers หลัก)
       [
         "ลำดับ", "รหัสงาน", "วัน/เดือน/ปี", "ชื่อพนักงาน", "อาคาร", "ชั้น", "ชื่อจุดตรวจ",
-        "ข้อมูลงานทำความสะอาด", "", "", // H, I, J
-        "ข้อมูลติดตามงาน", "", "", "",  // K, L, M, N
-        "หมายเหตุ" // O
+        "ข้อมูลงานทำความสะอาด", "", "",
+        "ข้อมูลติดตามงาน", "", "", "", "", // ✅ เพิ่มช่องว่างสำหรับตำแหน่ง (รวมเป็น 5 ช่อง)
+        "หมายเหตุ"
       ],
-      // Header Row 2 (Sub Headers)
+      // Row 3 (Sub Headers)
       [
-        "", "", "", "", "", "", "", // Skip A-G
-        "ครั้งที่", "ประทับเวลา", "ช่วงการทำงาน", // Sub H-J
-        "สถานะ", "วัน/เดือน/ปี", "เวลา", "ชื่อผู้ตรวจ", // Sub K-N
-        "" // Skip O
+        "", "", "", "", "", "", "",
+        "ครั้งที่", "ประทับเวลา", "ช่วงการทำงาน",
+        "สถานะ", "วัน/เดือน/ปี", "เวลา", "ชื่อผู้ตรวจ", "ตำแหน่ง", // ✅ เพิ่ม header "ตำแหน่ง"
+        ""
       ]
     ];
 
-    // ใส่ข้อมูล
     rows.forEach((r, i) => {
       ws_data.push([
         i + 1, r.id, r.date, r.empName, r.building, r.floor, r.location,
         r.round, r.timestamp, r.shift,
-        r.status, r.checkDate, r.checkTime, r.inspector,
+        r.status, r.checkDate, r.checkTime, r.inspector, r.inspectorRole, // ✅ ใส่ข้อมูลตำแหน่ง
         r.remark
       ]);
     });
 
     const ws = XLSX.utils.aoa_to_sheet(ws_data);
 
-    // ✅ กำหนดการ Merge Cells (ปรับใหม่ตามภาพ)
+    // ✅ ปรับการ Merge Cells ให้ถูกต้อง
     ws["!merges"] = [
-      // Title Row 1 & 2
-      { s: { r: 0, c: 0 }, e: { r: 0, c: 14 } },
-      { s: { r: 1, c: 0 }, e: { r: 1, c: 14 } },
+      // Title
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 15 } }, // ขยายถึงคอลัมน์ P (Index 15)
+      { s: { r: 1, c: 0 }, e: { r: 1, c: 15 } },
 
-      // Merge Vertical (A-G) ลำดับ ถึง จุดตรวจ
+      // Vertical Merges (A-G)
       { s: { r: 2, c: 0 }, e: { r: 3, c: 0 } },
       { s: { r: 2, c: 1 }, e: { r: 3, c: 1 } },
       { s: { r: 2, c: 2 }, e: { r: 3, c: 2 } },
@@ -242,15 +254,17 @@ const handleExport = async () => {
       { s: { r: 2, c: 5 }, e: { r: 3, c: 5 } },
       { s: { r: 2, c: 6 }, e: { r: 3, c: 6 } },
 
-      // Merge Horizontal Group Headers
-      { s: { r: 2, c: 7 }, e: { r: 2, c: 9 } },  // ข้อมูลงานทำความสะอาด (ครอบ 3 คอลัมน์)
-      { s: { r: 2, c: 10 }, e: { r: 2, c: 13 } }, // ข้อมูลติดตามงาน (ครอบ 4 คอลัมน์)
+      // Horizontal Cleaning (H-J) - คงเดิม
+      { s: { r: 2, c: 7 }, e: { r: 2, c: 9 } },
 
-      // Merge Vertical (O) หมายเหตุ
-      { s: { r: 2, c: 14 }, e: { r: 3, c: 14 } },
+      // Horizontal Tracking (K-O) - ✅ ขยายเป็น 5 คอลัมน์ (10-14)
+      { s: { r: 2, c: 10 }, e: { r: 2, c: 14 } },
+
+      // Vertical Remark (P) - ✅ ขยับไป Index 15
+      { s: { r: 2, c: 15 }, e: { r: 3, c: 15 } },
     ];
 
-    // ✅ Styling
+    // Styling
     if (ws["!ref"] && XLSX.utils.decode_range) {
       const range = XLSX.utils.decode_range(ws["!ref"]);
       for (let R = range.s.r; R <= range.e.r; ++R) {
@@ -258,41 +272,30 @@ const handleExport = async () => {
           const cell_address = XLSX.utils.encode_cell({ r: R, c: C });
           if (!ws[cell_address]) continue;
           if (!ws[cell_address].s) ws[cell_address].s = {};
-
+          
           ws[cell_address].s = {
             font: { name: "TH Sarabun New", sz: 14 },
             alignment: { horizontal: "center", vertical: "center", wrapText: true },
             border: { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } },
           };
 
-          // Header Styles
           if (R < 4) {
             ws[cell_address].s.font.bold = true;
             ws[cell_address].s.fill = { fgColor: { rgb: "EFEFEF" } };
-            if (R === 0) ws[cell_address].s.font.sz = 18; // Title ใหญ่
-            if (R === 1) ws[cell_address].s.alignment.horizontal = "left"; // วันที่ชิดซ้าย
+            if (R === 0) ws[cell_address].s.font.sz = 18;
+            if (R === 1) ws[cell_address].s.alignment.horizontal = "left";
           }
         }
       }
     }
 
-    // กำหนดความกว้างคอลัมน์
+    // Config Widths
     ws["!cols"] = [
-      { wch: 6 },  // ลำดับ
-      { wch: 8 },  // รหัสงาน
-      { wch: 12 }, // วันที่
-      { wch: 20 }, // พนักงาน
-      { wch: 6 },  // อาคาร
-      { wch: 5 },  // ชั้น
-      { wch: 20 }, // จุดตรวจ
-      { wch: 6 },  // ครั้งที่
-      { wch: 10 }, // ประทับเวลา
-      { wch: 10 }, // ช่วงการทำงาน
-      { wch: 12 }, // สถานะ
-      { wch: 12 }, // วันที่ตรวจ
-      { wch: 8 },  // เวลาตรวจ
-      { wch: 15 }, // ผู้ตรวจ
-      { wch: 20 }, // หมายเหตุ
+      { wch: 6 }, { wch: 8 }, { wch: 12 }, { wch: 20 }, { wch: 6 }, { wch: 5 }, { wch: 20 },
+      { wch: 6 }, { wch: 10 }, { wch: 10 },
+      { wch: 12 }, { wch: 12 }, { wch: 8 }, { wch: 20 }, 
+      { wch: 15 }, // ✅ คอลัมน์ตำแหน่ง (Inspector Role)
+      { wch: 20 }, // หมายเหตุขยับมาท้ายสุด
     ];
 
     const wb = XLSX.utils.book_new();
@@ -314,6 +317,7 @@ const handleExport = async () => {
     Swal.fire({
       icon: "success",
       title: "ดาวน์โหลดสำเร็จ",
+      text: `ไฟล์ ${fileName} ถูกดาวน์โหลดแล้ว`,
       showConfirmButton: false,
       timer: 1500,
     });
@@ -328,7 +332,7 @@ const handleExport = async () => {
 
 const translateStatus = (status) => {
   const map = {
-    pass: "รอดรวจ", // ตามภาพเขียนว่า รอดรวจ (หรือ รอตรวจ)
+    pass: "รอตรวจ",
     approved: "ตรวจแล้ว",
     fixed: "แก้ไขแล้ว",
     fail: "พบปัญหา",

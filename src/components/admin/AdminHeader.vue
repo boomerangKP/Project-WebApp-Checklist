@@ -133,6 +133,12 @@ const onLogoutClick = async () => {
               {{ userStore.profile?.employees_firstname || "Admin" }}
               {{ userStore.profile?.employees_lastname || "" }}
             </div>
+
+            <div class="text-xs text-gray-500 dark:text-gray-400 font-medium">
+              {{ userStore.profile?.employees_position || "-" }}
+              <span class="mx-1 text-gray-300">|</span>
+              {{ userStore.profile?.employees_department || "-" }}
+            </div>
           </div>
 
           <div
@@ -170,8 +176,11 @@ const onLogoutClick = async () => {
                 {{ userStore.profile?.employees_firstname || "Admin" }}
                 {{ userStore.profile?.employees_lastname || "" }}
               </p>
-              <p class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
-                {{ userStore.profile?.role || "Administrator" }}
+
+              <p class="text-xs text-gray-500 dark:text-slate-400 mt-0.5 truncate">
+                {{ userStore.profile?.employees_position || "Administrator" }}
+                <span class="mx-1 opacity-50">|</span>
+                {{ userStore.profile?.employees_department || "-" }}
               </p>
             </div>
 

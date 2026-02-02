@@ -39,7 +39,7 @@ const auditLogs = ref([]); // ✅ เก็บประวัติการแ�
 const loading = ref(true);
 const submitting = ref(false);
 
-const ALLOWED_MANAGERS = ["admin", "user"];
+const ALLOWED_MANAGERS = ["admin", "supervisor"];
 
 // Computed: เช็คสิทธิ์
 const canManage = computed(() => {
@@ -86,7 +86,7 @@ const getRoleLabel = (r) => {
   switch (r) {
     case "admin":
       return "ผู้ดูแลระบบ (Admin)";
-    case "user":
+    case "supervisor":
       return "หัวหน้างาน (Supervisor)";
     case "maid":
       return "แม่บ้าน";

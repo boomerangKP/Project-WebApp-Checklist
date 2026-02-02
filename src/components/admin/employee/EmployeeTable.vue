@@ -60,6 +60,8 @@ const getRoleLabel = (r) => {
       return "พนักงานทั่วไป";
     case "cleaner":
       return "พนักงานทำความสะอาด";
+    case "supervisor":
+      return "หัวหน้างาน";
     default:
       return r || "-";
   }
@@ -78,6 +80,8 @@ const getRoleStyle = (r) => {
       return "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border-emerald-100 dark:border-emerald-800";
     case "cleaner":
       return "bg-cyan-50 dark:bg-cyan-900/20 text-cyan-700 dark:text-cyan-300 border-cyan-100 dark:border-cyan-800";
+    case "supervisor":
+      return "bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 border-indigo-100 dark:border-indigo-800";
     default:
       return "bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700";
   }
