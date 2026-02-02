@@ -200,11 +200,10 @@ const isAllSelected = computed(() => {
             @change="currentPage = 1"
             class="border border-gray-300 dark:border-slate-600 rounded-md py-1 px-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none cursor-pointer bg-white dark:bg-slate-700 text-gray-900 dark:text-white shadow-sm min-w-[60px]"
           >
-            <option :value="5">5</option>
-            <option :value="10">10</option>
             <option :value="20">20</option>
             <option :value="30">30</option>
             <option :value="50">50</option>
+            <option :value="100">100</option>
           </select>
         </div>
       </div>

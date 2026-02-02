@@ -11,7 +11,7 @@ import {
   RotateCcw,
   Trash2,
   Bell,
-  Plus, // ✅ ใช้ icon นี้สำหรับปุ่มเพิ่ม
+  Plus,
 } from "lucide-vue-next";
 import { supabase } from "@/lib/supabase";
 import { useSwal } from "@/composables/useSwal";
@@ -27,9 +27,8 @@ const props = defineProps({
 });
 
 const emit = defineEmits(["close", "save"]);
-const { swalError, Swal } = useSwal(); // ✅ ดึง Swal มาใช้สำหรับ Popup กรอกข้อมูล
+const { swalError, Swal } = useSwal();
 
-// ... (State เดิม) ...
 const emailError = ref("");
 const imagePreview = ref(null);
 const isUploadingImage = ref(false);
@@ -42,6 +41,7 @@ const roleToPositionMap = {
   maid: "แม่บ้าน",
   user: "พนักงานทั่วไป",
   cleaner: "พนักงานทำความสะอาด",
+  supervisor: "หัวหน้างาน",
 };
 
 const form = ref({
@@ -61,7 +61,7 @@ const form = ref({
 const isGeneratingCode = ref(false);
 const activeDropdown = ref(null);
 
-// ✅ ตัวเลือก (Options) ใช้ ref เพื่อให้เพิ่มค่าใหม่ได้
+// ตัวเลือก (Options)
 const genderOptions = [
   { value: "ชาย", label: "ชาย" },
   { value: "หญิง", label: "หญิง" },
@@ -70,11 +70,13 @@ const genderOptions = [
 
 const departmentOptions = ref([{ value: "แผนกซ่อมบำรุง", label: "แผนกซ่อมบำรุง" }]);
 
+// ✅ Role Options (ไม่มีการ push ค่าใหม่จากการพิมพ์เองแล้ว)
 const roleOptions = ref([
   { value: "admin", label: "ผู้ดูแลระบบ" },
   { value: "maid", label: "แม่บ้าน" },
   { value: "user", label: "พนักงานทั่วไป" },
   { value: "cleaner", label: "พนักงานทำความสะอาด" },
+  { value: "supervisor", label: "หัวหน้างาน" },
 ]);
 
 const statusOptions = [
@@ -83,7 +85,6 @@ const statusOptions = [
   { value: "suspended", label: "ระงับ" },
 ];
 
-// ... (Functions เดิม) ...
 const toggleDropdown = (name) => {
   activeDropdown.value = activeDropdown.value === name ? null : name;
 };
@@ -93,11 +94,13 @@ const selectOption = (field, value) => {
   activeDropdown.value = null;
 };
 
-// ✅ ฟังก์ชันสำหรับกดปุ่มเพิ่มข้อมูลใหม่ (ใช้ Swal Input)
+// ✅ ปรับแก้ handleAddNew ให้รองรับแค่ department เท่านั้น (ตัด role ออก)
 const handleAddNew = async (field) => {
-  activeDropdown.value = null; // ปิด Dropdown ก่อน
+  // ถ้าเรียก role ให้ return ทิ้งเลย (เผื่อมีคนเรียกผิด)
+  if (field === "role") return;
 
-  const fieldLabel = field === "department" ? "แผนก" : "บทบาท";
+  activeDropdown.value = null;
+  const fieldLabel = "แผนก";
 
   const { value: text } = await Swal.fire({
     title: `เพิ่ม${fieldLabel}ใหม่`,
@@ -120,17 +123,10 @@ const handleAddNew = async (field) => {
     const newOption = { value: newValue, label: newValue };
 
     if (field === "department") {
-      // เช็คซ้ำก่อนเพิ่ม
       if (!departmentOptions.value.find((o) => o.value === newValue)) {
         departmentOptions.value.push(newOption);
       }
       form.value.department = newValue;
-    } else if (field === "role") {
-      const roleValue = newValue.toLowerCase(); // แปลง role key เป็นตัวเล็ก
-      if (!roleOptions.value.find((o) => o.value === roleValue)) {
-        roleOptions.value.push({ value: roleValue, label: newValue });
-      }
-      form.value.role = roleValue;
     }
   }
 };
@@ -143,7 +139,6 @@ onMounted(() => window.addEventListener("click", handleClickOutside));
 onUnmounted(() => window.removeEventListener("click", handleClickOutside));
 
 const getLabel = (options, value, placeholder) => {
-  // รองรับ options ที่เป็น ref หรือ array ปกติ
   const opts = Array.isArray(options) ? options : options.value;
   const found = opts.find((opt) => opt.value === value);
   return found ? found.label : value || placeholder;
@@ -203,7 +198,6 @@ const deleteOldImage = async (oldUrl) => {
   }
 };
 
-// ... (Image Handler Functions เดิม) ...
 const onFileSelect = (event) => {
   const file = event.target.files[0];
   if (!file) return;
@@ -308,7 +302,6 @@ watch(
         employees_photo: newData.employees_photo || null,
       };
 
-      // ✅ Logic: ถ้าค่าเดิมไม่อยู่ใน List ให้เพิ่มเข้าไปชั่วคราว
       if (
         form.value.department &&
         !departmentOptions.value.find((o) => o.value === form.value.department)
@@ -318,12 +311,8 @@ watch(
           label: form.value.department,
         });
       }
-      if (
-        form.value.role &&
-        !roleOptions.value.find((o) => o.value === form.value.role)
-      ) {
-        roleOptions.value.push({ value: form.value.role, label: form.value.role });
-      }
+
+      // ✅ Logic: ตรง role ไม่ต้อง push ค่าแปลกๆ เข้าไปแล้ว เพราะเราล็อคแค่ 4 ค่า
 
       imagePreview.value = newData.employees_photo || null;
       emailError.value = "";
@@ -713,18 +702,7 @@ const handleSubmit = async () => {
                           class="w-4 h-4 text-indigo-600 dark:text-indigo-400"
                         />
                       </div>
-
-                      <div
-                        class="border-t border-gray-100 dark:border-slate-700 mt-1 pt-1"
-                      >
-                        <div
-                          @click="handleAddNew('role')"
-                          class="px-3 py-2 rounded-md text-indigo-600 dark:text-indigo-400 text-sm cursor-pointer flex items-center gap-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/40 font-medium"
-                        >
-                          <Plus class="w-4 h-4" /> เพิ่มบทบาทใหม่...
-                        </div>
                       </div>
-                    </div>
                   </div>
                 </div>
 
@@ -867,7 +845,6 @@ const handleSubmit = async () => {
 </template>
 
 <style scoped>
-/* Style เดิม */
 .animate-fade-in-up {
   animation: fadeInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
@@ -895,7 +872,6 @@ const handleSubmit = async () => {
   background: #94a3b8;
 }
 
-/* ✅ Dark Mode Scrollbar */
 :global(.dark) .custom-scrollbar::-webkit-scrollbar-thumb {
   background: #475569;
 }

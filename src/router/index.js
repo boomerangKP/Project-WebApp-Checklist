@@ -215,7 +215,7 @@ router.beforeEach(async (to, from, next) => {
     }
 
     // Redirect based on Role (using Constants)
-    if (role === ROLES.ADMIN) return next({ name: 'admin-dashboard' })
+    if ([ROLES.ADMIN, ROLES.SUPERVISOR].includes(role)) return next({ name: 'admin-dashboard' })
     if ([ROLES.MAID, ROLES.CLEANER].includes(role)) return next({ name: 'maid-home' })
     return next()
   }
@@ -223,8 +223,11 @@ router.beforeEach(async (to, from, next) => {
   // 4. Permission Check based on Route Meta Role
   if (to.meta.role) {
     // Admin Zone
-    if (to.meta.role === ROLES.ADMIN && role !== ROLES.ADMIN) {
-      return next({ name: 'login' })
+    // ✅ Admin Zone: อนุญาตทั้ง ADMIN และ SUPERVISOR
+    if (to.meta.role === ROLES.ADMIN) {
+      if (![ROLES.ADMIN, ROLES.SUPERVISOR].includes(role)) {
+        return next({ name: 'login' }) // หรือหน้า Forbidden ถ้ามี
+      }
     }
 
     // Maid Zone (Allows Cleaner as well)

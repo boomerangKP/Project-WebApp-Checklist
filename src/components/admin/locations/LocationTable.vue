@@ -310,8 +310,6 @@ const getLocationStatusConfig = (status) => {
             v-model="itemsPerPage"
             class="bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-white text-xs rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-1.5 cursor-pointer outline-none shadow-sm"
           >
-            <option :value="5">5</option>
-            <option :value="10">10</option>
             <option :value="20">20</option>
             <option :value="50">50</option>
             <option :value="100">100</option>
