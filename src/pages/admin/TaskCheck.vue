@@ -12,11 +12,13 @@ import BulkActionBar from "@/components/admin/task/BulkActionBar.vue";
 
 const router = useRouter();
 
+// ✅ 1. เพิ่ม totalItemsCount ในการ destructuring เพื่อรับค่าจำนวนรวมจาก Server
 const {
   loading, activeTab, searchQuery, selectedMaid, dateRange, currentPage, itemsPerPage,
   isSelectionMode, selectedIds, isBulkSubmitting, uniqueMaids, filteredTasks,
   paginatedTasks, totalPages, startEntry, endEntry, waitingCount, isAllSelected,
   fetchTasks, changePage, toggleSelection, toggleSelectAll, handleBulkApprove, startDate, endDate,
+  totalItemsCount // <--- เพิ่มตรงนี้
 } = useTaskLogic();
 
 const allSearchSuggestions = computed(() => {
@@ -74,7 +76,8 @@ const openTaskDetail = (id) => router.push({ path: `/admin/check/${id}` });
           <Loader2 class="w-8 h-8 text-gray-400 animate-spin" />
         </div>
 
-        <div v-else class="space-y-2 pb-24"> <TaskCard
+        <div v-else class="space-y-2 pb-24"> 
+          <TaskCard
             v-for="task in paginatedTasks"
             :key="task.id"
             :task="task"
@@ -97,7 +100,7 @@ const openTaskDetail = (id) => router.push({ path: `/admin/check/${id}` });
           :totalPages="totalPages"
           :startEntry="startEntry"
           :endEntry="endEntry"
-          :totalItems="filteredTasks.length"
+          :totalItems="totalItemsCount"
           :itemsPerPage="itemsPerPage"
           @update:itemsPerPage="itemsPerPage = $event"
           @changePage="changePage"

@@ -4,40 +4,38 @@ import { useSwal } from '@/composables/useSwal'
 import { useUserStore } from '@/stores/user'
 import { useTaskFilterStore } from '@/stores/taskFilters'
 import { storeToRefs } from 'pinia'
+import { TASK_STATUS } from '@/constants/status'
+
+// Helper: Debounce
+const debounce = (fn, delay) => {
+  let timeout
+  return (...args) => {
+    clearTimeout(timeout)
+    timeout = setTimeout(() => fn(...args), delay)
+  }
+}
 
 export function useTaskLogic() {
   const userStore = useUserStore()
   const filterStore = useTaskFilterStore()
   const { Swal } = useSwal()
 
-  // --- ดึง State จาก Store ---
+  // --- State ---
   const {
-    activeTab,
-    searchQuery,
-    selectedMaid,
-    dateRange,
-    startDate,
-    endDate,
-    currentPage,
-    itemsPerPage,
-    isSelectionMode,
-    selectedIds
+    activeTab, searchQuery, selectedMaid, dateRange,
+    startDate, endDate, currentPage, itemsPerPage, 
+    isSelectionMode, selectedIds, timeSlots
   } = storeToRefs(filterStore)
 
   // --- Local State ---
   const tasks = ref([])
   const loading = ref(true)
-  const timeSlots = ref([])
   const isBulkSubmitting = ref(false)
-
+  const totalItemsCount = ref(0)
+  const realWaitingCount = ref(0)
   let realtimeSubscription = null
 
   // --- Helper Functions ---
-  const fetchTimeSlots = async () => {
-    const { data } = await supabase.from('time_slots').select('*').order('time_slots_order')
-    if (data) timeSlots.value = data
-  }
-
   const getSlotName = (dateString) => {
     if (!dateString) return '-'
     const date = new Date(dateString)
@@ -47,14 +45,19 @@ export function useTaskLogic() {
   }
 
   // --- Fetch Data ---
-  const fetchTasks = async () => {
-    loading.value = true
+  const fetchTasks = async (enableLoading = true) => {
+    if (enableLoading) loading.value = true
+    
     try {
       if (timeSlots.value.length === 0) {
-        await fetchTimeSlots()
+        await filterStore.fetchMasterData()
       }
 
-      // ✅ แก้ไข: ใช้ checked_by และลบ approved_by ที่ทำให้เกิด Error ออก
+      const from = (currentPage.value - 1) * itemsPerPage.value
+      const to = from + itemsPerPage.value - 1
+
+      // ✅ Base Query
+      // ใช้ locations!inner เพื่อการันตีว่าต้องมีข้อมูลสถานที่ (แต่การกรอง Search จะทำผ่าน ID แทน)
       let query = supabase
         .from('check_sessions')
         .select(`
@@ -62,44 +65,92 @@ export function useTaskLogic() {
           check_sessions_date,
           check_sessions_time_start,
           check_sessions_status,
-          created_at,
-          checked_at,
-          checked_by, 
+          created_at, checked_at, checked_by, employees_id, locations_id,
           employees:employees!check_sessions_employees_id_fkey (
-            employees_firstname,
-            employees_lastname,
-            employees_photo,
-            role
+            employees_id, employees_firstname, employees_lastname, employees_photo, role
           ),
-          locations (
-            locations_name,
-            locations_building,
-            locations_floor
+          locations!inner (
+            locations_name, locations_building, locations_floor
           )
-        `)
+        `, { count: 'exact' })
         .order('created_at', { ascending: false })
+        .range(from, to)
 
-      if (startDate.value) {
-        query = query.gte('check_sessions_date', startDate.value)
-      }
-      if (endDate.value) {
-        query = query.lte('check_sessions_date', endDate.value)
+      // Filter: วันที่
+      if (startDate.value) query = query.gte('check_sessions_date', startDate.value)
+      if (endDate.value) query = query.lte('check_sessions_date', endDate.value)
+      
+      // Filter: สถานะ
+      if (activeTab.value === TASK_STATUS.WAITING) {
+        query = query.or(`check_sessions_status.is.null,check_sessions_status.eq.${TASK_STATUS.WAITING}`)
+      } else if (activeTab.value === TASK_STATUS.APPROVED) {
+         query = query.in('check_sessions_status', TASK_STATUS.GROUP_APPROVED)
+      } else if (activeTab.value === TASK_STATUS.REJECTED) {
+         query = query.in('check_sessions_status', TASK_STATUS.GROUP_REJECTED)
       }
 
-      const { data, error } = await query
+      // Filter: แม่บ้าน (Dropdown)
+      if (selectedMaid.value && selectedMaid.value !== 'all') {
+         if (selectedMaid.value) {
+             query = query.eq('employees_id', selectedMaid.value) 
+         }
+      }
+
+      // ✅ Expert Search Logic (แก้ให้หาเจอทั้งคนและสถานที่)
+      if (searchQuery.value && searchQuery.value.trim() !== '') {
+         const term = searchQuery.value.trim()
+         const orConditions = []
+
+         // 1. ถ้าเป็นตัวเลข -> หาจาก ID งาน
+         if (!isNaN(term)) {
+            orConditions.push(`check_sessions_id.eq.${term}`)
+         }
+
+         // 2. Pre-fetch: หา ID ของพนักงานที่ชื่อตรงกับ "สม..."
+         const { data: empData } = await supabase
+            .from('employees')
+            .select('employees_id')
+            .or(`employees_firstname.ilike.%${term}%,employees_lastname.ilike.%${term}%`)
+         
+         const matchedEmpIds = empData?.map(e => e.employees_id) || []
+         if (matchedEmpIds.length > 0) {
+            orConditions.push(`employees_id.in.(${matchedEmpIds.join(',')})`)
+         }
+
+         // 3. Pre-fetch: หา ID ของสถานที่ที่ชื่อตรงกับ "ห้องน้ำ..."
+         const { data: locData } = await supabase
+            .from('locations')
+            .select('locations_id')
+            .ilike('locations_name', `%${term}%`)
+         
+         const matchedLocIds = locData?.map(l => l.locations_id) || []
+         if (matchedLocIds.length > 0) {
+            orConditions.push(`locations_id.in.(${matchedLocIds.join(',')})`)
+         }
+
+         // 4. รวมร่างเงื่อนไข (ID งาน OR พนักงาน OR สถานที่)
+         if (orConditions.length > 0) {
+            query = query.or(orConditions.join(','))
+         } else {
+            // ถ้าหาไม่เจอสักอย่าง ให้คืนค่าว่าง (โดยการสั่งหา ID ที่ไม่มีจริง)
+            query = query.eq('check_sessions_id', -1)
+         }
+      }
+
+      const { data, count, error } = await query
 
       if (error) throw error
 
       tasks.value = data.map(item => {
-        let mappedStatus = 'waiting'
+        let mappedStatus = TASK_STATUS.WAITING
         const s = item.check_sessions_status
-        if (['approved', 'pass', 'fixed'].includes(s)) mappedStatus = 'approved'
-        else if (['rejected', 'fail'].includes(s)) mappedStatus = 'rejected'
-        else mappedStatus = 'waiting'
+        if (TASK_STATUS.GROUP_APPROVED.includes(s)) mappedStatus = TASK_STATUS.APPROVED
+        else if (TASK_STATUS.GROUP_REJECTED.includes(s)) mappedStatus = TASK_STATUS.REJECTED
 
         return {
           id: item.check_sessions_id,
           displayId: String(item.check_sessions_id),
+          maidId: item.employees?.employees_id,
           maidName: item.employees ? `${item.employees.employees_firstname} ${item.employees.employees_lastname}` : 'ไม่ระบุชื่อ',
           maidRole: item.employees?.role || 'user',
           maidPhoto: item.employees?.employees_photo,
@@ -113,51 +164,54 @@ export function useTaskLogic() {
           checkedAt: item.checked_at
         }
       })
+
+      totalItemsCount.value = count || 0
+      fetchWaitingCount()
+
     } catch (err) {
       console.error('Fetch Error:', err)
-      Swal.fire('Error', `โหลดข้อมูลไม่สำเร็จ: ${err.message}`, 'error')
     } finally {
       loading.value = false
     }
   }
 
-  // --- Filter & Pagination (คงเดิม) ---
-  const uniqueMaids = computed(() => [...new Set(tasks.value.map(t => t.maidName))])
+  const fetchWaitingCount = async () => {
+      const { count } = await supabase
+        .from('check_sessions')
+        .select('*', { count: 'exact', head: true })
+        .or(`check_sessions_status.is.null,check_sessions_status.eq.${TASK_STATUS.WAITING}`)
+      
+      realWaitingCount.value = count || 0
+  }
 
-  const filteredTasks = computed(() => tasks.value.filter(t => {
-    const matchesTab = activeTab.value === 'all' || t.status === activeTab.value
-    const matchesMaid = selectedMaid.value === 'all' || t.maidName === selectedMaid.value
-    const query = searchQuery.value.toLowerCase()
-    const matchesSearch = !searchQuery.value ||
-      t.maidName.toLowerCase().includes(query) ||
-      t.location.toLowerCase().includes(query) ||
-      t.displayId.includes(query)
-
-    return matchesTab && matchesMaid && matchesSearch
-  }))
-
-  const totalPages = computed(() => Math.ceil(filteredTasks.value.length / itemsPerPage.value) || 1)
-
-  const paginatedTasks = computed(() => {
-    const start = (currentPage.value - 1) * itemsPerPage.value
-    const end = start + itemsPerPage.value
-    return filteredTasks.value.slice(start, end)
+  const uniqueMaids = computed(() => {
+    const map = new Map()
+    tasks.value.forEach(t => {
+      if (t.maidId && t.maidName) {
+        map.set(t.maidId, { id: t.maidId, fullname: t.maidName })
+      }
+    })
+    return Array.from(map.values())
   })
 
-  const startEntry = computed(() => filteredTasks.value.length === 0 ? 0 : (currentPage.value - 1) * itemsPerPage.value + 1)
-  const endEntry = computed(() => Math.min(currentPage.value * itemsPerPage.value, filteredTasks.value.length))
-
-  const waitingCount = computed(() => tasks.value.filter(t => t.status === 'waiting').length)
-
+  // Computed & Actions
+  const filteredTasks = computed(() => tasks.value) 
+  const totalPages = computed(() => Math.ceil(totalItemsCount.value / itemsPerPage.value) || 1)
+  const paginatedTasks = computed(() => tasks.value)
+  const startEntry = computed(() => totalItemsCount.value === 0 ? 0 : (currentPage.value - 1) * itemsPerPage.value + 1)
+  const endEntry = computed(() => Math.min(currentPage.value * itemsPerPage.value, totalItemsCount.value))
+  const waitingCount = computed(() => realWaitingCount.value)
   const isAllSelected = computed(() => paginatedTasks.value.length > 0 && paginatedTasks.value.every(t => selectedIds.value.includes(t.id)))
 
-  // --- Actions ---
   const changePage = (page) => {
-    if (page >= 1 && page <= totalPages.value) currentPage.value = page
+    if (page >= 1 && page <= totalPages.value) {
+        currentPage.value = page
+        fetchTasks()
+    }
   }
 
   const toggleSelection = (id) => {
-    if (activeTab.value !== 'waiting') return
+    if (activeTab.value !== TASK_STATUS.WAITING) return
     if (selectedIds.value.includes(id)) selectedIds.value = selectedIds.value.filter(i => i !== id)
     else selectedIds.value.push(id)
   }
@@ -176,41 +230,49 @@ export function useTaskLogic() {
   }
 
   const handleBulkApprove = async () => {
-    if (!userStore.profile?.employees_id) {
-        Swal.fire('Error', 'ไม่พบข้อมูลผู้ใช้งาน กรุณาเข้าสู่ระบบใหม่', 'error');
-        return;
-    }
+    if (!userStore.profile?.employees_id) return
 
     const result = await Swal.fire({
       title: `ยืนยันการตรวจสอบ ${selectedIds.value.length} รายการ?`,
-      text: 'รายการที่เลือกทั้งหมดจะถูกเปลี่ยนสถานะเป็น "ตรวจแล้ว"',
       icon: 'question',
       showCancelButton: true,
-      confirmButtonColor: '#10b981',
-      cancelButtonColor: '#9ca3af',
-      confirmButtonText: 'ยืนยันการตรวจสอบ',
+      confirmButtonText: 'ยืนยัน',
       cancelButtonText: 'ยกเลิก'
     })
 
     if (result.isConfirmed) {
       isBulkSubmitting.value = true
-      Swal.fire({ title: 'กำลังประมวลผล...', didOpen: () => Swal.showLoading() })
       try {
         const { error } = await supabase.from('check_sessions')
           .update({
-            check_sessions_status: 'approved',
+            check_sessions_status: TASK_STATUS.APPROVED,
             updated_at: new Date(),
             checked_at: new Date().toISOString(),
-            // ✅ แก้ไข: ใช้ checked_by ตามที่ Database คุณมีอยู่จริง
             checked_by: userStore.profile.employees_id 
           })
           .in('check_sessions_id', selectedIds.value)
 
         if (error) throw error
-        await fetchTasks()
+        
+        // Optimistic UI Update
+        if (activeTab.value === TASK_STATUS.WAITING) {
+            tasks.value = tasks.value.filter(t => !selectedIds.value.includes(t.id))
+            if (tasks.value.length === 0 && currentPage.value > 1) {
+                currentPage.value--
+            }
+            await fetchTasks(false) 
+        } else {
+            tasks.value = tasks.value.map(t => {
+                if (selectedIds.value.includes(t.id)) return { ...t, status: TASK_STATUS.APPROVED }
+                return t
+            })
+        }
+        
+        realWaitingCount.value = Math.max(0, realWaitingCount.value - selectedIds.value.length)
         selectedIds.value = []
         isSelectionMode.value = false
         Swal.fire({ icon: 'success', title: 'เรียบร้อย!', timer: 1500, showConfirmButton: false })
+
       } catch (err) {
         Swal.fire('Error', err.message, 'error')
       } finally {
@@ -219,12 +281,23 @@ export function useTaskLogic() {
     }
   }
 
-  // --- Lifecycle & Watchers ---
-  watch([activeTab, searchQuery, selectedMaid], () => {
+  watch([activeTab, startDate, endDate, selectedMaid], () => {
     currentPage.value = 1
     selectedIds.value = []
-    isSelectionMode.value = false
+    fetchTasks()
   })
+
+  watch(itemsPerPage, () => {
+    currentPage.value = 1;
+    fetchTasks();
+  })
+
+  // Debounce 800ms
+  const onSearchChange = debounce(() => {
+      currentPage.value = 1
+      fetchTasks()
+  }, 800)
+  watch(searchQuery, onSearchChange)
 
   watch(isSelectionMode, (newVal) => {
     if (!newVal) {
@@ -232,18 +305,15 @@ export function useTaskLogic() {
     }
   })
 
-  watch([startDate, endDate], () => {
-    currentPage.value = 1
-    fetchTasks()
-  })
-
   onMounted(async () => {
-    if (!userStore.profile) {
-        await userStore.fetchProfile()
-    }
-    fetchTimeSlots()
-    fetchTasks()
-    realtimeSubscription = supabase.channel('realtime').on('postgres_changes', { event: '*', schema: 'public', table: 'check_sessions' }, fetchTasks).subscribe()
+    if (!userStore.profile) await userStore.fetchProfile()
+    await fetchTasks()
+    
+    realtimeSubscription = supabase.channel('realtime_tasks')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'check_sessions' }, () => {
+            fetchWaitingCount()
+            fetchTasks(false) 
+        }).subscribe()
   })
 
   onUnmounted(() => {
@@ -252,11 +322,11 @@ export function useTaskLogic() {
 
   return {
     tasks, loading, activeTab, searchQuery, selectedMaid,
-    dateRange,
-    startDate, endDate, currentPage, itemsPerPage,
+    dateRange, startDate, endDate, currentPage, itemsPerPage,
     isSelectionMode, selectedIds, isBulkSubmitting,
     uniqueMaids, filteredTasks, paginatedTasks, totalPages,
     startEntry, endEntry, waitingCount, isAllSelected,
+    totalItemsCount,
     fetchTasks, changePage, toggleSelection, toggleSelectAll, handleBulkApprove
   }
 }

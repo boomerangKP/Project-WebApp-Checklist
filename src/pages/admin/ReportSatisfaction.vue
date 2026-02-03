@@ -8,6 +8,8 @@ import {
   Search,
   ChevronDown,
   Check,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-vue-next";
 import { useReportSatisfaction } from "@/composables/useReportSatisfaction";
 import { useSwal } from "@/composables/useSwal";
@@ -30,36 +32,44 @@ const {
   trendChartData,
   topicChartData,
   exportToExcel,
+  // Pagination Vars
+  totalItems,
+  currentPage,
+  totalPages,
+  itemsPerPage, 
+  changePage,
 } = useReportSatisfaction();
 
-// --- Helper: คำนวณช่วงวันที่จริงเพื่อใช้แสดงใน Popup ---
+// --- Helper: คำนวณช่วงวันที่จริง ---
 const getActualDateRange = () => {
   const now = new Date();
   let start = new Date();
   let end = new Date();
 
-  // Logic เดียวกับ Backend แต่เอามาใช้แสดงผล
-  if (dateFilter.value === 'today') {
+  if (dateFilter.value === "today") {
     start.setHours(0, 0, 0, 0);
-  } else if (dateFilter.value === 'week') {
+  } else if (dateFilter.value === "week") {
     const day = start.getDay() || 7;
     if (day !== 1) start.setHours(-24 * (day - 1));
     start.setHours(0, 0, 0, 0);
-  } else if (dateFilter.value === 'month') {
+  } else if (dateFilter.value === "month") {
     start.setDate(1);
     start.setHours(0, 0, 0, 0);
-  } else if (dateFilter.value === 'custom') {
+  } else if (dateFilter.value === "custom") {
     if (customStart.value) start = new Date(customStart.value);
     if (customEnd.value) end = new Date(customEnd.value);
+    // ปรับเวลาจบของวันให้เป็น 23:59:59 เพื่อให้ครอบคลุมทั้งวัน
+    end.setHours(23, 59, 59, 999);
   }
 
-  // ป้องกัน Error กรณีวันที่ไม่ถูกต้อง
   if (isNaN(start.getTime())) start = new Date();
   if (isNaN(end.getTime())) end = new Date();
 
   return {
+    start, // ส่ง object วันที่ออกไปด้วย
+    end,   // ส่ง object วันที่ออกไปด้วย
     startStr: start.toLocaleDateString("th-TH", { dateStyle: "long" }),
-    endStr: end.toLocaleDateString("th-TH", { dateStyle: "long" })
+    endStr: end.toLocaleDateString("th-TH", { dateStyle: "long" }),
   };
 };
 
@@ -107,7 +117,8 @@ const selectFilter = (value) => {
 const isExporting = ref(false);
 
 const confirmExport = () => {
-  const count = feedbacks.value.length;
+  const count = totalItems?.value || 0;
+
   if (count === 0) {
     Swal.fire({
       icon: "warning",
@@ -118,12 +129,10 @@ const confirmExport = () => {
     return;
   }
 
-  // ✅ เรียกฟังก์ชันคำนวณวันที่จริง
-  const { startStr, endStr } = getActualDateRange();
+  const { startStr, endStr, start, end } = getActualDateRange();
 
   Swal.fire({
     title: "ยืนยันการดาวน์โหลด?",
-    // ✅ แสดงข้อความตาม Format ที่ต้องการ
     html: `
       ต้องการดาวน์โหลดรายงานตั้งแต่วันที่ <br/>
       <b class="text-indigo-600 dark:text-indigo-400">${startStr}</b> ถึง <b class="text-indigo-600 dark:text-indigo-400">${endStr}</b> <br/><br/>
@@ -136,20 +145,15 @@ const confirmExport = () => {
   }).then(async (result) => {
     if (result.isConfirmed) {
       isExporting.value = true;
-      await new Promise((r) => setTimeout(r, 800)); // UX Delay
+      await new Promise((r) => setTimeout(r, 800));
 
-      const fileName = await exportToExcel();
+      // ส่ง startDate และ endDate ไปให้ฟังก์ชัน exportToExcel
+      await exportToExcel({
+          startDate: start.toISOString(),
+          endDate: end.toISOString()
+      });
 
       isExporting.value = false;
-      if (fileName) {
-          Swal.fire({
-            icon: "success",
-            title: "ดาวน์โหลดเรียบร้อย!",
-            text: `ไฟล์ ${fileName} ถูกบันทึกลงในเครื่องของคุณแล้ว`,
-            timer: 2000,
-            showConfirmButton: false,
-          });
-      }
     }
   });
 };
@@ -200,7 +204,10 @@ const confirmExport = () => {
                 "
               >
                 {{ option.label }}
-                <Check v-if="dateFilter === option.value" class="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                <Check
+                  v-if="dateFilter === option.value"
+                  class="w-4 h-4 text-indigo-600 dark:text-indigo-400"
+                />
               </button>
             </div>
           </div>
@@ -212,25 +219,39 @@ const confirmExport = () => {
           class="flex items-center gap-2 bg-white dark:bg-slate-800 p-1 rounded-lg border border-gray-200 dark:border-slate-700 shadow-sm animate-in fade-in slide-in-from-right-4 h-10"
         >
           <div class="relative group cursor-pointer h-full" @click="openStartCalendar">
-            <div class="flex items-center gap-2 bg-gray-50 dark:bg-slate-900 hover:bg-gray-100 dark:hover:bg-slate-800 border border-transparent hover:border-indigo-200 dark:hover:border-indigo-700 rounded px-3 h-full transition-all">
+            <div
+              class="flex items-center gap-2 bg-gray-50 dark:bg-slate-900 hover:bg-gray-100 dark:hover:bg-slate-800 border border-transparent hover:border-indigo-200 dark:hover:border-indigo-700 rounded px-3 h-full transition-all"
+            >
               <CalendarIcon class="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
               <span class="text-xs font-medium text-gray-700 dark:text-white min-w-[70px] text-center whitespace-nowrap">
                 {{ displayThaiDate(customStart) }}
               </span>
             </div>
-            <input ref="startInputRef" type="date" v-model="customStart" class="absolute bottom-0 left-0 w-0 h-0 opacity-0 pointer-events-none" />
+            <input
+              ref="startInputRef"
+              type="date"
+              v-model="customStart"
+              class="absolute bottom-0 left-0 w-0 h-0 opacity-0 pointer-events-none"
+            />
           </div>
 
           <ArrowRight class="w-3 h-3 text-gray-300 dark:text-slate-600" />
 
           <div class="relative group cursor-pointer h-full" @click="openEndCalendar">
-            <div class="flex items-center gap-2 bg-gray-50 dark:bg-slate-900 hover:bg-gray-100 dark:hover:bg-slate-800 border border-transparent hover:border-indigo-200 dark:hover:border-indigo-700 rounded px-3 h-full transition-all">
+            <div
+              class="flex items-center gap-2 bg-gray-50 dark:bg-slate-900 hover:bg-gray-100 dark:hover:bg-slate-800 border border-transparent hover:border-indigo-200 dark:hover:border-indigo-700 rounded px-3 h-full transition-all"
+            >
               <CalendarIcon class="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
               <span class="text-xs font-medium text-gray-700 dark:text-white min-w-[70px] text-center whitespace-nowrap">
                 {{ displayThaiDate(customEnd) }}
               </span>
             </div>
-            <input ref="endInputRef" type="date" v-model="customEnd" class="absolute bottom-0 left-0 w-0 h-0 opacity-0 pointer-events-none" />
+            <input
+              ref="endInputRef"
+              type="date"
+              v-model="customEnd"
+              class="absolute bottom-0 left-0 w-0 h-0 opacity-0 pointer-events-none"
+            />
           </div>
 
           <button
@@ -261,7 +282,43 @@ const confirmExport = () => {
     <div v-else class="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <StatsCards :stats="stats" />
       <FeedbackCharts :trendData="trendChartData" :topicData="topicChartData" />
-      <RecentFeedbackTable :feedbacks="feedbacks" />
+
+      <div>
+        <RecentFeedbackTable :feedbacks="feedbacks" />
+
+        <div
+          v-if="totalItems > 0"
+          class="flex flex-col sm:flex-row items-center justify-between gap-4 px-2 py-3 bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-700 shadow-sm"
+        >
+          <div class="flex items-center gap-2 text-sm text-gray-600 dark:text-slate-400">
+            <span>แสดง</span>
+            <span class="font-bold text-gray-900 dark:text-white">50</span>
+            <span>รายการ (จาก {{ totalItems }})</span>
+          </div>
+
+          <div class="flex items-center gap-3">
+            <span class="text-sm text-gray-500 dark:text-slate-400">
+              หน้า {{ currentPage }} / {{ totalPages }}
+            </span>
+            <div class="flex items-center gap-1">
+              <button
+                @click="changePage(currentPage - 1)"
+                :disabled="currentPage === 1"
+                class="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed border border-gray-200 dark:border-slate-600 transition-colors"
+              >
+                <ChevronLeft class="w-4 h-4 text-gray-600 dark:text-slate-300" />
+              </button>
+              <button
+                @click="changePage(currentPage + 1)"
+                :disabled="currentPage === totalPages"
+                class="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed border border-gray-200 dark:border-slate-600 transition-colors"
+              >
+                <ChevronRight class="w-4 h-4 text-gray-600 dark:text-slate-300" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>

@@ -21,7 +21,7 @@ const emit = defineEmits(["edit", "delete"]);
 
 // --- 1. Pagination Logic (ระบบแบ่งหน้า) ---
 const currentPage = ref(1);
-const itemsPerPage = ref(10); // ค่าเริ่มต้น 10 รายการ
+const itemsPerPage = ref(100); // ค่าเริ่มต้น 10 รายการ
 
 // คำนวณจำนวนหน้าทั้งหมด
 const totalItems = computed(() => props.items.length);
@@ -131,7 +131,7 @@ const getLocationStatusConfig = (status) => {
 
 <template>
   <div
-    class="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl shadow-sm overflow-hidden flex flex-col h-[calc(100vh-320px)] transition-colors duration-300"
+    class="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden flex flex-col h-[calc(100vh-295px)] transition-colors duration-300"
   >
     <div class="flex-1 overflow-y-auto overflow-x-auto relative custom-scrollbar">
       <table class="w-full text-left border-collapse">
@@ -310,9 +310,9 @@ const getLocationStatusConfig = (status) => {
             v-model="itemsPerPage"
             class="bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-white text-xs rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-1.5 cursor-pointer outline-none shadow-sm"
           >
-            <option :value="20">20</option>
-            <option :value="50">50</option>
             <option :value="100">100</option>
+            <option :value="200">200</option>
+            <option :value="500">500</option>
           </select>
         </div>
       </div>

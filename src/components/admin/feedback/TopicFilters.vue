@@ -82,7 +82,7 @@ const currentStatusLabel = computed(() => {
 
 <template>
   <div
-    class="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 flex flex-col md:flex-row gap-2 md:gap-3 items-center flex-wrap transition-colors duration-300"
+    class="bg-white dark:bg-slate-800 p-1.5 shadow-sm border border-gray-200 dark:border-slate-700 flex flex-col md:flex-row gap-2 md:gap-3 items-center flex-wrap transition-colors duration-300"
   >
     <div class="relative w-full md:flex-1 custom-dropdown-container">
       <Search

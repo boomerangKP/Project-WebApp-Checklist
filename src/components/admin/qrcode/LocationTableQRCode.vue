@@ -19,7 +19,7 @@ const emit = defineEmits(["toggle", "toggle-all"]);
 
 // --- ⚡ ส่วน Pagination State ---
 const currentPage = ref(1);
-const itemsPerPage = ref(10);
+const itemsPerPage = ref(100);
 
 watch(
   () => props.locations,
@@ -82,7 +82,7 @@ const isAllSelected = computed(() => {
 
 <template>
   <div
-    class="flex-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-2xl shadow-sm overflow-hidden flex flex-col h-full transition-colors duration-300"
+    class="flex-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden flex flex-col h-full transition-colors duration-300"
   >
     <div
       class="grid grid-cols-12 gap-4 px-6 py-3 bg-gray-50 dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider items-center flex-shrink-0"
@@ -200,10 +200,9 @@ const isAllSelected = computed(() => {
             @change="currentPage = 1"
             class="border border-gray-300 dark:border-slate-600 rounded-md py-1 px-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none cursor-pointer bg-white dark:bg-slate-700 text-gray-900 dark:text-white shadow-sm min-w-[60px]"
           >
-            <option :value="20">20</option>
-            <option :value="30">30</option>
-            <option :value="50">50</option>
             <option :value="100">100</option>
+            <option :value="200">200</option>
+            <option :value="500">500</option>
           </select>
         </div>
       </div>

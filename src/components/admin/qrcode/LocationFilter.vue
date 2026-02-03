@@ -67,7 +67,7 @@ onUnmounted(() => window.removeEventListener('click', handleClickOutside))
 </script>
 
 <template>
-  <div class="bg-white dark:bg-slate-800 p-4 rounded-xl border border-gray-200 dark:border-slate-700 shadow-sm flex flex-col md:flex-row gap-2 md:gap-3 items-center flex-wrap mb-6 transition-colors duration-300">
+  <div class="bg-white dark:bg-slate-800 p-1.5 border border-gray-200 dark:border-slate-700 shadow-sm flex flex-col md:flex-row gap-2 md:gap-3 items-center flex-wrap mb-6 transition-colors duration-300">
 
     <div class="relative w-full md:w-72 custom-dropdown-container">
       <Search class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-500" />

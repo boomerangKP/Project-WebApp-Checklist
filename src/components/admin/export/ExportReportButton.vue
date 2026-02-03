@@ -351,6 +351,6 @@ const translateStatus = (status) => {
   >
     <Loader2 v-if="isExporting" class="w-4 h-4 animate-spin" />
     <FileSpreadsheet v-else class="w-4 h-4" />
-    <span>{{ isExporting ? "Creating..." : "Export Excel" }}</span>
+    <span>{{ isExporting ? "กำลังสร้างไฟล์..." : "Export Excel" }}</span>
   </button>
 </template>

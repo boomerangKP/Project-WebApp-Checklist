@@ -104,7 +104,7 @@ const currentTypeName = computed(() => {
 
 <template>
   <div
-    class="bg-white dark:bg-slate-800 p-4 rounded-xl border border-gray-200 dark:border-slate-700 shadow-sm flex flex-col md:flex-row gap-2 md:gap-3 items-center flex-wrap transition-colors duration-300"
+    class="bg-white dark:bg-slate-800 p-1.5 border border-gray-200 dark:border-slate-700 shadow-sm flex flex-col md:flex-row gap-2 md:gap-3 items-center flex-wrap transition-colors duration-300"
   >
     <div class="relative w-full md:w-64 custom-dropdown-container">
       <Search

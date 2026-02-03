@@ -47,7 +47,7 @@ const closeDrawer = () => {
 
 <template>
   <div
-    class="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl shadow-sm flex flex-col h-[calc(100vh-220px)] overflow-hidden font-noto relative transition-colors duration-300"
+    class="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 shadow-sm flex flex-col h-[calc(100vh-220px)] overflow-hidden font-noto relative transition-colors duration-300"
   >
     <div class="flex-1 overflow-y-auto custom-scrollbar">
       <table class="w-full text-left border-collapse">

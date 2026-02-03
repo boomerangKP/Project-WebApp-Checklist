@@ -1,32 +1,25 @@
-import { ref, watch, onMounted, onUnmounted } from "vue";
+import { ref, watch, onMounted, onUnmounted, computed } from "vue";
 import { supabase } from "@/lib/supabase";
 import Swal from "sweetalert2";
-
-// ✅ 1. เพิ่ม Polyfill Buffer (จำเป็นสำหรับ xlsx-js-style บน Vite)
-// ต้องวางไว้บนสุด เพื่อให้ทำงานก่อน Library จะถูกโหลด
-import * as XLSX_Standard from "xlsx";
-if (typeof window !== 'undefined') {
-    if (!window.Buffer) {
-        window.Buffer = function(arg) { return new Uint8Array(arg); };
-        window.Buffer.allocUnsafe = (len) => new Uint8Array(len);
-        window.Buffer.alloc = (len) => new Uint8Array(len);
-        window.Buffer.isBuffer = () => false;
-        window.Buffer.from = (data) => new Uint8Array(data);
-    }
-}
+import * as XLSX from "xlsx"; // ✅ ใช้ตัวธรรมดา (เบาหวิว)
 
 export function useReportSatisfaction() {
   // --- State ---
   const loading = ref(false);
   const feedbacks = ref([]);
-  const dateFilter = ref("today"); // today, week, month, all, custom
+  const dateFilter = ref("today");
   const customStart = ref("");
   const customEnd = ref("");
   const topicsMap = ref({});
-
-  // เก็บ Subscription ของ Realtime
   const realtimeChannel = ref(null);
 
+  // ✅ Pagination State
+  const currentPage = ref(1);
+  const itemsPerPage = ref(50);
+  const totalItems = ref(0);
+  const totalPages = computed(() => Math.ceil(totalItems.value / itemsPerPage.value) || 1);
+
+  // Stats Data
   const stats = ref({
     totalReviews: 0,
     averageRating: "0.0",
@@ -41,11 +34,8 @@ export function useReportSatisfaction() {
 
   // --- Helper: Get Date Range ---
   const getDateRange = (filter) => {
-    const now = new Date();
     const start = new Date();
-    const end = new Date(); 
-
-    // ✅ ตั้งค่า end ให้เป็น "จบวัน" เสมอ
+    const end = new Date();
     end.setHours(23, 59, 59, 999);
 
     if (filter === 'today') {
@@ -58,40 +48,29 @@ export function useReportSatisfaction() {
       start.setDate(1);
       start.setHours(0, 0, 0, 0);
     } else if (filter === 'custom') {
-      // Logic Custom Range
       if (!customStart.value || !customEnd.value) return null;
-
       const s = new Date(customStart.value);
       const e = new Date(customEnd.value);
-
       s.setHours(0, 0, 0, 0);
       e.setHours(23, 59, 59, 999);
-
+      
       const diffTime = Math.abs(e - s);
       const diffMonths = diffTime / (1000 * 60 * 60 * 24 * 30);
-
       if (diffMonths > 4) {
          Swal.fire("ช่วงเวลาเกินกำหนด", "กรุณาเลือกช่วงเวลาไม่เกิน 4 เดือน", "warning");
          return null;
       }
-
       return { start: s.toISOString(), end: e.toISOString() };
     } else {
-      return null; // 'all'
+      return null;
     }
-
     return { start: start.toISOString(), end: end.toISOString() };
   };
 
   const formatDateTH = (date) => {
-    return new Date(date).toLocaleDateString("th-TH", {
-      day: "numeric",
-      month: "long",
-      year: "numeric"
-    });
+    return new Date(date).toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" });
   };
 
-  // --- 1. Fetch Topics ---
   const fetchTopics = async () => {
     const { data } = await supabase.from('feedback_topics').select('id, name').order('id');
     if (data) {
@@ -102,50 +81,103 @@ export function useReportSatisfaction() {
     }
   };
 
-  // --- 2. Fetch Data ---
-  const fetchData = async () => {
-    // ถ้ามีข้อมูลอยู่แล้ว ไม่ต้องขึ้น Loading
-    if (feedbacks.value.length === 0) loading.value = true;
-
-    try {
-      let query = supabase
-        .from("feedbacks")
-        .select(`
-          *,
-          locations (
-            locations_name,
-            locations_building,
-            locations_floor
-          )
-        `)
-        .order("created_at", { ascending: false });
-
+  // ✅ Helper: Loop Fetch
+  const fetchAllData = async (selectColumns = '*') => {
       const range = getDateRange(dateFilter.value);
+      if (dateFilter.value === 'custom' && !range) return [];
 
-      if (dateFilter.value === 'custom' && !range) {
-          loading.value = false;
-          return;
+      let allData = [];
+      let page = 0;
+      let pageSize = 1000;
+      let hasMore = true;
+
+      while (hasMore) {
+          const from = page * pageSize;
+          const to = from + pageSize - 1;
+
+          let query = supabase
+              .from("feedbacks")
+              .select(selectColumns)
+              .order("created_at", { ascending: true })
+              .range(from, to);
+
+          if (range) {
+              query = query.gte("created_at", range.start).lte("created_at", range.end);
+          }
+
+          const { data, error } = await query;
+          if (error) throw error;
+
+          if (data && data.length > 0) {
+              allData = allData.concat(data);
+          }
+
+          if (!data || data.length < pageSize) {
+              hasMore = false;
+          } else {
+              page++;
+          }
       }
+      return allData;
+  };
 
-      if (range) {
-        query = query.gte("created_at", range.start).lte("created_at", range.end);
-      }
+  // ✅ 1. Fetch Table
+  const fetchTableData = async () => {
+    try {
+        const range = getDateRange(dateFilter.value);
+        if (dateFilter.value === 'custom' && !range) return;
 
-      const { data, error } = await query;
-      if (error) throw error;
+        const from = (currentPage.value - 1) * itemsPerPage.value;
+        const to = from + itemsPerPage.value - 1;
 
-      feedbacks.value = data;
-      calculateStats(data);
-      generateCharts(data);
+        let query = supabase
+            .from("feedbacks")
+            .select(`
+                *,
+                locations (locations_name, locations_building, locations_floor)
+            `, { count: 'exact' })
+            .order("created_at", { ascending: false })
+            .range(from, to);
+
+        if (range) {
+            query = query.gte("created_at", range.start).lte("created_at", range.end);
+        }
+
+        const { data, count, error } = await query;
+        if (error) throw error;
+
+        feedbacks.value = data;
+        totalItems.value = count || 0;
 
     } catch (err) {
-      console.error(err);
-    } finally {
-      loading.value = false;
+        console.error("Fetch Table Error:", err);
     }
   };
 
-  // --- 3. Calculate Stats ---
+  // ✅ 2. Fetch Stats
+  const fetchStatsData = async () => {
+    try {
+        const allData = await fetchAllData('rating, answers, created_at');
+        calculateStats(allData);
+        generateCharts(allData);
+    } catch (err) {
+        console.error("Fetch Stats Error:", err);
+    }
+  };
+
+  const fetchData = async () => {
+    loading.value = true;
+    await Promise.all([fetchTableData(), fetchStatsData()]);
+    loading.value = false;
+  };
+
+  const changePage = (page) => {
+      if (page >= 1 && page <= totalPages.value) {
+          currentPage.value = page;
+          fetchTableData();
+      }
+  };
+
   const calculateStats = (data) => {
     if (!data.length) {
       stats.value = { totalReviews: 0, averageRating: "0.0", topTopic: "-", topScore: "0.0", lowTopic: "-", lowScore: "0.0" };
@@ -153,6 +185,7 @@ export function useReportSatisfaction() {
     }
     let sumRating = 0;
     const topicScores = {};
+    
     data.forEach((item) => {
       sumRating += Number(item.rating || 0);
       if (item.answers) {
@@ -166,7 +199,9 @@ export function useReportSatisfaction() {
         });
       }
     });
+
     const avg = (sumRating / data.length).toFixed(1);
+    
     let max = -1; let min = 6; let topName = "-"; let lowName = "-";
     for (const [id, obj] of Object.entries(topicScores)) {
       const topicAvg = obj.sum / obj.count;
@@ -174,6 +209,7 @@ export function useReportSatisfaction() {
       if (topicAvg > max) { max = topicAvg; topName = name; }
       if (topicAvg < min) { min = topicAvg; lowName = name; }
     }
+
     stats.value = {
       totalReviews: data.length,
       averageRating: avg,
@@ -184,7 +220,6 @@ export function useReportSatisfaction() {
     };
   };
 
-  // --- 4. Generate Charts ---
   const generateCharts = (data) => {
     const dateMap = {};
     data.forEach(item => {
@@ -193,8 +228,10 @@ export function useReportSatisfaction() {
       dateMap[date].sum += Number(item.rating);
       dateMap[date].count += 1;
     });
-    const labels = Object.keys(dateMap).reverse();
+    
+    const labels = Object.keys(dateMap);
     const values = labels.map(date => (dateMap[date].sum / dateMap[date].count).toFixed(2));
+    
     trendChartData.value = {
       labels,
       datasets: [{
@@ -206,6 +243,7 @@ export function useReportSatisfaction() {
         fill: true
       }]
     };
+
     const topicScores = {};
     data.forEach(item => {
       if (item.answers) {
@@ -219,6 +257,7 @@ export function useReportSatisfaction() {
         });
       }
     });
+
     const topicLabels = []; const topicValues = [];
     Object.keys(topicsMap.value).forEach(id => {
        if (topicScores[id]) {
@@ -226,38 +265,39 @@ export function useReportSatisfaction() {
          topicValues.push((topicScores[id].sum / topicScores[id].count).toFixed(2));
        }
     });
+
     topicChartData.value = {
       labels: topicLabels,
       datasets: [{ label: 'คะแนนเฉลี่ย', data: topicValues, backgroundColor: '#10b981', borderRadius: 6 }]
     };
   };
 
-  // --- 5. Export Excel ---
+  // ✅ Export Excel (แก้ไขให้ Dynamic ตรงเป๊ะ)
   const exportToExcel = async () => {
     try {
-      // ✅ 2. Dynamic Import
-      let XLSX;
-      try {
-        const module = await import("xlsx-js-style");
-        XLSX = module.default || module;
-      } catch (e) {
-        console.warn("xlsx-js-style load failed, falling back to standard xlsx");
-        XLSX = XLSX_Standard;
-      }
-
       const now = new Date();
       const range = getDateRange(dateFilter.value);
-      let startDate = range ? new Date(range.start) : null;
+      
+      const exportData = await fetchAllData('*, locations(locations_name, locations_building, locations_floor)');
 
-      if (!startDate && feedbacks.value.length > 0) {
-        startDate = new Date(feedbacks.value[feedbacks.value.length - 1].created_at);
+      if (!exportData || exportData.length === 0) {
+          Swal.fire("ไม่มีข้อมูล", "ไม่พบข้อมูลในช่วงเวลาที่เลือก", "warning");
+          return null;
+      }
+
+      let startDate = range ? new Date(range.start) : null;
+      if (!startDate) {
+        startDate = new Date(exportData[exportData.length - 1].created_at);
       }
 
       const dateRangeStr = startDate
         ? `ประจำวันที่ ${formatDateTH(startDate)} - ${formatDateTH(range ? range.end : now)}`
         : `ข้อมูลทั้งหมด ณ วันที่ ${formatDateTH(now)}`;
 
-      const dataRows = feedbacks.value.map(f => {
+      // 1. เรียง ID หัวข้อให้แน่นอนก่อน
+      const sortedTopicIds = Object.keys(topicsMap.value).sort((a, b) => Number(a) - Number(b));
+      
+      const dataRows = exportData.map(f => {
         const dateObj = new Date(f.created_at);
         const dateStr = dateObj.toLocaleDateString("th-TH", { year: 'numeric', month: '2-digit', day: '2-digit' });
         const timeStr = dateObj.toLocaleTimeString("th-TH", { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -265,7 +305,7 @@ export function useReportSatisfaction() {
         const row = [
           timeStr, dateStr, f.locations?.locations_name || '-', f.locations?.locations_building || '-', f.locations?.locations_floor || '-', f.rating || '-',
         ];
-        const sortedTopicIds = Object.keys(topicsMap.value).sort((a, b) => Number(a) - Number(b));
+        
         sortedTopicIds.forEach(id => {
           let score = '-';
           if (f.answers && f.answers[id] !== undefined) {
@@ -274,69 +314,63 @@ export function useReportSatisfaction() {
           }
           row.push(score);
         });
-        row.push(f.comment || '-');
+        row.push(f.comment || '-'); // Comment อยู่ท้ายสุด
         return row;
       });
+
+      // 2. สร้างหัวตาราง (Header) ให้จำนวนช่องตรงกับข้อมูลเป๊ะๆ
+      const topicNames = sortedTopicIds.map(id => topicsMap.value[id] || `หัวข้อ ${id}`);
+      const topicCount = topicNames.length; 
 
       const ws_data = [
         ["รายงานคะแนนแบบประเมินความพึงพอใจการบริการด้านความสะอาด"],
         [dateRangeStr],
-        [ "ประทับเวลา", "วัน/เดือน/ปี", "สถานที่", "อาคาร", "ชั้น", "คะแนน\nเฉลี่ย", "คะแนนแต่ละหัวข้อประเมิน", "", "", "", "", "", "", "", "", "", "", "", "", "ข้อเสนอแนะ" ],
-        [ "", "", "", "", "", "", ...Object.keys(topicsMap.value).sort((a, b) => Number(a) - Number(b)).map(id => topicsMap.value[id] || `หัวข้อ ${id}`), "" ]
+        [ 
+            "ประทับเวลา", "วัน/เดือน/ปี", "สถานที่", "อาคาร", "ชั้น", "คะแนน\nเฉลี่ย", 
+            "คะแนนแต่ละหัวข้อประเมิน", ...Array(topicCount - 1).fill(""), 
+            "ข้อเสนอแนะ" 
+        ],
+        [ 
+            "", "", "", "", "", "", 
+            ...topicNames, 
+            "" 
+        ]
       ];
+      
       dataRows.forEach(r => ws_data.push(r));
-      const worksheet = XLSX.utils.aoa_to_sheet(ws_data);
 
-      if (worksheet['!ref']) {
-          const range = XLSX.utils.decode_range(worksheet['!ref']);
-          for (let R = range.s.r; R <= range.e.r; ++R) {
-            for (let C = range.s.c; C <= range.e.c; ++C) {
-              const cell_address = XLSX.utils.encode_cell({ r: R, c: C });
-              if (!worksheet[cell_address]) continue;
-              if(!worksheet[cell_address].s) worksheet[cell_address].s = {}; 
-              worksheet[cell_address].s = {
-                font: { name: "TH Sarabun New", sz: 14 },
-                alignment: { horizontal: "center", vertical: "center", wrapText: true },
-                border: { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } }
-              };
-              if (R < 4) {
-                 if(!worksheet[cell_address].s.font) worksheet[cell_address].s.font = {};
-                 worksheet[cell_address].s.font.bold = true;
-                 worksheet[cell_address].s.fill = { fgColor: { rgb: "EFEFEF" } };
-                 if (R === 0) worksheet[cell_address].s.font.sz = 18;
-              }
-            }
-          }
-      }
+      // สร้าง Workbook
+      const worksheet = XLSX.utils.aoa_to_sheet(ws_data);
+      
+      // 3. แก้ Merge Cells ให้สัมพันธ์กับจำนวนหัวข้อจริง (Dynamic)
+      const lastColIndex = 6 + topicCount; // 6 คือจำนวนคอลัมน์แรกๆ + จำนวนหัวข้อ
+
       worksheet['!merges'] = [
-        { s: { r: 0, c: 0 }, e: { r: 0, c: 19 } }, { s: { r: 1, c: 0 }, e: { r: 1, c: 19 } }, { s: { r: 2, c: 6 }, e: { r: 2, c: 18 } },
-        { s: { r: 2, c: 0 }, e: { r: 3, c: 0 } }, { s: { r: 2, c: 1 }, e: { r: 3, c: 1 } }, { s: { r: 2, c: 2 }, e: { r: 3, c: 2 } },
-        { s: { r: 2, c: 3 }, e: { r: 3, c: 3 } }, { s: { r: 2, c: 4 }, e: { r: 3, c: 4 } }, { s: { r: 2, c: 5 }, e: { r: 3, c: 5 } },
-        { s: { r: 2, c: 19 }, e: { r: 3, c: 19 } }
+        { s: { r: 0, c: 0 }, e: { r: 0, c: lastColIndex } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: lastColIndex } },
+        // Merge "คะแนนแต่ละหัวข้อประเมิน" (เริ่มที่ col 6)
+        { s: { r: 2, c: 6 }, e: { r: 2, c: 5 + topicCount } },
+        
+        // Merge แนวตั้ง (Header ซ้ายมือ)
+        { s: { r: 2, c: 0 }, e: { r: 3, c: 0 } }, 
+        { s: { r: 2, c: 1 }, e: { r: 3, c: 1 } },
+        { s: { r: 2, c: 2 }, e: { r: 3, c: 2 } }, 
+        { s: { r: 2, c: 3 }, e: { r: 3, c: 3 } },
+        { s: { r: 2, c: 4 }, e: { r: 3, c: 4 } }, 
+        { s: { r: 2, c: 5 }, e: { r: 3, c: 5 } },
+        
+        // Merge แนวตั้ง (Header ขวาสุด "ข้อเสนอแนะ")
+        { s: { r: 2, c: lastColIndex }, e: { r: 3, c: lastColIndex } } 
       ];
-      worksheet['!cols'] = [{ wch: 12 }, { wch: 15 }, { wch: 20 }, { wch: 10 }, { wch: 8 }, { wch: 10 }, ...Array(13).fill({ wch: 15 }), { wch: 45 }];
-      worksheet['!rows'] = [{ hpt: 35 }, { hpt: 30 }, { hpt: 25 }];
+
+      worksheet['!cols'] = [{ wch: 12 }, { wch: 15 }, { wch: 20 }, { wch: 10 }, { wch: 8 }, { wch: 10 }, ...Array(topicCount).fill({ wch: 15 }), { wch: 45 }];
 
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Feedback Report");
 
-      const fileName = `Feedback_Report_${new Date().toISOString().slice(0,10)}.xlsx`;
+      XLSX.writeFile(workbook, `Feedback_Report_${new Date().toISOString().slice(0,10)}.xlsx`);
 
-      // 🚫 ลบ: XLSX.writeFile(workbook, fileName); (ตัวต้นเหตุ Error fs/buffer)
-      
-      // ✅ 3. Manual Download (Blob) เพื่อแก้ปัญหา fs error แบบชัวร์ๆ
-      const wbout = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
-      const blob = new Blob([wbout], { type: 'application/octet-stream' });
-      const url = window.URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = fileName;
-      document.body.appendChild(anchor);
-      anchor.click();
-      document.body.removeChild(anchor);
-      window.URL.revokeObjectURL(url);
-
-      return fileName;
+      return "Feedback_Report.xlsx";
     } catch (error) {
       console.error("Export Failed:", error);
       Swal.fire("Error", "ไม่สามารถดาวน์โหลดไฟล์ได้", "error");
@@ -344,32 +378,27 @@ export function useReportSatisfaction() {
     }
   };
 
-  // --- Realtime Subscription ---
   const subscribeRealtime = () => {
     if (realtimeChannel.value) supabase.removeChannel(realtimeChannel.value);
-
     realtimeChannel.value = supabase
       .channel('public:feedbacks')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'feedbacks' },
-        () => {
-            fetchData();
-        }
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'feedbacks' }, () => {
+          fetchTableData();
+          fetchStatsData();
+      })
       .subscribe();
   };
 
-  // Watchers
   watch(dateFilter, (newVal) => {
       if (newVal !== 'custom') {
+          currentPage.value = 1;
           fetchData();
       }
   });
 
-  // Action
   const searchCustom = () => {
       if (dateFilter.value === 'custom') {
+          currentPage.value = 1;
           fetchData();
       }
   };
@@ -387,6 +416,7 @@ export function useReportSatisfaction() {
   });
 
   return {
-    loading, feedbacks, dateFilter, customStart, customEnd, searchCustom, stats, trendChartData, topicChartData, exportToExcel
+    loading, feedbacks, dateFilter, customStart, customEnd, searchCustom, stats, trendChartData, topicChartData, exportToExcel,
+    totalItems, currentPage, itemsPerPage, totalPages, changePage
   };
 }
