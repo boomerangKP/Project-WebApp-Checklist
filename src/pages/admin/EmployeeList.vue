@@ -237,7 +237,7 @@ onMounted(() => {
     <h1 class="text-2xl font-bold text-gray-800 dark:text-white">จัดการพนักงาน</h1>
 
     <div
-      class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 overflow-hidden flex flex-col transition-colors duration-300"
+      class="bg-white dark:bg-slate-800 shadow-sm border border-gray-200 dark:border-slate-700 overflow-hidden flex flex-col transition-colors duration-300"
     >
       <EmployeeToolbar
         v-model:searchQuery="searchQuery"

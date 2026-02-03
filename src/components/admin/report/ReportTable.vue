@@ -4,26 +4,23 @@ import {
   Loader2,
   Search,
   Eye,
-  ChevronLeft,
-  ChevronRight,
-  Clock,
   Check,
   Copy,
-  Building,
-  Layers,
-  MapPin,
+  Clock,
   Calendar,
+  MapPin,
   ShieldCheck,
   SprayCan,
   User,
 } from "lucide-vue-next";
 
 const props = defineProps(["logs", "loading"]);
-const emit = defineEmits(["view"]);
+// ✅ 1. เพิ่ม update:search ให้ส่งค่ากลับไปที่ไฟล์แม่
+const emit = defineEmits(["view", "update:search"]);
 
 // --- Pagination & Search State ---
 const currentPage = ref(1);
-const itemsPerPage = ref(10);
+const itemsPerPage = ref(500); // ตั้งไว้สูงๆ เพราะเราโชว์ข้อมูลทั้งหมดที่แม่ส่งมา (50 ตัว)
 const copiedId = ref(null);
 const searchQuery = ref("");
 
@@ -38,12 +35,13 @@ watch(
   }
 );
 
-// รีเซ็ตหน้าเมื่อมีการพิมพ์ค้นหา
-watch(searchQuery, () => {
+// ✅ 2. เมื่อพิมพ์ค้นหา ให้ส่ง Event ไปบอกแม่
+watch(searchQuery, (newVal) => {
   currentPage.value = 1;
+  emit("update:search", newVal);
 });
 
-// ✅ 1. สร้างรายการ Suggestion ทั้งหมดจากข้อมูล logs ที่มี
+// --- Logic Suggestion (ทำงานกับข้อมูล 50 ตัวที่แม่ส่งมา) ---
 const allSearchSuggestions = computed(() => {
   if (!props.logs) return [];
   const ids = props.logs.map((l) => l.check_sessions_id.toString());
@@ -56,17 +54,15 @@ const allSearchSuggestions = computed(() => {
     .map((l) => l.locations?.locations_building)
     .filter(Boolean);
 
-  // รวมทั้งหมดและตัดตัวซ้ำ
   return [...new Set([...ids, ...paddedIds, ...names, ...locations, ...buildings])];
 });
 
-// ✅ 2. กรองรายการ Suggestion ตามคำที่พิมพ์
 const filteredSearchList = computed(() => {
   if (!searchQuery.value) return [];
   const query = searchQuery.value.toLowerCase().trim();
   return allSearchSuggestions.value
     .filter((item) => item.toLowerCase().includes(query))
-    .slice(0, 10); // เอาแค่ 10 อันแรก
+    .slice(0, 10);
 });
 
 const selectSuggestion = (val) => {
@@ -74,11 +70,12 @@ const selectSuggestion = (val) => {
   showSearchSuggestions.value = false;
 };
 
-// --- Computed Logic: การค้นหา (Filter) ---
+// --- Computed Logic: Filter & Paginate (Client-side display) ---
 const filteredLogs = computed(() => {
   if (!props.logs) return [];
   const query = searchQuery.value.toLowerCase().trim();
 
+  // กรองเพื่อ Highlight ในหน้าปัจจุบัน
   if (!query) return props.logs;
 
   return props.logs.filter((log) => {
@@ -95,30 +92,14 @@ const filteredLogs = computed(() => {
   });
 });
 
-// --- Computed Logic: การแบ่งหน้า ---
-const totalPages = computed(
-  () => Math.ceil((filteredLogs.value.length || 0) / itemsPerPage.value) || 1
-);
-
 const paginatedLogs = computed(() => {
   if (!filteredLogs.value) return [];
+  // โชว์ทั้งหมดตามที่แม่ส่งมา
   const start = (currentPage.value - 1) * itemsPerPage.value;
   return filteredLogs.value.slice(start, start + itemsPerPage.value);
 });
 
-const startEntry = computed(() =>
-  filteredLogs.value.length === 0 ? 0 : (currentPage.value - 1) * itemsPerPage.value + 1
-);
-
-const endEntry = computed(() =>
-  Math.min(currentPage.value * itemsPerPage.value, filteredLogs.value.length || 0)
-);
-
 // --- Helpers ---
-const changePage = (p) => {
-  if (p >= 1 && p <= totalPages.value) currentPage.value = p;
-};
-
 const formatDate = (d) =>
   d
     ? new Date(d).toLocaleDateString("th-TH", {
@@ -195,7 +176,6 @@ const getRoleConfig = (role) => {
   }
 };
 
-// --- Click Outside Helper ---
 const handleClickOutside = (e) => {
   if (!e.target.closest(".custom-dropdown-container")) {
     showSearchSuggestions.value = false;
@@ -208,7 +188,7 @@ onUnmounted(() => window.removeEventListener("click", handleClickOutside));
 
 <template>
   <div
-    class="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-2xl shadow-sm overflow-hidden flex flex-col h-[calc(100vh-300px)] w-full relative transition-colors duration-300"
+    class="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden flex flex-col h-[calc(100vh-300px)] w-full relative transition-colors duration-300"
   >
     <div
       class="px-4 py-2 border-b border-gray-100 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0 bg-white dark:bg-slate-800"
@@ -438,46 +418,7 @@ onUnmounted(() => window.removeEventListener("click", handleClickOutside));
         </tbody>
       </table>
     </div>
-
-    <div
-      v-if="!loading && logs.length > 0"
-      class="bg-white dark:bg-slate-800 px-4 py-2 border-t border-gray-200 dark:border-slate-700 shrink-0 flex items-center justify-between text-xs sticky bottom-0 z-20"
-    >
-      <div class="flex items-center gap-3 text-gray-600 dark:text-slate-400">
-        <span
-          >แสดง {{ startEntry }} ถึง {{ endEntry }} จาก {{ filteredLogs.length }}</span
-        >
-        <span>แสดง:</span>
-        <select
-          v-model="itemsPerPage"
-          class="border border-gray-300 dark:border-slate-600 rounded px-1 py-0.5 focus:ring-1 bg-white dark:bg-slate-700 dark:text-white cursor-pointer"
-        >
-          <option :value="100">100</option>
-          <option :value="200">200</option>
-          <option :value="500">500</option>
-        </select>
-      </div>
-      <div class="flex items-center gap-1">
-        <button
-          @click="changePage(currentPage - 1)"
-          :disabled="currentPage === 1"
-          class="p-1 rounded border border-gray-200 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700 disabled:opacity-50 text-gray-600 dark:text-slate-400"
-        >
-          <ChevronLeft class="w-4 h-4" />
-        </button>
-        <span class="px-2 font-medium text-gray-700 dark:text-white"
-          >{{ currentPage }} / {{ totalPages }}</span
-        >
-        <button
-          @click="changePage(currentPage + 1)"
-          :disabled="currentPage === totalPages"
-          class="p-1 rounded border border-gray-200 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700 disabled:opacity-50 text-gray-600 dark:text-slate-400"
-        >
-          <ChevronRight class="w-4 h-4" />
-        </button>
-      </div>
     </div>
-  </div>
 </template>
 
 <style scoped>
@@ -493,7 +434,6 @@ onUnmounted(() => window.removeEventListener("click", handleClickOutside));
   background: #94a3b8;
 }
 
-/* ✅ Dark Mode Scrollbar */
 :global(.dark) .custom-scrollbar::-webkit-scrollbar-thumb {
   background: #475569;
 }

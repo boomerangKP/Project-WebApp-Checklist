@@ -16,7 +16,7 @@ export const useTaskFilterStore = defineStore('task-filters', () => {
   
   // Pagination
   const currentPage = ref(1)
-  const itemsPerPage = ref(10)
+  const itemsPerPage = ref(100)
 
   // Selection
   const selectedIds = ref([])
