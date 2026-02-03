@@ -48,6 +48,13 @@ const copyToClipboard = async (text, id) => {
   }
 };
 
+// ✅ Helper: ย่อรูปให้โหลดไว (Table ใช้รูปเล็กๆ แค่ 80px ก็ชัดแล้ว)
+const getOptimizedPhoto = (url) => {
+  if (!url) return "";
+  if (url.includes('base64')) return url;
+  return `${url}?width=80&height=80&resize=cover`;
+};
+
 // Helper: Role (ตำแหน่ง)
 const getRoleLabel = (r) => {
   if (!r) return "-";
@@ -229,7 +236,7 @@ const getRoleConfig = (role) => {
                 >
                   <img
                     v-if="emp.employees_photo"
-                    :src="emp.employees_photo"
+                    :src="getOptimizedPhoto(emp.employees_photo)"
                     class="h-full w-full object-cover"
                   />
 

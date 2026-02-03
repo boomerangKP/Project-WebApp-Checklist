@@ -17,11 +17,12 @@ import {
   CheckSquare,
   Square,
 } from "lucide-vue-next";
+import { TASK_STATUS } from '@/constants/status';
 
 const props = defineProps({
   activeTab: String,
   searchQuery: String,
-  selectedMaid: String,
+  selectedMaid: [String, Number], // ✅ รองรับทั้ง ID (ตัวเลข) และ 'all'
   maids: { type: Array, default: () => [] },
   isSelectionMode: Boolean,
   isAllSelected: Boolean,
@@ -140,10 +141,19 @@ const selectDateRange = (val) => {
   currentRange.value = val;
   closeDropdown();
 };
+
+// ✅ ส่งค่า ID ออกไป
 const selectMaid = (val) => {
   emit("update:selectedMaid", val);
   closeDropdown();
 };
+
+// ✅ Helper: หาชื่อจาก ID เพื่อแสดงผลที่ปุ่ม
+const getMaidLabel = computed(() => {
+    if (props.selectedMaid === 'all') return 'พนักงานทุกคน';
+    const found = props.maids.find(m => m.id === props.selectedMaid);
+    return found ? found.fullname : 'พนักงานทุกคน';
+});
 
 const filteredSearchList = computed(() => {
   if (!props.searchQuery) return [];
@@ -171,7 +181,6 @@ const resetFilters = () => {
   currentRange.value = "today";
   emit("update:searchQuery", "");
   emit("update:selectedMaid", "all");
-  // ✅ เพิ่ม: ถ้ามีการเลือกรายการค้างไว้ ให้ยกเลิกด้วยเมื่อกด Reset
   if (props.isSelectionMode) {
     emit("toggleSelectionMode");
   }
@@ -186,7 +195,7 @@ const hasFilters = computed(
     props.searchQuery ||
     props.selectedMaid !== "all" ||
     currentRange.value !== "today" ||
-    props.isSelectionMode // ✅ นับ Selection Mode เป็น Filter ด้วย จะได้กด Reset ได้
+    props.isSelectionMode
 );
 
 const handleClickOutside = (e) => {
@@ -210,9 +219,9 @@ onUnmounted(() => window.removeEventListener("click", handleClickOutside));
       >
         <button
           v-for="tab in [
-            { id: 'waiting', label: 'รอตรวจสอบ', icon: Clock },
-            { id: 'approved', label: 'ตรวจแล้ว', icon: CheckCircle2 },
-            { id: 'rejected', label: 'แก้ไข', icon: XCircle },
+            { id: TASK_STATUS.WAITING, label: 'รอตรวจสอบ', icon: Clock },
+            { id: TASK_STATUS.APPROVED, label: 'ตรวจแล้ว', icon: CheckCircle2 },
+            { id: TASK_STATUS.REJECTED, label: 'แก้ไข', icon: XCircle },
             { id: 'all', label: 'ทั้งหมด', icon: ListFilter },
           ]"
           :key="tab.id"
@@ -227,7 +236,7 @@ onUnmounted(() => window.removeEventListener("click", handleClickOutside));
           <component :is="tab.icon" class="w-4 h-4" />
           <span>{{ tab.label }}</span>
           <span
-            v-if="tab.id === 'waiting' && waitingCount > 0"
+            v-if="tab.id === TASK_STATUS.WAITING && waitingCount > 0"
             class="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-bold"
           >
             {{ waitingCount }}
@@ -285,7 +294,7 @@ onUnmounted(() => window.removeEventListener("click", handleClickOutside));
             <RotateCcw class="w-4 h-4" />
           </button>
 
-          <div v-if="activeTab === 'waiting'" class="flex gap-2">
+          <div v-if="activeTab === TASK_STATUS.WAITING" class="flex gap-2">
             <button
               @click="$emit('toggleSelectionMode')"
               class="h-10 px-3 flex items-center gap-2 rounded-lg border text-sm font-medium transition-colors whitespace-nowrap"
@@ -425,7 +434,7 @@ onUnmounted(() => window.removeEventListener("click", handleClickOutside));
           <div class="flex items-center gap-2 truncate">
             <Users class="w-4 h-4 text-gray-400 dark:text-slate-500" />
             <span class="text-gray-700 dark:text-gray-200 truncate">{{
-              selectedMaid === "all" ? "พนักงานทุกคน" : selectedMaid
+              getMaidLabel
             }}</span>
           </div>
           <ChevronDown class="h-4 w-4 text-gray-400" />
@@ -447,13 +456,13 @@ onUnmounted(() => window.removeEventListener("click", handleClickOutside));
           </div>
           <div
             v-for="maid in maids"
-            :key="maid"
-            @click="selectMaid(maid)"
+            :key="maid.id"
+            @click="selectMaid(maid.id)"
             class="px-3 py-2 rounded-md hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-sm cursor-pointer flex items-center justify-between text-gray-700 dark:text-gray-200 transition-colors"
           >
-            <span>{{ maid }}</span>
+            <span>{{ maid.fullname }}</span>
             <Check
-              v-if="selectedMaid === maid"
+              v-if="selectedMaid === maid.id"
               class="w-3 h-3 text-indigo-600 dark:text-indigo-400"
             />
           </div>

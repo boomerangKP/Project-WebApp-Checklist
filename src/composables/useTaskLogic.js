@@ -4,8 +4,9 @@ import { useSwal } from '@/composables/useSwal'
 import { useUserStore } from '@/stores/user'
 import { useTaskFilterStore } from '@/stores/taskFilters'
 import { storeToRefs } from 'pinia'
+import { TASK_STATUS } from '@/constants/status'
 
-// ✅ Helper: Debounce (ช่วยให้ Search ไม่ยิง API รัวๆ เวลาพิมพ์)
+// Helper: Debounce
 const debounce = (fn, delay) => {
   let timeout
   return (...args) => {
@@ -30,13 +31,14 @@ export function useTaskLogic() {
     currentPage,
     itemsPerPage, 
     isSelectionMode,
-    selectedIds
+    selectedIds,
+    timeSlots // ✅ 1. ดึง timeSlots จาก Store แทน Local State
   } = storeToRefs(filterStore)
 
   // --- Local State ---
   const tasks = ref([])
   const loading = ref(true)
-  const timeSlots = ref([])
+  // const timeSlots = ref([]) // ❌ ลบอันนี้ออก เพราะใช้จาก Store แล้ว
   const isBulkSubmitting = ref(false)
   const totalItemsCount = ref(0)
   const realWaitingCount = ref(0)
@@ -44,15 +46,14 @@ export function useTaskLogic() {
   let realtimeSubscription = null
 
   // --- Helper Functions ---
-  const fetchTimeSlots = async () => {
-    const { data } = await supabase.from('time_slots').select('*').order('time_slots_order')
-    if (data) timeSlots.value = data
-  }
-
+  
+  // ❌ ลบ fetchTimeSlots เดิมออก (ย้ายไป Store แล้ว)
+  
   const getSlotName = (dateString) => {
     if (!dateString) return '-'
     const date = new Date(dateString)
     const timeStr = date.toLocaleTimeString('en-GB', { hour12: false })
+    // ✅ timeSlots ตรงนี้จะใช้ข้อมูลจาก Store อัตโนมัติ
     const match = timeSlots.value.find(slot => timeStr >= slot.time_slots_start && timeStr < slot.time_slots_end)
     return match ? match.time_slots_name : 'นอกเวลาทำการ'
   }
@@ -61,14 +62,14 @@ export function useTaskLogic() {
   const fetchTasks = async () => {
     loading.value = true
     try {
+      // ✅ 2. เรียกใช้ Action จาก Store (ถ้ามีข้อมูลแล้วมันจะไม่โหลดซ้ำ)
       if (timeSlots.value.length === 0) {
-        await fetchTimeSlots()
+        await filterStore.fetchMasterData()
       }
 
       const from = (currentPage.value - 1) * itemsPerPage.value
       const to = from + itemsPerPage.value - 1
 
-      // 1. Base Query
       let query = supabase
         .from('check_sessions')
         .select(`
@@ -79,6 +80,7 @@ export function useTaskLogic() {
           created_at,
           checked_at,
           checked_by,
+          employees_id,
           employees:employees!check_sessions_employees_id_fkey (
             employees_id,
             employees_firstname,
@@ -95,42 +97,29 @@ export function useTaskLogic() {
         .order('created_at', { ascending: false })
         .range(from, to)
 
-      // 2. Date Filter
       if (startDate.value) query = query.gte('check_sessions_date', startDate.value)
       if (endDate.value) query = query.lte('check_sessions_date', endDate.value)
       
-      // 3. Status Tab Filter
-      if (activeTab.value === 'waiting') {
-        query = query.or('check_sessions_status.is.null,check_sessions_status.eq.waiting')
-      } else if (activeTab.value === 'approved') {
-         query = query.in('check_sessions_status', ['approved', 'pass', 'fixed'])
-      } else if (activeTab.value === 'rejected') {
-         query = query.in('check_sessions_status', ['rejected', 'fail'])
+      if (activeTab.value === TASK_STATUS.WAITING) {
+        query = query.or(`check_sessions_status.is.null,check_sessions_status.eq.${TASK_STATUS.WAITING}`)
+      } else if (activeTab.value === TASK_STATUS.APPROVED) {
+         query = query.in('check_sessions_status', TASK_STATUS.GROUP_APPROVED)
+      } else if (activeTab.value === TASK_STATUS.REJECTED) {
+         query = query.in('check_sessions_status', TASK_STATUS.GROUP_REJECTED)
       }
 
-      // ✅ 4. Maid Filter (ต้องแน่ใจว่า selectedMaid ส่งมาเป็น ID หรือ ชื่อ)
-      // *แนะนำให้แก้ไข TaskFilter.vue ให้ส่งเป็น ID จะแม่นยำที่สุด*
+      // Filter Maid
       if (selectedMaid.value && selectedMaid.value !== 'all') {
-         // กรณีส่งเป็น ID (ตัวเลข)
          if (!isNaN(selectedMaid.value)) {
-             // query = query.eq('employees_id', selectedMaid.value) // (ถ้ามี column นี้ในตารางหลัก)
-             // หรือถ้าต้องกรองผ่าน Relation (Supabase อาจต้องใช้ !inner)
-         } else {
-             // กรณีส่งเป็นชื่อ (String) - ใช้ได้แต่เสี่ยงชื่อซ้ำ
-             // อาจต้องกรองที่ Client-side หรือใช้ Text Search
+             query = query.eq('employees_id', selectedMaid.value) 
          }
       }
 
-      // ✅ 5. Search Logic
+      // Search Logic
       if (searchQuery.value && searchQuery.value.trim() !== '') {
          const term = searchQuery.value.trim()
          if (!isNaN(term)) {
-            // ถ้าค้นหาเป็นตัวเลข -> หาจาก ID
             query = query.eq('check_sessions_id', term)
-         } else {
-            // ถ้าค้นหาเป็นข้อความ -> หาจากสถานที่ (ตัวอย่าง)
-            // หมายเหตุ: การ Search Relation (ชื่อคน) ใน Supabase JS Client มีข้อจำกัด
-            // ถ้าต้องการค้นหาชื่อคน แนะนำให้ใช้ Supabase RPC หรือ Text Search Column
          }
       }
 
@@ -138,17 +127,17 @@ export function useTaskLogic() {
 
       if (error) throw error
 
-      // 6. Mapping
       tasks.value = data.map(item => {
-        let mappedStatus = 'waiting'
+        let mappedStatus = TASK_STATUS.WAITING
         const s = item.check_sessions_status
-        if (['approved', 'pass', 'fixed'].includes(s)) mappedStatus = 'approved'
-        else if (['rejected', 'fail'].includes(s)) mappedStatus = 'rejected'
-        else mappedStatus = 'waiting'
+        if (TASK_STATUS.GROUP_APPROVED.includes(s)) mappedStatus = TASK_STATUS.APPROVED
+        else if (TASK_STATUS.GROUP_REJECTED.includes(s)) mappedStatus = TASK_STATUS.REJECTED
+        else mappedStatus = TASK_STATUS.WAITING
 
         return {
           id: item.check_sessions_id,
           displayId: String(item.check_sessions_id),
+          maidId: item.employees?.employees_id,
           maidName: item.employees ? `${item.employees.employees_firstname} ${item.employees.employees_lastname}` : 'ไม่ระบุชื่อ',
           maidRole: item.employees?.role || 'user',
           maidPhoto: item.employees?.employees_photo,
@@ -178,12 +167,22 @@ export function useTaskLogic() {
       const { count } = await supabase
         .from('check_sessions')
         .select('*', { count: 'exact', head: true })
-        .or('check_sessions_status.is.null,check_sessions_status.eq.waiting')
+        .or(`check_sessions_status.is.null,check_sessions_status.eq.${TASK_STATUS.WAITING}`)
       
       realWaitingCount.value = count || 0
   }
 
-  const uniqueMaids = computed(() => [...new Set(tasks.value.map(t => t.maidName))])
+  const uniqueMaids = computed(() => {
+    const map = new Map()
+    tasks.value.forEach(t => {
+      if (t.maidId && t.maidName) {
+        map.set(t.maidId, { id: t.maidId, fullname: t.maidName })
+      }
+    })
+    return Array.from(map.values())
+  })
+
+  // Computed อื่นๆ คงเดิม
   const filteredTasks = computed(() => tasks.value) 
   const totalPages = computed(() => Math.ceil(totalItemsCount.value / itemsPerPage.value) || 1)
   const paginatedTasks = computed(() => tasks.value)
@@ -200,7 +199,7 @@ export function useTaskLogic() {
   }
 
   const toggleSelection = (id) => {
-    if (activeTab.value !== 'waiting') return
+    if (activeTab.value !== TASK_STATUS.WAITING) return
     if (selectedIds.value.includes(id)) selectedIds.value = selectedIds.value.filter(i => i !== id)
     else selectedIds.value.push(id)
   }
@@ -218,7 +217,6 @@ export function useTaskLogic() {
     }
   }
 
-  // ✅ 1. Queue Logic (Pro Solution)
   const handleBulkApprove = async () => {
     if (!userStore.profile?.employees_id) {
         Swal.fire('Error', 'ไม่พบข้อมูลผู้ใช้งาน กรุณาเข้าสู่ระบบใหม่', 'error');
@@ -241,7 +239,7 @@ export function useTaskLogic() {
       try {
         const { error } = await supabase.from('check_sessions')
           .update({
-            check_sessions_status: 'approved',
+            check_sessions_status: TASK_STATUS.APPROVED,
             updated_at: new Date(),
             checked_at: new Date().toISOString(),
             checked_by: userStore.profile.employees_id 
@@ -250,21 +248,18 @@ export function useTaskLogic() {
 
         if (error) throw error
         
-        // --- Queue Logic Start ---
-        if (activeTab.value === 'waiting') {
+        if (activeTab.value === TASK_STATUS.WAITING) {
             tasks.value = tasks.value.filter(t => !selectedIds.value.includes(t.id))
             if (tasks.value.length === 0 && currentPage.value > 1) {
                 currentPage.value--
             }
-            // ดูดข้อมูลใหม่มาเติม
             await fetchTasks() 
         } else {
             tasks.value = tasks.value.map(t => {
-                if (selectedIds.value.includes(t.id)) return { ...t, status: 'approved' }
+                if (selectedIds.value.includes(t.id)) return { ...t, status: TASK_STATUS.APPROVED }
                 return t
             })
         }
-        // --- Queue Logic End ---
         
         realWaitingCount.value = Math.max(0, realWaitingCount.value - selectedIds.value.length)
         selectedIds.value = []
@@ -279,27 +274,24 @@ export function useTaskLogic() {
     }
   }
 
-  // --- Watchers (หัวใจสำคัญที่ทำให้ UI ขยับ) ---
+  // Watchers
   watch([activeTab, startDate, endDate], () => {
     currentPage.value = 1
     selectedIds.value = []
     fetchTasks()
   })
 
-  // ✅ 2. Pagination Fix: ต้องมี Watcher นี้ ไม่งั้นเปลี่ยนจำนวนแล้วนิ่ง
   watch(itemsPerPage, () => {
     currentPage.value = 1;
     fetchTasks();
   })
 
-  // ✅ 3. Search Fix: ใช้ Debounce ค้นหา
   const onSearchChange = debounce(() => {
       currentPage.value = 1
       fetchTasks()
   }, 500)
   watch(searchQuery, onSearchChange)
 
-  // ✅ 4. Maid Filter Fix: ต้อง Watch ตัวนี้ด้วย
   watch(selectedMaid, () => {
       currentPage.value = 1
       fetchTasks()
@@ -315,8 +307,8 @@ export function useTaskLogic() {
     if (!userStore.profile) {
         await userStore.fetchProfile()
     }
-    fetchTimeSlots()
-    fetchTasks()
+    // fetchTimeSlots() // ❌ ไม่ต้องเรียกแล้ว
+    await fetchTasks() // ✅ ในนี้จะเรียก fetchMasterData จาก Store ให้เอง
     
     realtimeSubscription = supabase.channel('realtime')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'check_sessions' }, () => {

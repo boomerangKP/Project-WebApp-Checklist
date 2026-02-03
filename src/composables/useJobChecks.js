@@ -1,21 +1,27 @@
 import { supabase } from '@/lib/supabase'
 import dayjs from 'dayjs'
 import 'dayjs/locale/th'
+import { useTaskFilterStore } from '@/stores/taskFilters' // ✅ 1. Import Store
 
 export function useJobChecks() {
-  
-  // 1. ฟังก์ชันหา Slot เวลาปัจจุบัน จากตาราง time_slots
+  const filterStore = useTaskFilterStore() // ✅ 2. เรียกใช้ Store
+
+  // 1. ฟังก์ชันหา Slot เวลาปัจจุบัน (Cache Version: เร็วขึ้นเพราะไม่ยิง DB)
   const getCurrentTimeSlot = async () => {
-    const now = dayjs().format('HH:mm:ss') // จะได้รูปแบบ "14:30:00" ตรงกับ Database
+    // ถ้ายังไม่มีข้อมูลใน Store ให้ไปโหลดมาก่อน (ทำครั้งเดียว)
+    if (filterStore.timeSlots.length === 0) {
+        await filterStore.fetchMasterData()
+    }
+
+    const now = dayjs().format('HH:mm:ss')
     
-    const { data } = await supabase
-      .from('time_slots')
-      .select('*')
-      .lte('time_slots_start', now) // เวลาเริ่ม ต้องน้อยกว่าหรือเท่ากับ ปัจจุบัน
-      .gt('time_slots_end', now)    // เวลาจบ ต้องมากกว่า ปัจจุบัน
-      .single()
+    // ✅ หาจากข้อมูลใน Memory แทนการยิง Database
+    // เงื่อนไข: เวลาเริ่ม <= ปัจจุบัน และ เวลาจบ > ปัจจุบัน
+    const foundSlot = filterStore.timeSlots.find(slot => 
+        slot.time_slots_start <= now && slot.time_slots_end > now
+    )
       
-    return data
+    return foundSlot || null // ถ้าไม่เจอคืน null (นอกเวลาทำการ)
   }
 
   // 2. ฟังก์ชันเช็คงานซ้ำ (Core Logic)
@@ -23,8 +29,8 @@ export function useJobChecks() {
     const currentSlot = await getCurrentTimeSlot()
     
     // ✅ Logic เวลา:
-    // - ถ้าเจอ Slot ใน DB: ใช้เวลาเริ่มของ Slot นั้น (เช่น "07:00:00") เป็นตัวเช็ค
-    // - ถ้าไม่เจอ (นอกเวลา): ใช้ "ต้นชั่วโมง" ปัจจุบัน (เช่น "19:00:00") เป็นตัวเช็ค เพื่อกัน Spam
+    // - ถ้าเจอ Slot: ใช้เวลาเริ่มของ Slot นั้น (เช่น "07:00:00")
+    // - ถ้าไม่เจอ (นอกเวลา): ใช้ "ต้นชั่วโมง" ปัจจุบัน (เช่น "19:00:00")
     const slotStartTime = currentSlot 
       ? currentSlot.time_slots_start 
       : dayjs().startOf('hour').format('HH:mm:ss')

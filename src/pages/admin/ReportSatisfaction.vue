@@ -40,7 +40,7 @@ const {
   changePage,
 } = useReportSatisfaction();
 
-// --- Helper: คำนวณช่วงวันที่จริงเพื่อใช้แสดงใน Popup ---
+// --- Helper: คำนวณช่วงวันที่จริง ---
 const getActualDateRange = () => {
   const now = new Date();
   let start = new Date();
@@ -58,12 +58,16 @@ const getActualDateRange = () => {
   } else if (dateFilter.value === "custom") {
     if (customStart.value) start = new Date(customStart.value);
     if (customEnd.value) end = new Date(customEnd.value);
+    // ปรับเวลาจบของวันให้เป็น 23:59:59 เพื่อให้ครอบคลุมทั้งวัน
+    end.setHours(23, 59, 59, 999);
   }
 
   if (isNaN(start.getTime())) start = new Date();
   if (isNaN(end.getTime())) end = new Date();
 
   return {
+    start, // ✅ ส่ง object วันที่ออกไปด้วย
+    end,   // ✅ ส่ง object วันที่ออกไปด้วย
     startStr: start.toLocaleDateString("th-TH", { dateStyle: "long" }),
     endStr: end.toLocaleDateString("th-TH", { dateStyle: "long" }),
   };
@@ -113,7 +117,6 @@ const selectFilter = (value) => {
 const isExporting = ref(false);
 
 const confirmExport = () => {
-  // ✅ ใช้ totalItems (ยอดรวมจริงจาก DB)
   const count = totalItems?.value || 0;
 
   if (count === 0) {
@@ -126,7 +129,8 @@ const confirmExport = () => {
     return;
   }
 
-  const { startStr, endStr } = getActualDateRange();
+  // ✅ ดึงค่า start, end ที่เป็น Date Object มาใช้
+  const { startStr, endStr, start, end } = getActualDateRange();
 
   Swal.fire({
     title: "ยืนยันการดาวน์โหลด?",
@@ -142,22 +146,17 @@ const confirmExport = () => {
   }).then(async (result) => {
     if (result.isConfirmed) {
       isExporting.value = true;
-      // หน่วงเวลาเล็กน้อยเพื่อให้ UI อัปเดต
       await new Promise((r) => setTimeout(r, 800));
 
-      // ✅ เรียกใช้ exportToExcel จาก Composable (รองรับ Loop Fetching แล้ว)
-      const fileName = await exportToExcel();
+      // ✅ ส่ง startDate และ endDate ไปให้ฟังก์ชัน exportToExcel
+      // เพื่อให้มันดึงข้อมูลมา Loop Batch (เร็วขึ้น)
+      await exportToExcel({
+          startDate: start.toISOString(),
+          endDate: end.toISOString()
+      });
 
       isExporting.value = false;
-      if (fileName) {
-        Swal.fire({
-          icon: "success",
-          title: "ดาวน์โหลดเรียบร้อย!",
-          text: `ไฟล์ ${fileName} ถูกบันทึกลงในเครื่องของคุณแล้ว`,
-          timer: 2000,
-          showConfirmButton: false,
-        });
-      }
+      // ❌ ไม่ต้อง Swal success ตรงนี้แล้ว เพราะใน useReportSatisfaction มี Swal แจ้งเตือนที่ละเอียดกว่า
     }
   });
 };

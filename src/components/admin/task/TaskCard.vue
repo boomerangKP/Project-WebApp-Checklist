@@ -4,7 +4,6 @@ import {
   CheckCircle2,
   Edit3,
   Calendar,
-  MapPin,
   CheckSquare,
   Building,
   UserCheck,
@@ -12,6 +11,7 @@ import {
   SprayCan,
   User,
 } from "lucide-vue-next";
+import { TASK_STATUS } from '@/constants/status';
 
 defineProps({
   task: Object,
@@ -21,7 +21,6 @@ defineProps({
 
 defineEmits(["click", "toggleSelect"]);
 
-// Helper: จัดรูปแบบวันที่และเวลาแบบย่อ
 const formatCheckTime = (isoString) => {
   if (!isoString) return "";
   const date = new Date(isoString);
@@ -36,7 +35,13 @@ const formatCheckTime = (isoString) => {
   );
 };
 
-// ✅ Helper 1: แปลง Role เป็นภาษาไทย (เพิ่มใหม่)
+// ✅ Helper: ย่อรูปให้โหลดไว (Profile Card ใช้แค่ 100px ก็ชัดแล้ว)
+const getOptimizedPhoto = (url) => {
+  if (!url) return "";
+  if (url.includes('base64')) return url;
+  return `${url}?width=100&height=100&resize=cover`;
+};
+
 const getRoleLabel = (role) => {
   const r = role ? role.toLowerCase() : "user";
   if (r === "admin") return "ผู้ดูแลระบบ";
@@ -45,39 +50,13 @@ const getRoleLabel = (role) => {
   return "พนักงานทั่วไป";
 };
 
-// ✅ Helper 2: เลือกไอคอนและสีตาม Role
 const getRoleConfig = (role) => {
   const r = role ? role.toLowerCase() : "user";
-
   switch (r) {
-    case "admin":
-      // ✅ เพิ่ม dark mode colors
-      return {
-        type: "icon",
-        icon: ShieldCheck,
-        class:
-          "bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-800",
-      };
-    case "maid":
-      return {
-        type: "icon",
-        icon: SprayCan,
-        class:
-          "bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-800",
-      };
-    case "cleaner":
-      return {
-        type: "emoji",
-        icon: "🧹",
-        class: "bg-gray-200 dark:bg-gray-700 text-xl border-transparent",
-      };
-    default:
-      return {
-        type: "icon",
-        icon: User,
-        class:
-          "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700",
-      };
+    case "admin": return { type: "icon", icon: ShieldCheck, class: "bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-800" };
+    case "maid": return { type: "icon", icon: SprayCan, class: "bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-800" };
+    case "cleaner": return { type: "emoji", icon: "🧹", class: "bg-gray-200 dark:bg-gray-700 text-xl border-transparent" };
+    default: return { type: "icon", icon: User, class: "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700" };
   }
 };
 </script>
@@ -92,7 +71,7 @@ const getRoleConfig = (role) => {
     "
   >
     <div
-      v-if="isSelectionMode && task.status === 'waiting'"
+      v-if="isSelectionMode && task.status === TASK_STATUS.WAITING"
       @click.stop="$emit('toggleSelect', task.id)"
       class="absolute top-0 left-0 bottom-0 w-12 flex items-center justify-center cursor-pointer z-10 md:static md:w-auto md:h-auto md:pr-2"
     >
@@ -110,29 +89,24 @@ const getRoleConfig = (role) => {
 
     <div
       class="flex-1 flex flex-col md:flex-row items-center gap-3 w-full cursor-pointer transition-all"
-      :class="{ 'pl-8 md:pl-0': isSelectionMode && task.status === 'waiting' }"
+      :class="{ 'pl-8 md:pl-0': isSelectionMode && task.status === TASK_STATUS.WAITING }"
       @click="$emit('click', task.id)"
     >
       <div class="flex items-center gap-3 w-full md:w-1/4 min-w-[180px]">
         <div class="relative flex-shrink-0">
           <img
             v-if="task.maidPhoto"
-            :src="task.maidPhoto"
+            :src="getOptimizedPhoto(task.maidPhoto)"
             class="w-12 h-12 rounded-full object-cover border-2 border-gray-100 dark:border-slate-700"
           />
-
           <div
             v-else
             class="w-12 h-12 rounded-full flex items-center justify-center border dark:border-slate-600"
             :class="getRoleConfig(task.maidRole).class"
           >
-            <span
-              v-if="getRoleConfig(task.maidRole).type === 'emoji'"
-              class="leading-none pt-1"
-            >
+            <span v-if="getRoleConfig(task.maidRole).type === 'emoji'" class="leading-none pt-1">
               {{ getRoleConfig(task.maidRole).icon }}
             </span>
-
             <component v-else :is="getRoleConfig(task.maidRole).icon" class="w-6 h-6" />
           </div>
         </div>
@@ -153,47 +127,25 @@ const getRoleConfig = (role) => {
         <div class="text-base font-bold text-gray-800 dark:text-white">
           {{ task.location }}
         </div>
-
-        <div
-          class="flex flex-wrap items-center gap-3 text-gray-500 dark:text-gray-400 text-xs"
-        >
-          <div class="flex items-center gap-1">
-            <Calendar class="w-3.5 h-3.5" /> {{ task.date }}
-          </div>
-          <div class="flex items-center gap-1">
-            <Clock class="w-3.5 h-3.5" />ส่งเมื่อเวลา: {{ task.time }}
-          </div>
-          <div class="flex items-center gap-1">
-            <Building class="w-3.5 h-3.5" /> อาคาร {{ task.floor }}
-          </div>
+        <div class="flex flex-wrap items-center gap-3 text-gray-500 dark:text-gray-400 text-xs">
+          <div class="flex items-center gap-1"><Calendar class="w-3.5 h-3.5" /> {{ task.date }}</div>
+          <div class="flex items-center gap-1"><Clock class="w-3.5 h-3.5" />ส่งเมื่อเวลา: {{ task.time }}</div>
+          <div class="flex items-center gap-1"><Building class="w-3.5 h-3.5" /> อาคาร {{ task.floor }}</div>
         </div>
-
-        <div
-          v-if="task.checkedAt"
-          class="flex items-center gap-1 text-indigo-600 dark:text-indigo-400 text-xs font-bold pt-1"
-        >
+        <div v-if="task.checkedAt" class="flex items-center gap-1 text-indigo-600 dark:text-indigo-400 text-xs font-bold pt-1">
           <UserCheck class="w-3.5 h-3.5" />
           <span>ตรวจเมื่อ: {{ formatCheckTime(task.checkedAt) }}</span>
         </div>
       </div>
 
       <div class="w-full md:w-auto flex flex-col items-end gap-1" @click.stop>
-        <div
-          v-if="task.status === 'waiting'"
-          class="px-3 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 rounded-full text-xs font-bold flex items-center gap-1 whitespace-nowrap"
-        >
+        <div v-if="task.status === TASK_STATUS.WAITING" class="px-3 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 rounded-full text-xs font-bold flex items-center gap-1 whitespace-nowrap">
           <Clock class="w-3.5 h-3.5" /> รอตรวจ
         </div>
-        <div
-          v-else-if="task.status === 'approved'"
-          class="px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full text-xs font-bold flex items-center gap-1 whitespace-nowrap"
-        >
+        <div v-else-if="task.status === TASK_STATUS.APPROVED" class="px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full text-xs font-bold flex items-center gap-1 whitespace-nowrap">
           <CheckCircle2 class="w-3.5 h-3.5" /> ตรวจแล้ว
         </div>
-        <div
-          v-else
-          class="px-3 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-full text-xs font-bold flex items-center gap-1 whitespace-nowrap"
-        >
+        <div v-else class="px-3 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-full text-xs font-bold flex items-center gap-1 whitespace-nowrap">
           <Edit3 class="w-3.5 h-3.5" /> แก้ไข
         </div>
       </div>

@@ -16,10 +16,9 @@ const props = defineProps({
 });
 
 // ✅ ลบ Logic Pagination ภายในออกทั้งหมด (เพราะ Parent จัดการให้แล้ว)
-// คงเหลือแค่ตัวนับจำนวนสำหรับโชว์บน Header
 const totalItems = computed(() => props.feedbacks?.length || 0);
 
-// --- Helper Functions (เหมือนเดิม) ---
+// --- Helper Functions ---
 const formatDate = (dateString) => {
   if (!dateString) return "-";
   return new Date(dateString).toLocaleDateString("th-TH", {
@@ -38,6 +37,14 @@ const formatTime = (dateString) => {
     }) + " น."
   );
 };
+
+// ✅ Helper: ฟังก์ชันย่อรูปภาพ (เตรียมไว้สำหรับแสดงรูปหลักฐานในอนาคต)
+const getOptimizedPhoto = (url) => {
+  if (!url) return "";
+  if (url.includes('base64')) return url;
+  return `${url}?width=100&height=100&resize=cover`;
+};
+
 const calculateRealAverage = (item) => {
   if (item.answers && typeof item.answers === "object") {
     const scores = Object.values(item.answers).map((a) => Number(a.rating || a) || 0);
@@ -50,7 +57,7 @@ const calculateRealAverage = (item) => {
   return Number(item.rating || 0).toFixed(1);
 };
 
-// --- HTML Generators (เหมือนเดิม) ---
+// --- HTML Generators ---
 const generateTopicListHTML = (answers) => {
   if (!answers || Object.keys(answers).length === 0)
     return '<div class="text-gray-400 dark:text-slate-500 text-xs italic text-center">ไม่มีข้อมูลรายข้อย่อย</div>';
@@ -293,7 +300,7 @@ const showDetail = (item) => {
       </table>
     </div>
 
-    </div>
+  </div>
 </template>
 
 <style>
