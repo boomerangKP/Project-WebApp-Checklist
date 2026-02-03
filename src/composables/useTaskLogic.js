@@ -6,7 +6,7 @@ import { useTaskFilterStore } from '@/stores/taskFilters'
 import { storeToRefs } from 'pinia'
 import { TASK_STATUS } from '@/constants/status'
 
-// Helper: Debounce
+// Helper: Debounce (หน่วงเวลา 800ms)
 const debounce = (fn, delay) => {
   let timeout
   return (...args) => {
@@ -27,7 +27,6 @@ export function useTaskLogic() {
     isSelectionMode, selectedIds, timeSlots
   } = storeToRefs(filterStore)
 
-  // --- Local State ---
   const tasks = ref([])
   const loading = ref(true)
   const isBulkSubmitting = ref(false)
@@ -35,7 +34,6 @@ export function useTaskLogic() {
   const realWaitingCount = ref(0)
   let realtimeSubscription = null
 
-  // --- Helper Functions ---
   const getSlotName = (dateString) => {
     if (!dateString) return '-'
     const date = new Date(dateString)
@@ -56,8 +54,7 @@ export function useTaskLogic() {
       const from = (currentPage.value - 1) * itemsPerPage.value
       const to = from + itemsPerPage.value - 1
 
-      // ✅ Base Query
-      // ใช้ locations!inner เพื่อการันตีว่าต้องมีข้อมูลสถานที่ (แต่การกรอง Search จะทำผ่าน ID แทน)
+      // 1. Base Query
       let query = supabase
         .from('check_sessions')
         .select(`
@@ -76,11 +73,10 @@ export function useTaskLogic() {
         .order('created_at', { ascending: false })
         .range(from, to)
 
-      // Filter: วันที่
+      // Filter: วันที่ & สถานะ (เหมือนเดิม)
       if (startDate.value) query = query.gte('check_sessions_date', startDate.value)
       if (endDate.value) query = query.lte('check_sessions_date', endDate.value)
       
-      // Filter: สถานะ
       if (activeTab.value === TASK_STATUS.WAITING) {
         query = query.or(`check_sessions_status.is.null,check_sessions_status.eq.${TASK_STATUS.WAITING}`)
       } else if (activeTab.value === TASK_STATUS.APPROVED) {
@@ -89,51 +85,57 @@ export function useTaskLogic() {
          query = query.in('check_sessions_status', TASK_STATUS.GROUP_REJECTED)
       }
 
-      // Filter: แม่บ้าน (Dropdown)
       if (selectedMaid.value && selectedMaid.value !== 'all') {
-         if (selectedMaid.value) {
-             query = query.eq('employees_id', selectedMaid.value) 
-         }
+         if (selectedMaid.value) query = query.eq('employees_id', selectedMaid.value) 
       }
 
-      // ✅ Expert Search Logic (แก้ให้หาเจอทั้งคนและสถานที่)
+      // ✅ Expert Fix: แก้ปัญหา URL ยาวเกินจน Failed to fetch
       if (searchQuery.value && searchQuery.value.trim() !== '') {
          const term = searchQuery.value.trim()
          const orConditions = []
 
-         // 1. ถ้าเป็นตัวเลข -> หาจาก ID งาน
+         // 1. หา ID งาน (ถ้าเป็นตัวเลข)
          if (!isNaN(term)) {
             orConditions.push(`check_sessions_id.eq.${term}`)
          }
 
-         // 2. Pre-fetch: หา ID ของพนักงานที่ชื่อตรงกับ "สม..."
-         const { data: empData } = await supabase
-            .from('employees')
-            .select('employees_id')
-            .or(`employees_firstname.ilike.%${term}%,employees_lastname.ilike.%${term}%`)
-         
-         const matchedEmpIds = empData?.map(e => e.employees_id) || []
-         if (matchedEmpIds.length > 0) {
-            orConditions.push(`employees_id.in.(${matchedEmpIds.join(',')})`)
-         }
+         try {
+             // 2. หาคนชื่อ "สม..." (จำกัด 50 คนแรก เพื่อไม่ให้ URL ระเบิด)
+             const { data: empData } = await supabase
+                .from('employees')
+                .select('employees_id')
+                .or(`employees_firstname.ilike.%${term}%,employees_lastname.ilike.%${term}%`)
+                .limit(50) // ⚠️ Limit สำคัญมาก!
+             
+             const matchedEmpIds = empData?.map(e => e.employees_id) || []
+             if (matchedEmpIds.length > 0) {
+                orConditions.push(`employees_id.in.(${matchedEmpIds.join(',')})`)
+             }
 
-         // 3. Pre-fetch: หา ID ของสถานที่ที่ชื่อตรงกับ "ห้องน้ำ..."
-         const { data: locData } = await supabase
-            .from('locations')
-            .select('locations_id')
-            .ilike('locations_name', `%${term}%`)
-         
-         const matchedLocIds = locData?.map(l => l.locations_id) || []
-         if (matchedLocIds.length > 0) {
-            orConditions.push(`locations_id.in.(${matchedLocIds.join(',')})`)
-         }
+             // 3. หาห้อง "ห้อง..." (จำกัด 50 ห้องแรก)
+             const { data: locData } = await supabase
+                .from('locations')
+                .select('locations_id')
+                .ilike('locations_name', `%${term}%`)
+                .limit(50) // ⚠️ Limit สำคัญมาก!
+             
+             const matchedLocIds = locData?.map(l => l.locations_id) || []
+             if (matchedLocIds.length > 0) {
+                orConditions.push(`locations_id.in.(${matchedLocIds.join(',')})`)
+             }
 
-         // 4. รวมร่างเงื่อนไข (ID งาน OR พนักงาน OR สถานที่)
-         if (orConditions.length > 0) {
-            query = query.or(orConditions.join(','))
-         } else {
-            // ถ้าหาไม่เจอสักอย่าง ให้คืนค่าว่าง (โดยการสั่งหา ID ที่ไม่มีจริง)
-            query = query.eq('check_sessions_id', -1)
+             // 4. รวมเงื่อนไข
+             if (orConditions.length > 0) {
+                query = query.or(orConditions.join(','))
+             } else {
+                // ถ้าหาไม่เจออะไรเลย ให้ return ว่าง
+                query = query.eq('check_sessions_id', -1)
+             }
+         } catch (searchErr) {
+             console.warn('Search Pre-fetch error:', searchErr)
+             // ถ้า pre-fetch พัง ให้ fallback กลับไปหาแค่ ID หรือว่างเปล่า
+             if (!isNaN(term)) query = query.eq('check_sessions_id', term)
+             else query = query.eq('check_sessions_id', -1)
          }
       }
 
@@ -180,7 +182,6 @@ export function useTaskLogic() {
         .from('check_sessions')
         .select('*', { count: 'exact', head: true })
         .or(`check_sessions_status.is.null,check_sessions_status.eq.${TASK_STATUS.WAITING}`)
-      
       realWaitingCount.value = count || 0
   }
 
@@ -254,24 +255,12 @@ export function useTaskLogic() {
 
         if (error) throw error
         
-        // Optimistic UI Update
-        if (activeTab.value === TASK_STATUS.WAITING) {
-            tasks.value = tasks.value.filter(t => !selectedIds.value.includes(t.id))
-            if (tasks.value.length === 0 && currentPage.value > 1) {
-                currentPage.value--
-            }
-            await fetchTasks(false) 
-        } else {
-            tasks.value = tasks.value.map(t => {
-                if (selectedIds.value.includes(t.id)) return { ...t, status: TASK_STATUS.APPROVED }
-                return t
-            })
-        }
-        
+        tasks.value = tasks.value.filter(t => !selectedIds.value.includes(t.id))
         realWaitingCount.value = Math.max(0, realWaitingCount.value - selectedIds.value.length)
         selectedIds.value = []
         isSelectionMode.value = false
-        Swal.fire({ icon: 'success', title: 'เรียบร้อย!', timer: 1500, showConfirmButton: false })
+        Swal.fire('สำเร็จ', 'บันทึกข้อมูลเรียบร้อย', 'success')
+        fetchTasks(false)
 
       } catch (err) {
         Swal.fire('Error', err.message, 'error')
@@ -281,6 +270,7 @@ export function useTaskLogic() {
     }
   }
 
+  // Watchers
   watch([activeTab, startDate, endDate, selectedMaid], () => {
     currentPage.value = 1
     selectedIds.value = []
@@ -292,7 +282,7 @@ export function useTaskLogic() {
     fetchTasks();
   })
 
-  // Debounce 800ms
+  // ✅ Search Debounce 800ms
   const onSearchChange = debounce(() => {
       currentPage.value = 1
       fetchTasks()
