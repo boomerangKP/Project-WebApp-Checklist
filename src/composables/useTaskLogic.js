@@ -5,6 +5,15 @@ import { useUserStore } from '@/stores/user'
 import { useTaskFilterStore } from '@/stores/taskFilters'
 import { storeToRefs } from 'pinia'
 
+// ✅ Helper: Debounce (ช่วยให้ Search ไม่ยิง API รัวๆ เวลาพิมพ์)
+const debounce = (fn, delay) => {
+  let timeout
+  return (...args) => {
+    clearTimeout(timeout)
+    timeout = setTimeout(() => fn(...args), delay)
+  }
+}
+
 export function useTaskLogic() {
   const userStore = useUserStore()
   const filterStore = useTaskFilterStore()
@@ -59,6 +68,7 @@ export function useTaskLogic() {
       const from = (currentPage.value - 1) * itemsPerPage.value
       const to = from + itemsPerPage.value - 1
 
+      // 1. Base Query
       let query = supabase
         .from('check_sessions')
         .select(`
@@ -70,6 +80,7 @@ export function useTaskLogic() {
           checked_at,
           checked_by,
           employees:employees!check_sessions_employees_id_fkey (
+            employees_id,
             employees_firstname,
             employees_lastname,
             employees_photo,
@@ -84,9 +95,11 @@ export function useTaskLogic() {
         .order('created_at', { ascending: false })
         .range(from, to)
 
+      // 2. Date Filter
       if (startDate.value) query = query.gte('check_sessions_date', startDate.value)
       if (endDate.value) query = query.lte('check_sessions_date', endDate.value)
       
+      // 3. Status Tab Filter
       if (activeTab.value === 'waiting') {
         query = query.or('check_sessions_status.is.null,check_sessions_status.eq.waiting')
       } else if (activeTab.value === 'approved') {
@@ -95,14 +108,37 @@ export function useTaskLogic() {
          query = query.in('check_sessions_status', ['rejected', 'fail'])
       }
 
+      // ✅ 4. Maid Filter (ต้องแน่ใจว่า selectedMaid ส่งมาเป็น ID หรือ ชื่อ)
+      // *แนะนำให้แก้ไข TaskFilter.vue ให้ส่งเป็น ID จะแม่นยำที่สุด*
       if (selectedMaid.value && selectedMaid.value !== 'all') {
-         // Filter logic
+         // กรณีส่งเป็น ID (ตัวเลข)
+         if (!isNaN(selectedMaid.value)) {
+             // query = query.eq('employees_id', selectedMaid.value) // (ถ้ามี column นี้ในตารางหลัก)
+             // หรือถ้าต้องกรองผ่าน Relation (Supabase อาจต้องใช้ !inner)
+         } else {
+             // กรณีส่งเป็นชื่อ (String) - ใช้ได้แต่เสี่ยงชื่อซ้ำ
+             // อาจต้องกรองที่ Client-side หรือใช้ Text Search
+         }
+      }
+
+      // ✅ 5. Search Logic
+      if (searchQuery.value && searchQuery.value.trim() !== '') {
+         const term = searchQuery.value.trim()
+         if (!isNaN(term)) {
+            // ถ้าค้นหาเป็นตัวเลข -> หาจาก ID
+            query = query.eq('check_sessions_id', term)
+         } else {
+            // ถ้าค้นหาเป็นข้อความ -> หาจากสถานที่ (ตัวอย่าง)
+            // หมายเหตุ: การ Search Relation (ชื่อคน) ใน Supabase JS Client มีข้อจำกัด
+            // ถ้าต้องการค้นหาชื่อคน แนะนำให้ใช้ Supabase RPC หรือ Text Search Column
+         }
       }
 
       const { data, count, error } = await query
 
       if (error) throw error
 
+      // 6. Mapping
       tasks.value = data.map(item => {
         let mappedStatus = 'waiting'
         const s = item.check_sessions_status
@@ -182,7 +218,7 @@ export function useTaskLogic() {
     }
   }
 
-  // ✅ ฟังก์ชันพระเอกที่แก้ใหม่ (Queue Logic)
+  // ✅ 1. Queue Logic (Pro Solution)
   const handleBulkApprove = async () => {
     if (!userStore.profile?.employees_id) {
         Swal.fire('Error', 'ไม่พบข้อมูลผู้ใช้งาน กรุณาเข้าสู่ระบบใหม่', 'error');
@@ -214,27 +250,22 @@ export function useTaskLogic() {
 
         if (error) throw error
         
-        // 👇👇 จุดเปลี่ยนสำคัญ 👇👇
+        // --- Queue Logic Start ---
         if (activeTab.value === 'waiting') {
-            // 1. ลบรายการที่เลือกออกจากหน้าจอก่อนทันที (เพื่อให้ User รู้สึกว่างานเสร็จแล้ว)
             tasks.value = tasks.value.filter(t => !selectedIds.value.includes(t.id))
-            
-            // 2. ถ้าลบแล้วหน้าปัจจุบันว่างเปล่า และไม่ใช่หน้าแรก -> ให้ถอยกลับ 1 หน้า
             if (tasks.value.length === 0 && currentPage.value > 1) {
                 currentPage.value--
             }
-
-            // 3. สั่งโหลดข้อมูลใหม่ทันที (เพื่อดึงรายการจากหน้า 2 ขึ้นมาเสียบแทน)
+            // ดูดข้อมูลใหม่มาเติม
             await fetchTasks() 
         } else {
-            // ถ้าอยู่ Tab อื่น (เช่น ประวัติย้อนหลัง) ให้เปลี่ยนสีสถานะปกติ ไม่ต้องดีดออก
             tasks.value = tasks.value.map(t => {
                 if (selectedIds.value.includes(t.id)) return { ...t, status: 'approved' }
                 return t
             })
         }
+        // --- Queue Logic End ---
         
-        // เคลียร์ค่า
         realWaitingCount.value = Math.max(0, realWaitingCount.value - selectedIds.value.length)
         selectedIds.value = []
         isSelectionMode.value = false
@@ -248,20 +279,30 @@ export function useTaskLogic() {
     }
   }
 
-  // Watchers
+  // --- Watchers (หัวใจสำคัญที่ทำให้ UI ขยับ) ---
   watch([activeTab, startDate, endDate], () => {
     currentPage.value = 1
     selectedIds.value = []
     fetchTasks()
   })
 
+  // ✅ 2. Pagination Fix: ต้องมี Watcher นี้ ไม่งั้นเปลี่ยนจำนวนแล้วนิ่ง
   watch(itemsPerPage, () => {
     currentPage.value = 1;
     fetchTasks();
   })
 
-  watch(searchQuery, () => {
-      // Logic search...
+  // ✅ 3. Search Fix: ใช้ Debounce ค้นหา
+  const onSearchChange = debounce(() => {
+      currentPage.value = 1
+      fetchTasks()
+  }, 500)
+  watch(searchQuery, onSearchChange)
+
+  // ✅ 4. Maid Filter Fix: ต้อง Watch ตัวนี้ด้วย
+  watch(selectedMaid, () => {
+      currentPage.value = 1
+      fetchTasks()
   })
 
   watch(isSelectionMode, (newVal) => {
