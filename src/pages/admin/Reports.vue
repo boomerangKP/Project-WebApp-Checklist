@@ -3,7 +3,7 @@ import { ref, onMounted, computed, watch } from "vue";
 import { supabase } from "@/lib/supabase";
 import { useSwal } from "@/composables/useSwal";
 import { useRouter } from "vue-router";
-import * as XLSX from "xlsx"; // ✅ เพิ่ม: ใช้สร้างไฟล์ Excel
+import * as XLSX from "xlsx"; 
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-vue-next"; 
 
 // Import Components เดิม
@@ -57,7 +57,6 @@ const getQueryDates = (rangeObj) => {
   return { start, end };
 };
 
-// ✅ Helper: แบ่ง Array เป็นก้อนๆ (ใช้ตอนโหลดข้อมูลพร้อมกัน)
 const chunkArray = (array, size) => {
   const result = [];
   for (let i = 0; i < array.length; i += size) {
@@ -129,7 +128,7 @@ const fetchData = async (rangeObj = currentRange.value) => {
   }
 };
 
-// --- 🔥 Logic Export ใหม่: เร็ว + ข้อมูลครบ (Batch Parallel) ---
+// --- 🔥 Logic Export: เร็วแรง + แก้ไขปัญหาค้าง ---
 const handleExport = async () => {
   const { start, end } = getQueryDates(currentRange.value);
   const endDateStr = end || start;
@@ -148,7 +147,7 @@ const handleExport = async () => {
   // Show Loading Progress
   Swal.fire({
     title: "กำลังเตรียมไฟล์...",
-    html: "ระบบกำลังรวบรวมข้อมูล<br/>กรุณารอสักครู่...",
+    html: "เริ่มทำการดึงข้อมูล...",
     allowOutsideClick: false,
     didOpen: () => Swal.showLoading(),
   });
@@ -169,7 +168,7 @@ const handleExport = async () => {
     if (countError) throw countError;
     if (!count) throw new Error("ไม่พบข้อมูลในช่วงเวลาที่เลือก");
 
-    // 2. ตั้งค่า Batch (สูตรแรง: 1000 แถว x 5 ยิงพร้อมกัน)
+    // 2. ตั้งค่า Batch (1000 แถว x 5 ยิงพร้อมกัน)
     const BATCH_SIZE = 1000;
     const CONCURRENCY_LIMIT = 5;
     const totalBatches = Math.ceil(count / BATCH_SIZE);
@@ -180,7 +179,6 @@ const handleExport = async () => {
         const from = i * BATCH_SIZE;
         const to = from + BATCH_SIZE - 1;
 
-        // ดึงข้อมูลพร้อม Relation (เพื่อให้ Excel อ่านรู้เรื่อง)
         let query = supabase
             .from('check_sessions')
             .select(`
@@ -219,20 +217,26 @@ const handleExport = async () => {
         const responses = await Promise.all(chunk);
         for (const res of responses) {
             if (res.error) throw res.error;
-            if (res.data) allData = allData.concat(res.data);
+            if (res.data) {
+                // ⚠️ แก้ไขจุดตาย: ใช้ push แทน concat เพื่อลดการกิน Memory
+                allData.push(...res.data);
+            }
         }
         
-        // อัปเดต Progress Bar บนจอ
         processedCount += chunk.length * BATCH_SIZE;
         const progress = Math.min(Math.round((allData.length / count) * 100), 100);
         if (Swal.getHtmlContainer()) {
-            Swal.getHtmlContainer().innerHTML = `กำลังดาวน์โหลด... ${progress}%<br/>(${allData.length} / ${count} รายการ)`;
+            Swal.getHtmlContainer().innerHTML = `กำลังดาวน์โหลด... ${progress}%<br/>(${allData.length.toLocaleString()} / ${count.toLocaleString()} รายการ)`;
         }
     }
 
-    // 5. แปลงข้อมูลลง Excel (Map ให้สวยงาม)
-    await new Promise(resolve => setTimeout(resolve, 100)); // พักหายใจ
+    // แจ้งเตือนก่อนสร้างไฟล์ (ช่วงนี้ CPU จะทำงานหนัก)
+    if (Swal.getHtmlContainer()) {
+        Swal.getHtmlContainer().innerHTML = `กำลังสร้างไฟล์ Excel...<br/>(อาจใช้เวลาสักครู่ กรุณาอย่าปิดหน้าต่าง)`;
+    }
+    await new Promise(resolve => setTimeout(resolve, 500)); // พักให้ UI อัปเดต
 
+    // 5. แปลงข้อมูลลง Excel
     const excelData = allData.map(item => ({
         "วันที่": item.check_sessions_date,
         "เวลา": item.check_sessions_time_start,
@@ -252,7 +256,6 @@ const handleExport = async () => {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Work Report");
 
-    // จัดความกว้างคอลัมน์
     worksheet["!cols"] = [
         { wch: 12 }, { wch: 10 }, { wch: 25 }, { wch: 10 }, { wch: 8 }, 
         { wch: 20 }, { wch: 15 }, { wch: 20 }, { wch: 15 }, { wch: 15 }
@@ -263,7 +266,7 @@ const handleExport = async () => {
     Swal.fire({
         icon: "success",
         title: "ดาวน์โหลดสำเร็จ",
-        text: `ข้อมูลทั้งหมด ${allData.length} รายการ`,
+        text: `ข้อมูลทั้งหมด ${allData.length.toLocaleString()} รายการ`,
         timer: 2000,
         showConfirmButton: false
     });

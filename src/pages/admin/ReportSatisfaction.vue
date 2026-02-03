@@ -32,7 +32,7 @@ const {
   trendChartData,
   topicChartData,
   exportToExcel,
-  // ✅ Pagination Vars
+  // Pagination Vars
   totalItems,
   currentPage,
   totalPages,
@@ -66,8 +66,8 @@ const getActualDateRange = () => {
   if (isNaN(end.getTime())) end = new Date();
 
   return {
-    start, // ✅ ส่ง object วันที่ออกไปด้วย
-    end,   // ✅ ส่ง object วันที่ออกไปด้วย
+    start, // ส่ง object วันที่ออกไปด้วย
+    end,   // ส่ง object วันที่ออกไปด้วย
     startStr: start.toLocaleDateString("th-TH", { dateStyle: "long" }),
     endStr: end.toLocaleDateString("th-TH", { dateStyle: "long" }),
   };
@@ -129,7 +129,6 @@ const confirmExport = () => {
     return;
   }
 
-  // ✅ ดึงค่า start, end ที่เป็น Date Object มาใช้
   const { startStr, endStr, start, end } = getActualDateRange();
 
   Swal.fire({
@@ -148,15 +147,13 @@ const confirmExport = () => {
       isExporting.value = true;
       await new Promise((r) => setTimeout(r, 800));
 
-      // ✅ ส่ง startDate และ endDate ไปให้ฟังก์ชัน exportToExcel
-      // เพื่อให้มันดึงข้อมูลมา Loop Batch (เร็วขึ้น)
+      // ส่ง startDate และ endDate ไปให้ฟังก์ชัน exportToExcel
       await exportToExcel({
           startDate: start.toISOString(),
           endDate: end.toISOString()
       });
 
       isExporting.value = false;
-      // ❌ ไม่ต้อง Swal success ตรงนี้แล้ว เพราะใน useReportSatisfaction มี Swal แจ้งเตือนที่ละเอียดกว่า
     }
   });
 };

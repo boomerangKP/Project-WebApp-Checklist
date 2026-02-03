@@ -22,7 +22,7 @@ import { TASK_STATUS } from '@/constants/status';
 const props = defineProps({
   activeTab: String,
   searchQuery: String,
-  selectedMaid: [String, Number], // ✅ รองรับทั้ง ID (ตัวเลข) และ 'all'
+  selectedMaid: [String, Number], // ✅ รองรับทั้ง ID (Number) และ 'all' (String)
   maids: { type: Array, default: () => [] },
   isSelectionMode: Boolean,
   isAllSelected: Boolean,
@@ -142,16 +142,16 @@ const selectDateRange = (val) => {
   closeDropdown();
 };
 
-// ✅ ส่งค่า ID ออกไป
 const selectMaid = (val) => {
   emit("update:selectedMaid", val);
   closeDropdown();
 };
 
-// ✅ Helper: หาชื่อจาก ID เพื่อแสดงผลที่ปุ่ม
+// ✅ Helper: หาชื่อจาก ID (ปรับให้รองรับทั้ง String/Number กันเหนียว)
 const getMaidLabel = computed(() => {
-    if (props.selectedMaid === 'all') return 'พนักงานทุกคน';
-    const found = props.maids.find(m => m.id === props.selectedMaid);
+    if (!props.selectedMaid || props.selectedMaid === 'all') return 'พนักงานทุกคน';
+    // ใช้ == (Loose Equality) เพื่อให้ "1" (String) เท่ากับ 1 (Number)
+    const found = props.maids.find(m => m.id == props.selectedMaid);
     return found ? found.fullname : 'พนักงานทุกคน';
 });
 
