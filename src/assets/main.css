@@ -2,7 +2,24 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Fix SweetAlert2 z-index */
+/* =========================================
+   ✅ 1. ส่วนที่ต้องเพิ่ม (แก้ปัญหากรอบขาว/Scrollbar เพี้ยน)
+   ========================================= */
+:root {
+  color-scheme: light dark; /* 👈 ตัวนี้สำคัญ! บอก Browser ให้ทำ Scrollbar/Form เป็นสีดำตามโหมด */
+}
+
+html, body {
+  height: 100%;      /* บังคับเต็มจอ */
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;  /* 👈 ปิด Scrollbar ของ Body ทิ้งไปเลย (เพราะเราไป Scroll ใน Layout แทนแล้ว) */
+}
+
+/* =========================================
+   Fix SweetAlert2 z-index (ของเดิม)
+   ========================================= */
 .swal2-container {
   z-index: 20000 !important;
 }
@@ -11,34 +28,32 @@
    ✅ SCROLLBAR CUSTOMIZATION (Global)
    ========================================= */
 
-/* 1. Light Mode (โหมดปกติ) */
+/* 1. Light Mode */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f5f9; /* gray-100 */
+  background: #f1f5f9; 
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1; /* slate-300 */
+  background: #cbd5e1; 
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8; /* slate-400 */
+  background: #94a3b8; 
 }
 
-/* 2. Dark Mode (โหมดมืด) - แก้ปัญหา Scrollbar ขาว */
+/* 2. Dark Mode */
 .dark ::-webkit-scrollbar-track {
-  background: #0f172a; /* slate-900 (สีเดียวกับพื้นหลัง Sidebar) */
+  background: #0f172a; /* slate-900 */
 }
 
 .dark ::-webkit-scrollbar-thumb {
   background: #334155; /* slate-700 */
-  border-radius: 4px;
-  border: 1px solid #0f172a; /* เพิ่มขอบให้ดูมีมิติ */
 }
 
 .dark ::-webkit-scrollbar-thumb:hover {
@@ -46,10 +61,11 @@
 }
 
 /* =========================================
-   ✅ GLOBAL BODY STYLES
+   ✅ GLOBAL BODY STYLES (ของเดิม + ปรับนิดหน่อย)
    ========================================= */
 
 body {
+  /* ใช้ @apply เหมือนเดิม */
   @apply bg-gray-50 text-gray-900 transition-colors duration-300;
 }
 

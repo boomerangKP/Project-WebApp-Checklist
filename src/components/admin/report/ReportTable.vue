@@ -15,12 +15,11 @@ import {
 } from "lucide-vue-next";
 
 const props = defineProps(["logs", "loading"]);
-// ✅ 1. เพิ่ม update:search ให้ส่งค่ากลับไปที่ไฟล์แม่
 const emit = defineEmits(["view", "update:search"]);
 
 // --- Pagination & Search State ---
 const currentPage = ref(1);
-const itemsPerPage = ref(500); // ตั้งไว้สูงๆ เพราะเราโชว์ข้อมูลทั้งหมดที่แม่ส่งมา (50 ตัว)
+const itemsPerPage = ref(500); // แสดงทั้งหมดที่แม่ส่งมา
 const copiedId = ref(null);
 const searchQuery = ref("");
 
@@ -35,13 +34,17 @@ watch(
   }
 );
 
-// ✅ 2. เมื่อพิมพ์ค้นหา ให้ส่ง Event ไปบอกแม่
+// ✅ แก้ไข 1: Debounce การส่งค่า Search กลับไปแม่ (กันยิงรัว)
+let searchTimeout;
 watch(searchQuery, (newVal) => {
   currentPage.value = 1;
-  emit("update:search", newVal);
+  clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(() => {
+    emit("update:search", newVal);
+  }, 500); // รอ 0.5 วิ หลังพิมพ์เสร็จค่อยส่ง
 });
 
-// --- Logic Suggestion (ทำงานกับข้อมูล 50 ตัวที่แม่ส่งมา) ---
+// --- Logic Suggestion ---
 const allSearchSuggestions = computed(() => {
   if (!props.logs) return [];
   const ids = props.logs.map((l) => l.check_sessions_id.toString());
@@ -49,7 +52,7 @@ const allSearchSuggestions = computed(() => {
     l.check_sessions_id.toString().padStart(6, "0")
   );
   const names = props.logs.map((l) => l.employees?.employees_firstname).filter(Boolean);
-  const locations = props.logs.map((l) => l.locations?.locations_name).filter(Boolean);
+  const locations = props.logs.map((l) => l.locations?.locations_name).filter(Boolean); // ชื่อห้อง (เช่น ห้องน้ำรวม 101)
   const buildings = props.logs
     .map((l) => l.locations?.locations_building)
     .filter(Boolean);
@@ -70,36 +73,48 @@ const selectSuggestion = (val) => {
   showSearchSuggestions.value = false;
 };
 
-// --- Computed Logic: Filter & Paginate (Client-side display) ---
+// --- Computed Logic: Filter (Client-side) ---
+// ✅ แก้ไข 2: ปรับ Logic การค้นหาให้ครอบคลุมชื่อห้อง (Location Name) และตัดช่องว่าง
 const filteredLogs = computed(() => {
   if (!props.logs) return [];
+  
+  // แปลงคำค้นหา: ตัดช่องว่างซ้ายขวา และทำเป็นตัวเล็ก
   const query = searchQuery.value.toLowerCase().trim();
 
-  // กรองเพื่อ Highlight ในหน้าปัจจุบัน
   if (!query) return props.logs;
 
   return props.logs.filter((log) => {
+    // 1. ค้นหา ID
     const rawId = log.check_sessions_id?.toString() || "";
     const paddedId = rawId.padStart(6, "0");
     const matchId = rawId.includes(query) || paddedId.includes(query);
-    const matchName = log.employees?.employees_firstname?.toLowerCase().includes(query);
-    const matchLocation = log.locations?.locations_name?.toLowerCase().includes(query);
-    const matchBuilding = log.locations?.locations_building
-      ?.toLowerCase()
-      .includes(query);
 
+    // 2. ค้นหาชื่อพนักงาน
+    const empName = log.employees?.employees_firstname || "";
+    const empLast = log.employees?.employees_lastname || "";
+    const fullName = `${empName} ${empLast}`.toLowerCase();
+    const matchName = fullName.includes(query);
+
+    // 3. ค้นหาชื่อสถานที่ (สำคัญ! ห้องน้ำรวม 101 อยู่ตรงนี้)
+    const locationName = log.locations?.locations_name?.toLowerCase() || "";
+    const matchLocation = locationName.includes(query);
+
+    // 4. ค้นหาชื่ออาคาร
+    const buildingName = log.locations?.locations_building?.toLowerCase() || "";
+    const matchBuilding = buildingName.includes(query);
+
+    // รวมผลลัพธ์
     return matchId || matchName || matchLocation || matchBuilding;
   });
 });
 
 const paginatedLogs = computed(() => {
   if (!filteredLogs.value) return [];
-  // โชว์ทั้งหมดตามที่แม่ส่งมา
   const start = (currentPage.value - 1) * itemsPerPage.value;
   return filteredLogs.value.slice(start, start + itemsPerPage.value);
 });
 
-// --- Helpers ---
+// --- Helpers (เหมือนเดิม) ---
 const formatDate = (d) =>
   d
     ? new Date(d).toLocaleDateString("th-TH", {
@@ -188,7 +203,7 @@ onUnmounted(() => window.removeEventListener("click", handleClickOutside));
 
 <template>
   <div
-    class="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden flex flex-col h-[calc(100vh-300px)] w-full relative transition-colors duration-300"
+    class="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden flex flex-col h-80 w-full relative transition-colors duration-300"
   >
     <div
       class="px-4 py-2 border-b border-gray-100 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0 bg-white dark:bg-slate-800"
@@ -418,7 +433,7 @@ onUnmounted(() => window.removeEventListener("click", handleClickOutside));
         </tbody>
       </table>
     </div>
-    </div>
+  </div>
 </template>
 
 <style scoped>

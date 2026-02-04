@@ -102,7 +102,7 @@ onUnmounted(() => window.removeEventListener("click", handleClickOutside));
 
 <template>
   <div
-    class="bg-white dark:bg-slate-800 p-4 border-b border-gray-100 dark:border-slate-700 flex flex-col md:flex-row gap-3 justify-between items-center transition-colors duration-300"
+    class="bg-white dark:bg-slate-800 p-3 border-b border-gray-100 dark:border-slate-700 flex flex-col md:flex-row gap-3 justify-between items-center transition-colors duration-300"
   >
     <div class="relative w-full md:w-72 lg:w-80 shrink-0 custom-dropdown-container">
       <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">

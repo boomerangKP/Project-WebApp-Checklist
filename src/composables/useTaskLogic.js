@@ -6,7 +6,7 @@ import { useTaskFilterStore } from '@/stores/taskFilters'
 import { storeToRefs } from 'pinia'
 import { TASK_STATUS } from '@/constants/status'
 
-// Helper: Debounce (หน่วงเวลา 800ms)
+// Helper: Debounce (หน่วงเวลา)
 const debounce = (fn, delay) => {
   let timeout
   return (...args) => {
@@ -54,7 +54,7 @@ export function useTaskLogic() {
       const from = (currentPage.value - 1) * itemsPerPage.value
       const to = from + itemsPerPage.value - 1
 
-      // 1. Base Query
+      // 1. Base Query (!inner เพื่อความแม่นยำในการ Search สถานที่)
       let query = supabase
         .from('check_sessions')
         .select(`
@@ -73,7 +73,7 @@ export function useTaskLogic() {
         .order('created_at', { ascending: false })
         .range(from, to)
 
-      // Filter: วันที่ & สถานะ (เหมือนเดิม)
+      // Filter: วันที่ & สถานะ
       if (startDate.value) query = query.gte('check_sessions_date', startDate.value)
       if (endDate.value) query = query.lte('check_sessions_date', endDate.value)
       
@@ -85,55 +85,52 @@ export function useTaskLogic() {
          query = query.in('check_sessions_status', TASK_STATUS.GROUP_REJECTED)
       }
 
+      // Filter: แม่บ้าน
       if (selectedMaid.value && selectedMaid.value !== 'all') {
          if (selectedMaid.value) query = query.eq('employees_id', selectedMaid.value) 
       }
 
-      // ✅ Expert Fix: แก้ปัญหา URL ยาวเกินจน Failed to fetch
+      // Filter: Search (Expert Logic: Pre-fetch IDs)
       if (searchQuery.value && searchQuery.value.trim() !== '') {
          const term = searchQuery.value.trim()
          const orConditions = []
 
-         // 1. หา ID งาน (ถ้าเป็นตัวเลข)
          if (!isNaN(term)) {
             orConditions.push(`check_sessions_id.eq.${term}`)
          }
 
          try {
-             // 2. หาคนชื่อ "สม..." (จำกัด 50 คนแรก เพื่อไม่ให้ URL ระเบิด)
+             // หาคนชื่อ "สม..."
              const { data: empData } = await supabase
                 .from('employees')
                 .select('employees_id')
                 .or(`employees_firstname.ilike.%${term}%,employees_lastname.ilike.%${term}%`)
-                .limit(50) // ⚠️ Limit สำคัญมาก!
+                .limit(50)
              
              const matchedEmpIds = empData?.map(e => e.employees_id) || []
              if (matchedEmpIds.length > 0) {
                 orConditions.push(`employees_id.in.(${matchedEmpIds.join(',')})`)
              }
 
-             // 3. หาห้อง "ห้อง..." (จำกัด 50 ห้องแรก)
+             // หาห้อง "ห้อง..."
              const { data: locData } = await supabase
                 .from('locations')
                 .select('locations_id')
                 .ilike('locations_name', `%${term}%`)
-                .limit(50) // ⚠️ Limit สำคัญมาก!
+                .limit(50)
              
              const matchedLocIds = locData?.map(l => l.locations_id) || []
              if (matchedLocIds.length > 0) {
                 orConditions.push(`locations_id.in.(${matchedLocIds.join(',')})`)
              }
 
-             // 4. รวมเงื่อนไข
              if (orConditions.length > 0) {
                 query = query.or(orConditions.join(','))
              } else {
-                // ถ้าหาไม่เจออะไรเลย ให้ return ว่าง
                 query = query.eq('check_sessions_id', -1)
              }
          } catch (searchErr) {
              console.warn('Search Pre-fetch error:', searchErr)
-             // ถ้า pre-fetch พัง ให้ fallback กลับไปหาแค่ ID หรือว่างเปล่า
              if (!isNaN(term)) query = query.eq('check_sessions_id', term)
              else query = query.eq('check_sessions_id', -1)
          }
@@ -255,12 +252,26 @@ export function useTaskLogic() {
 
         if (error) throw error
         
-        tasks.value = tasks.value.filter(t => !selectedIds.value.includes(t.id))
+        // Optimistic UI Update (ลบออกจากหน้าจอทันที)
+        if (activeTab.value === TASK_STATUS.WAITING) {
+            tasks.value = tasks.value.filter(t => !selectedIds.value.includes(t.id))
+            if (tasks.value.length === 0 && currentPage.value > 1) {
+                currentPage.value--
+            }
+            // เรียก fetchTasks แบบ Silent 1 ที เพื่อ Sync ข้อมูลล่าสุด (เช่น Total Count)
+            // แต่เนื่องจากเรา Ignore Self ใน Realtime แล้ว การเรียกตรงนี้จึงปลอดภัย ไม่ตีกัน
+            fetchTasks(false) 
+        } else {
+            tasks.value = tasks.value.map(t => {
+                if (selectedIds.value.includes(t.id)) return { ...t, status: TASK_STATUS.APPROVED }
+                return t
+            })
+        }
+        
         realWaitingCount.value = Math.max(0, realWaitingCount.value - selectedIds.value.length)
         selectedIds.value = []
         isSelectionMode.value = false
-        Swal.fire('สำเร็จ', 'บันทึกข้อมูลเรียบร้อย', 'success')
-        fetchTasks(false)
+        Swal.fire({ icon: 'success', title: 'เรียบร้อย!', timer: 1500, showConfirmButton: false })
 
       } catch (err) {
         Swal.fire('Error', err.message, 'error')
@@ -270,7 +281,6 @@ export function useTaskLogic() {
     }
   }
 
-  // Watchers
   watch([activeTab, startDate, endDate, selectedMaid], () => {
     currentPage.value = 1
     selectedIds.value = []
@@ -282,7 +292,6 @@ export function useTaskLogic() {
     fetchTasks();
   })
 
-  // ✅ Search Debounce 800ms
   const onSearchChange = debounce(() => {
       currentPage.value = 1
       fetchTasks()
@@ -295,14 +304,26 @@ export function useTaskLogic() {
     }
   })
 
+  // ✅ Expert Fix for Realtime Bomb: Debounce + Ignore Self
+  const handleRealtimeUpdate = debounce(() => {
+      fetchWaitingCount()
+      fetchTasks(false)
+  }, 2000) // รอให้ Event สงบ 2 วินาทีค่อยโหลด
+
   onMounted(async () => {
     if (!userStore.profile) await userStore.fetchProfile()
-    await fetchTasks()
+    await fetchTasks() 
     
     realtimeSubscription = supabase.channel('realtime_tasks')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'check_sessions' }, () => {
-            fetchWaitingCount()
-            fetchTasks(false) 
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'check_sessions' }, (payload) => {
+            // ⭐ PRO MOVE: ถ้าคนแก้คือ "ตัวเราเอง" (checked_by == My ID) ให้เมินไปเลย!
+            // เพราะเราอัปเดตหน้าจอไปแล้ว (Optimistic UI) ไม่ต้องโหลดซ้ำให้เปลืองแรงเครื่อง
+            if (payload.new && payload.new.checked_by === userStore.profile?.employees_id) {
+                return 
+            }
+            
+            // ถ้าเป็นคนอื่นแก้ ค่อยโหลดใหม่ (ผ่าน Debounce)
+            handleRealtimeUpdate()
         }).subscribe()
   })
 

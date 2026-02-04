@@ -181,7 +181,7 @@ const showDetail = (item) => {
 
 <template>
   <div
-    class="bg-white dark:bg-slate-800 shadow-sm border border-gray-100 dark:border-slate-700 flex flex-col h-screen relative transition-colors duration-300"
+    class="bg-white dark:bg-slate-800 shadow-sm border border-gray-100 dark:border-slate-700 flex flex-col h-80 relative transition-colors duration-300"
   >
     <div
       class="p-3 border-b border-gray-50 dark:border-slate-700 flex justify-between items-center shrink-0"
@@ -204,13 +204,13 @@ const showDetail = (item) => {
           class="bg-gray-50 dark:bg-slate-900 text-sm text-gray-600 dark:text-slate-400 uppercase font-bold tracking-wider sticky top-0 z-10 shadow-sm"
         >
           <tr>
-            <th class="px-2 py-2 bg-gray-50 dark:bg-slate-900 whitespace-nowrap w-[120px]">วันที่</th>
-            <th class="px-2 py-2 bg-gray-50 dark:bg-slate-900 text-center whitespace-nowrap w-[100px]">เวลา</th>
-            <th class="px-2 py-2 bg-gray-50 dark:bg-slate-900 whitespace-nowrap">จุดตรวจ</th>
-            <th class="px-2 py-2 bg-gray-50 dark:bg-slate-900 text-center whitespace-nowrap w-[80px]">อาคาร</th>
-            <th class="px-2 py-2 bg-gray-50 dark:bg-slate-900 text-center whitespace-nowrap w-[80px]">ชั้น</th>
-            <th class="px-2 py-2 text-center bg-gray-50 dark:bg-slate-900 whitespace-nowrap w-[100px]">คะแนน</th>
-            <th class="px-2 py-2 bg-gray-50 dark:bg-slate-900 text-right whitespace-nowrap w-[80px]">เพิ่มเติม</th>
+            <th class="px-3 py-3 bg-gray-50 dark:bg-slate-900 whitespace-nowrap w-[120px]">วันที่</th>
+            <th class="px-3 py-3 bg-gray-50 dark:bg-slate-900 text-center whitespace-nowrap w-[100px]">เวลา</th>
+            <th class="px-3 py-3 bg-gray-50 dark:bg-slate-900 whitespace-nowrap">จุดตรวจ</th>
+            <th class="px-3 py-3 bg-gray-50 dark:bg-slate-900 text-center whitespace-nowrap w-[80px]">อาคาร</th>
+            <th class="px-3 py-3 bg-gray-50 dark:bg-slate-900 text-center whitespace-nowrap w-[80px]">ชั้น</th>
+            <th class="px-3 py-3 text-center bg-gray-50 dark:bg-slate-900 whitespace-nowrap w-[100px]">คะแนน</th>
+            <th class="px-3 py-3 bg-gray-50 dark:bg-slate-900 text-right whitespace-nowrap w-[80px]">เพิ่มเติม</th>
           </tr>
         </thead>
 

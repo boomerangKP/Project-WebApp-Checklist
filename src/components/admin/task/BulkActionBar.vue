@@ -22,7 +22,7 @@ defineEmits(['confirm', 'cancel'])
       class="fixed bottom-4 left-4 right-4 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:w-auto sm:bottom-6 bg-gray-900/95 backdrop-blur-sm text-white px-4 py-3 sm:px-6 sm:py-4 rounded-xl shadow-2xl flex items-center justify-between sm:justify-center gap-3 sm:gap-6 z-50 ring-1 ring-white/10"
     >
       <div class="flex items-center gap-3 border-r border-gray-700 pr-4 sm:pr-6 shrink-0">
-        <div class="bg-indigo-500 w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shadow-lg shadow-indigo-500/30">
+        <div class="bg-indigo-500 w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm shadow-lg shadow-indigo-500/30">
           {{ count }}
         </div>
         <div class="flex flex-col sm:flex-row sm:gap-1 leading-none">
