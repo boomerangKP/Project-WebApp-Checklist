@@ -1,6 +1,6 @@
 <script setup>
 import { ref } from "vue";
-import { X, Loader2, Printer, LayoutGrid, Columns } from "lucide-vue-next"; // เอา RectangleVertical ออก
+import { X, Loader2, Printer } from "lucide-vue-next"; // เอา LayoutGrid, Columns ออกเพราะไม่ได้ใช้แล้ว
 import princLogo from "@/assets/logo-header.png";
 import { usePrintQR } from "@/composables/usePrintQR";
 
@@ -17,10 +17,11 @@ const emit = defineEmits(["close", "confirm"]);
 const printableContent = ref(null);
 const { printContent } = usePrintQR();
 
-// ✅ 1. ตั้งค่า Default เป็น 3 (เหมือนเดิม)
-const gridColumns = ref(3);
+// ✅ 1. ล็อคเป็น 2 คอลัมน์ถาวร (เพราะ 10.5cm x 2 = 21cm เต็มหน้า A4 พอดี)
+const gridColumns = ref(2);
 
 const handlePrint = () => {
+  // ส่งค่า gridColumns (2) ไปเหมือนเดิมเพื่อให้ Logic การพิมพ์ทำงานถูกต้อง
   printContent(printableContent.value, gridColumns.value);
 };
 </script>
@@ -41,29 +42,8 @@ const handlePrint = () => {
             ตัวอย่างก่อนพิมพ์
           </h3>
           <p class="text-sm text-gray-500 dark:text-slate-400">
-            จำนวน {{ selectedCount }} รายการ
+            จำนวน {{ selectedCount }} รายการ (ขนาด 10.5 x 14.85 ซม.)
           </p>
-        </div>
-
-        <div class="flex items-center gap-2 bg-white dark:bg-slate-800 p-1 rounded-lg border border-gray-200 dark:border-slate-700 mx-4">
-            <button 
-                @click="gridColumns = 2"
-                class="p-2 rounded-md transition-all flex items-center gap-2 text-sm font-medium"
-                :class="gridColumns === 2 ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400 shadow-sm' : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-700'"
-                title="2 คอลัมน์"
-            >
-                <Columns class="w-4 h-4" />
-                <span class="hidden sm:inline">2 คอลัมน์</span>
-            </button>
-            <button 
-                @click="gridColumns = 3"
-                class="p-2 rounded-md transition-all flex items-center gap-2 text-sm font-medium"
-                :class="gridColumns === 3 ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400 shadow-sm' : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-700'"
-                title="3 คอลัมน์"
-            >
-                <LayoutGrid class="w-4 h-4" />
-                <span class="hidden sm:inline">3 คอลัมน์</span>
-            </button>
         </div>
 
         <button
@@ -75,7 +55,7 @@ const handlePrint = () => {
       </div>
 
       <div
-        class="flex-1 overflow-y-auto p-8 bg-gray-100 dark:bg-slate-900/50 custom-scrollbar"
+        class="flex-1 overflow-y-auto p-8 bg-gray-100 dark:bg-slate-900/50 custom-scrollbar flex justify-center"
       >
         <div
           v-if="isGenerating"
@@ -90,19 +70,16 @@ const handlePrint = () => {
         <div
           v-else
           ref="printableContent"
-          class="grid gap-6 w-full max-w-[21cm] mx-auto bg-white p-8 shadow-sm transition-all duration-300"
-          :class="{
-              'grid-cols-2': gridColumns === 2,
-              'grid-cols-3': gridColumns === 3
-          }"
+          class="grid grid-cols-2 gap-0 w-[21cm] bg-white shadow-sm"
         >
           <div
             v-for="loc in selectedLocations"
             :key="loc.locations_id"
-            class="sticker-card border border-gray-900 p-2 flex flex-col items-center text-center bg-white aspect-[3/4] relative overflow-hidden"
+            class="sticker-card border border-gray-200 p-3 flex flex-col items-center text-center bg-white relative overflow-hidden"
+            style="width: 10.5cm; height: 14.85cm;"
           >
             <div
-              class="logo-container w-full h-[50px] border border-gray-300 mb-1 flex items-center justify-center p-1"
+              class="logo-container w-full h-[60px] border border-gray-300 mb-2 flex items-center justify-center p-1"
             >
               <img
                 :src="princLogo"
@@ -112,44 +89,40 @@ const handlePrint = () => {
             </div>
 
             <div
-              class="qr-section relative w-full flex flex-col items-center justify-center mb-1"
+              class="qr-section relative w-full flex flex-col items-center justify-center mb-2 flex-1"
             >
               <div
-                class="absolute -top-2 bg-white px-1 z-10 text-[10px] font-bold text-gray-600 tracking-widest uppercase border border-white"
+                class="absolute -top-2 bg-white px-2 z-10 text-[12px] font-bold text-gray-600 tracking-widest uppercase border border-white"
               >
-                SCAN
+                SCAN ME
               </div>
-              
+
               <div
-                class="qr-box border border-gray-900 p-1 flex items-center justify-center mt-2 transition-all duration-300"
-                :class="{
-                    'w-[100px] h-[100px]': gridColumns === 3,
-                    'w-[140px] h-[140px]': gridColumns === 2
-                }"
+                class="qr-box border border-gray-900 p-1 flex items-center justify-center mt-2 w-[180px] h-[180px]"
               >
                 <img
                   v-if="qrDataUrls[loc.locations_id]"
                   :src="qrDataUrls[loc.locations_id]"
                   class="w-full h-full object-contain"
                 />
-                <Loader2 v-else class="w-6 h-6 animate-spin text-gray-300" />
+                <Loader2 v-else class="w-8 h-8 animate-spin text-gray-300" />
               </div>
             </div>
 
             <div
-              class="flex-1 w-full flex flex-col items-center justify-center space-y-0.5"
+              class="flex-1 w-full flex flex-col items-center justify-start space-y-1"
             >
-              <h2 class="text-[12px] font-bold text-black leading-tight">
+              <h2 class="text-[16px] font-bold text-black leading-tight">
                 แบบประเมินความพึงพอใจ
               </h2>
-              <p class="text-[10px] text-gray-600">ประเมินความสะอาด</p>
+              <p class="text-[12px] text-gray-600">ประเมินความสะอาด</p>
 
-              <div class="mt-1 text-[14px] font-bold text-black leading-tight">
+              <div class="mt-2 text-[18px] font-bold text-black leading-tight">
                 ชั้น {{ loc.locations_floor }} <br />
                 อาคาร {{ loc.locations_building }}
               </div>
               <p
-                class="text-[10px] text-gray-500 truncate w-full px-1"
+                class="text-[14px] text-gray-500 truncate w-full px-2 mt-1"
                 v-if="loc.locations_name"
               >
                 ({{ loc.locations_name }})
@@ -157,17 +130,17 @@ const handlePrint = () => {
             </div>
 
             <div
-              class="w-full flex justify-between items-end pt-1 mt-auto border-t border-dashed border-gray-200"
+              class="w-full flex justify-between items-end pt-2 mt-auto border-t border-dashed border-gray-200"
             >
-              <div class="text-[8px] text-gray-500 text-left leading-none space-y-0.5">
-                <div class="flex items-center gap-0.5">
+              <div class="text-[10px] text-gray-500 text-left leading-tight space-y-0.5">
+                <div class="flex items-center gap-1">
                   <span>📞 045-244-999</span>
                 </div>
-                <div class="flex items-center gap-0.5">
+                <div class="flex items-center gap-1">
                   <span>💬 @princubon</span>
                 </div>
               </div>
-              <div class="text-[8px] font-bold text-red-600 text-right">
+              <div class="text-[10px] font-bold text-red-600 text-right">
                 **ส่งงานแม่บ้าน
               </div>
             </div>
@@ -197,6 +170,7 @@ const handlePrint = () => {
 </template>
 
 <style scoped>
+/* Scrollbar Styling */
 .custom-scrollbar::-webkit-scrollbar {
   width: 8px;
 }
@@ -210,5 +184,15 @@ const handlePrint = () => {
 
 :global(.dark) .custom-scrollbar::-webkit-scrollbar-thumb {
   background: #475569;
+}
+
+/* ✅ เพิ่ม CSS สำหรับการพิมพ์เพื่อให้แน่ใจว่าขนาดเป๊ะ
+   เมื่อสั่งพิมพ์ background-color จะหายไป และจะพิมพ์ตามขนาดจริง
+*/
+@media print {
+  .sticker-card {
+    border: 1px solid #000; /* บังคับขอบตอนพิมพ์ */
+    break-inside: avoid;
+  }
 }
 </style>
