@@ -83,7 +83,7 @@ const changePage = (page) => {
 
 <template>
   <div
-    class="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden flex flex-col h-[calc(100vh-320px)] transition-colors duration-300"
+    class="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden flex flex-col h-80 transition-colors duration-300"
   >
     <div class="flex-1 overflow-y-auto overflow-x-auto relative custom-scrollbar">
       <table class="w-full text-left border-collapse">

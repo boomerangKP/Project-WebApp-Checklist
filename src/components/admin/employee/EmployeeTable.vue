@@ -170,13 +170,13 @@ const getRoleConfig = (role) => {
           class="sticky top-0 z-10 bg-gray-50 dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 text-xs text-gray-500 dark:text-gray-400 font-semibold uppercase tracking-wider"
         >
           <tr>
-            <th class="px-6 py-4 whitespace-nowrap w-40">รหัสพนักงาน</th>
-            <th class="px-6 py-4 whitespace-nowrap">พนักงาน</th>
-            <th class="px-6 py-4 whitespace-nowrap">ตำแหน่ง</th>
-            <th class="px-6 py-4 whitespace-nowrap">เบอร์โทร</th>
-            <th class="px-6 py-4 whitespace-nowrap">อีเมล</th>
-            <th class="px-6 py-4 whitespace-nowrap">สถานะ</th>
-            <th class="px-6 py-4 text-right whitespace-nowrap w-24">จัดการ</th>
+            <th class="px-5 py-4 whitespace-nowrap w-40">รหัสพนักงาน</th>
+            <th class="px-5 py-4 whitespace-nowrap">พนักงาน</th>
+            <th class="px-5 py-4 whitespace-nowrap">ตำแหน่ง</th>
+            <th class="px-5 py-4 whitespace-nowrap">เบอร์โทร</th>
+            <th class="px-5 py-4 whitespace-nowrap">อีเมล</th>
+            <th class="px-5 py-4 whitespace-nowrap">สถานะ</th>
+            <th class="px-5 py-4 text-right whitespace-nowrap w-24">จัดการ</th>
           </tr>
         </thead>
 
