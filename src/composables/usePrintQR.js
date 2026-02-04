@@ -1,9 +1,9 @@
 // src/composables/usePrintQR.js
 
 export function usePrintQR() {
-  
-  // ✅ เพิ่ม Parameter columns (default = 3) เพื่อรับค่าจำนวนคอลัมน์
-  const printContent = (contentRef, columns = 3) => {
+
+  // columns ในที่นี้จะเป็น 2 เสมอจากไฟล์แม่ที่ส่งมา
+  const printContent = (contentRef, columns = 2) => {
     if (!contentRef) return;
 
     // 1. สร้าง Iframe (ซ่อนไว้นอกจอ)
@@ -26,161 +26,156 @@ export function usePrintQR() {
     doc.write(`
       <html>
         <head>
-          <title>Print QR Code</title>
+          <title>Print QR Code (A6 Size)</title>
           <style>
             /* --- 1. Global Reset & Page Setup --- */
             * { box-sizing: border-box; }
-            
-            /* ย้าย Margin มาที่ @page เพื่อให้มีผลทุกหน้า (1, 2, 3...) */
-            @page { 
-              size: A4 portrait; 
-              margin: 10mm; /* เว้นขอบ 1cm ทุกด้าน ทุกหน้า */
+
+            @page {
+              size: A4 portrait;
+              margin: 0; /* ตัดขอบขาวของ Printer ออกให้หมด แล้วเรามาจัด Grid เอา */
             }
 
-            body { 
-              margin: 0; 
-              padding: 0; /* เอา padding body ออก */
-              width: 100%; /* ให้กว้างเต็มพื้นที่ที่เหลือจาก @page margin */
-              font-family: 'Sarabun', sans-serif; 
+            body {
+              margin: 0;
+              padding: 0;
+              width: 210mm; /* A4 Width */
+              height: 297mm; /* A4 Height */
+              font-family: 'Sarabun', sans-serif;
               background: white;
-              -webkit-print-color-adjust: exact; 
+              -webkit-print-color-adjust: exact;
               print-color-adjust: exact;
             }
 
-            /* --- 2. Grid Layout (ปรับตาม columns ที่ส่งมา) --- */
+            /* --- 2. Grid Layout (2x2 = 4 ใบต่อหน้า A4) --- */
             .print-grid-layout {
               display: grid;
-              /* ✅ ใช้ค่า columns ที่รับมา */
-              grid-template-columns: repeat(${columns}, 1fr); 
-              column-gap: 5mm; /* ช่องว่างแนวตั้ง */
-              row-gap: 5mm;    /* ช่องว่างแนวนอน */
+              grid-template-columns: 105mm 105mm; /* กว้าง 10.5cm x 2 */
+              grid-auto-rows: 148.5mm;            /* สูง 14.85cm (A6) */
               width: 100%;
             }
 
-            /* --- 3. Card Styling --- */
+            /* --- 3. Card Styling (ขนาด A6) --- */
             .sticker-card {
-              width: 100% !important; /* เต็มช่อง Grid */
-              height: 8.5cm !important; /* ล็อคความสูงการ์ด */
-              
-              border: 1px solid #000;
-              padding: 0.2cm;
-              
+              width: 100% !important;
+              height: 100% !important; /* เต็มช่อง Grid (A6) */
+
+              border: 1px solid #ddd; /* เส้นขอบบางๆ สำหรับตัดกระดาษ (ถ้าไม่ต้องการให้ลบออกหรือเปลี่ยนสีเป็นขาว) */
+              padding: 5mm; /* ขอบกระดาษด้านใน */
+
               display: flex;
               flex-direction: column;
               align-items: center;
+              justify-content: flex-start;
               background: white;
-              
-              overflow: hidden; 
-              page-break-inside: avoid; /* ห้ามการ์ดขาดครึ่ง */
+
+              overflow: hidden;
+              page-break-inside: avoid;
               break-inside: avoid;
             }
 
-            /* --- 4. ล็อคขนาดรูปโลโก้ (กันระเบิด) --- */
-            /* กล่องโลโก้ */
+            /* --- 4. Logo Section --- */
             .sticker-card > div:nth-child(1) {
                width: 100% !important;
-               height: 1.2cm !important; /* ล็อคสูง 1.2cm */
-               border: 1px solid #ccc;
+               height: 20mm !important; /* สูง 2cm */
+               border: 1px solid #eee;
                display: flex; align-items: center; justify-content: center;
-               margin-bottom: 2px;
-               padding: 2px;
+               margin-bottom: 2mm;
+               padding: 1mm;
             }
-            /* รูปโลโก้ */
             .sticker-card > div:nth-child(1) img {
-               width: auto !important;
                height: 100% !important;
-               max-width: 100% !important;
                object-fit: contain !important;
             }
 
-            /* --- 5. ล็อคขนาด QR Code (กันระเบิด) --- */
-            /* กล่องครอบ QR */
+            /* --- 5. QR Code Section --- */
             .sticker-card > div:nth-child(2) {
                position: relative;
                width: 100%;
-               display: flex; justify-content: center;
-               margin-bottom: 2px;
+               flex: 1; /* ยืดให้เต็มพื้นที่ว่าง */
+               display: flex; flex-direction: column;
+               align-items: center; justify-content: center;
+               margin-bottom: 2mm;
             }
-            /* ป้าย SCAN */
+
+            /* ป้าย SCAN ME */
             .sticker-card > div:nth-child(2) > div:first-child {
-               position: absolute; top: -6px; 
-               background: white; padding: 0 4px; 
-               font-size: 8pt; font-weight: bold; 
-               border: 1px solid #fff; z-index: 10;
+               position: absolute; top: -8px;
+               background: white; padding: 0 5px;
+               font-size: 10pt; font-weight: bold;
+               border: 2px solid #fff; z-index: 10;
             }
-            /* กล่องสี่เหลี่ยม QR */
+
+            /* กล่อง QR */
             .sticker-card > div:nth-child(2) > div:last-child {
-               width: 2.8cm !important;  /* ล็อคกว้าง 2.8cm */
-               height: 2.8cm !important; /* ล็อคสูง 2.8cm */
-               border: 1px solid #000;
+               width: 50mm !important;  /* กว้าง 5cm */
+               height: 50mm !important; /* สูง 5cm */
+               border: 2px solid #000;
                display: flex; align-items: center; justify-content: center;
-               margin-top: 5px;
-               padding: 2px;
+               padding: 1mm;
             }
-            /* รูป QR */
             .sticker-card > div:nth-child(2) > div:last-child img {
                width: 100% !important;
                height: 100% !important;
-               object-fit: contain !important;
             }
 
-            /* --- 6. Text Styling (ปรับแก้ระยะห่าง) --- */
-            
-            /* หัวข้อ: แบบประเมิน... */
-            h2 { 
-                font-size: 10pt !important; 
-                font-weight: bold; 
-                margin: 0 0 2px 0; /* เพิ่มระยะห่างด้านล่าง 4px */
-                line-height: 1.4;  /* เพิ่มความสูงบรรทัดเป็น 1.4 (สระจะไม่ทับ) */
-                text-align: center; 
-                color: #000;
+            /* --- 6. Text Information --- */
+            .sticker-card > div:nth-child(3) {
+               width: 100%;
+               text-align: center;
+               margin-bottom: 5mm;
             }
 
-            /* รองหัวข้อ: ประเมินความสะอาด */
-            p { 
-                font-size: 8pt !important; 
-                margin: 0 0 6px 0; /* เพิ่มระยะห่างด้านล่าง 6px (ก่อนขึ้นชั้น/อาคาร) */
-                color: #555; 
-                text-align: center; 
-            }
-            
-            /* กล่องคลุมข้อความที่อยู่ (ชั้น/อาคาร) */
-            .sticker-card > div:nth-child(3) { 
-                width: 100%; 
-                text-align: center; 
-                display: flex;
-                flex-direction: column; /* จัดเรียงแนวตั้ง */
-                justify-content: center;
-            }
-
-            /* ตัวหนังสือ ชั้น/อาคาร (ตัวหนา) */
-            .sticker-card > div:nth-child(3) > div { 
-                font-size: 11pt !important; 
-                font-weight: bold; 
-                line-height: 1.4;    /* เพิ่มความสูงบรรทัด */
-                margin-bottom: 2px;  /* เว้นระยะห่างจากชื่อห้องนิดนึง */
-                margin-top: 4px;
-                color: #000;
-            }
-
-            /* ชื่อห้อง (วงเล็บข้างล่าง) */
-            .sticker-card > div:nth-child(3) > p { 
-                font-size: 8pt !important; 
+            /* หัวข้อ: แบบประเมิน */
+            h2 {
+                font-size: 14pt !important;
+                font-weight: bold;
                 margin: 0;
-                white-space: nowrap; 
-                overflow: hidden; 
-                text-overflow: ellipsis; 
-                color: #666;
+                line-height: 1.2;
+                color: #000;
+            }
+            p {
+                font-size: 10pt !important;
+                margin: 0 0 5mm 0;
+                color: #555;
             }
 
-            /* Footer */
+            /* ชั้น / อาคาร (ตัวใหญ่) */
+            .sticker-card > div:nth-child(3) > div {
+                font-size: 18pt !important; /* ใหญ่ชัดเจน */
+                font-weight: bold;
+                line-height: 1.3;
+                color: #000;
+            }
+
+            /* ชื่อห้อง (วงเล็บ) */
+            .sticker-card > div:nth-child(3) > p {
+                font-size: 12pt !important;
+                margin-top: 2mm;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                color: #444;
+            }
+
+            /* --- 7. Footer --- */
             .sticker-card > div:last-child {
-               width: 100%; margin-top: auto; padding-top: 5px; 
+               width: 100%;
+               margin-top: auto;
+               padding-top: 2mm;
                border-top: 1px dashed #ccc;
                display: flex; justify-content: space-between; align-items: flex-end;
             }
-            .sticker-card > div:last-child > div:first-child { font-size: 6pt !important; text-align: left; line-height: 1.1; }
-            .sticker-card > div:last-child > div:last-child { font-size: 6pt !important; font-weight: bold; color: red; }
+            .sticker-card > div:last-child > div:first-child {
+                font-size: 9pt !important;
+                text-align: left;
+                line-height: 1.4;
+            }
+            .sticker-card > div:last-child > div:last-child {
+                font-size: 9pt !important;
+                font-weight: bold;
+                color: red;
+            }
 
           </style>
         </head>
@@ -197,7 +192,7 @@ export function usePrintQR() {
           iframe.contentWindow.focus();
           iframe.contentWindow.print();
         }, 500);
-        
+
         setTimeout(() => {
            if(document.body.contains(iframe)) document.body.removeChild(iframe);
         }, 5000);
