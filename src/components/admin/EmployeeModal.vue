@@ -259,6 +259,8 @@ const cancelCrop = () => {
 
 const processAndUpload = async (fileBlob) => {
   try {
+      const localUrl = URL.createObjectURL(fileBlob);
+      imagePreview.value = localUrl;
     // ลบรูปเก่าทิ้ง (ถ้ามี)
     if (
       form.value.employees_photo &&
@@ -291,6 +293,7 @@ const processAndUpload = async (fileBlob) => {
   } catch (error) {
     console.error("Upload Error:", error);
     swalError("อัปโหลดไม่สำเร็จ", "เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ");
+    imagePreview.value = null;
   } finally {
     isUploadingImage.value = false;
   }
