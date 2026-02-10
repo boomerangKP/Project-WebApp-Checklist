@@ -212,15 +212,44 @@ const onFileSelect = (event) => {
   reader.readAsDataURL(file);
 };
 
+// แก้ไขใน function confirmCrop
+
 const confirmCrop = () => {
   if (!cropperRef.value) return;
-  const { canvas } = cropperRef.value.getResult();
+
+  // ดึงรูปจาก Cropper (Resize เป็น 500x500 เพื่อลดขนาดไฟล์)
+  const { canvas } = cropperRef.value.getResult({
+    width: 500,
+    height: 500,
+  });
+
   if (!canvas) return;
+
+  // สร้าง Canvas ใหม่เพื่อรองพื้นสีขาว
+  const finalCanvas = document.createElement("canvas");
+  finalCanvas.width = canvas.width;
+  finalCanvas.height = canvas.height;
+  const ctx = finalCanvas.getContext("2d");
+
+  // ✅ 1. เทสีขาวลงไปก่อน (แก้ปัญหา JPG พื้นหลังดำ)
+  ctx.fillStyle = "#FFFFFF";
+  ctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
+
+  // ✅ 2. วางรูปที่ Crop ทับลงไป
+  ctx.drawImage(canvas, 0, 0);
+
   showCropper.value = false;
   isUploadingImage.value = true;
-  canvas.toBlob(async (blob) => {
-    if (blob) await processAndUpload(blob);
-  }, "image/jpeg");
+
+  // ✅ 3. ส่งออกเป็น JPEG (Quality 0.8)
+  // ไม่ต้องใช้ browser-image-compression แล้ว เพราะ toBlob ทำได้เลย
+  finalCanvas.toBlob(
+    (blob) => {
+      if (blob) processAndUpload(blob);
+    },
+    "image/jpeg",
+    0.8 // ความคมชัด 80% (ไฟล์เล็กและชัดพอ)
+  );
 };
 
 const cancelCrop = () => {
@@ -230,33 +259,38 @@ const cancelCrop = () => {
 
 const processAndUpload = async (fileBlob) => {
   try {
+    // ลบรูปเก่าทิ้ง (ถ้ามี)
     if (
       form.value.employees_photo &&
       form.value.employees_photo !== props.employeeData?.employees_photo
     ) {
       await deleteOldImage(form.value.employees_photo);
     }
-    const file = new File([fileBlob], "cropped-image.jpg", { type: "image/jpeg" });
-    const options = {
-      maxSizeMB: 0.1,
-      maxWidthOrHeight: 500,
-      useWebWorker: true,
-      fileType: "image/webp",
-    };
-    const compressedFile = await imageCompression(file, options);
-    imagePreview.value = URL.createObjectURL(compressedFile);
-    const fileName = `avatar_${Date.now()}_${Math.random()
-      .toString(36)
-      .substring(7)}.webp`;
+
+    // แสดง Preview ทันที
+    imagePreview.value = URL.createObjectURL(fileBlob);
+
+    // ตั้งชื่อไฟล์
+    const fileName = `avatar_${Date.now()}.jpg`;
+
+    // อัปโหลด
     const { error: uploadError } = await supabase.storage
       .from("avatars")
-      .upload(fileName, compressedFile, { cacheControl: "3600", upsert: false });
+      .upload(fileName, fileBlob, {
+        cacheControl: "3600",
+        upsert: false,
+        contentType: "image/jpeg", // ระบุว่าเป็น JPEG
+      });
+
     if (uploadError) throw uploadError;
+
+    // เอา URL มาแปะในฟอร์ม
     const { data } = supabase.storage.from("avatars").getPublicUrl(fileName);
     form.value.employees_photo = data.publicUrl;
+
   } catch (error) {
-    console.error(error);
-    swalError("อัปโหลดไม่สำเร็จ", "เกิดข้อผิดพลาดในการอัปโหลด");
+    console.error("Upload Error:", error);
+    swalError("อัปโหลดไม่สำเร็จ", "เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ");
   } finally {
     isUploadingImage.value = false;
   }
@@ -480,7 +514,7 @@ const handleSubmit = async () => {
                 </button>
               </div>
               <p v-if="!showCropper" class="text-xs text-gray-400 dark:text-slate-500">
-                รองรับไฟล์ภาพ (ระบบจะบีบอัดอัตโนมัติ)
+                รูปโปรไฟล์
               </p>
             </div>
 
