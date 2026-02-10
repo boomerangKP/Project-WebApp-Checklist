@@ -238,6 +238,7 @@ const confirmCrop = () => {
   // ✅ 2. วางรูปที่ Crop ทับลงไป
   ctx.drawImage(canvas, 0, 0);
 
+  imagePreview.value = finalCanvas.toDataURL("image/jpeg", 0.8);
   showCropper.value = false;
   isUploadingImage.value = true;
 
@@ -259,9 +260,6 @@ const cancelCrop = () => {
 
 const processAndUpload = async (fileBlob) => {
   try {
-      const localUrl = URL.createObjectURL(fileBlob);
-      imagePreview.value = localUrl;
-    // ลบรูปเก่าทิ้ง (ถ้ามี)
     if (
       form.value.employees_photo &&
       form.value.employees_photo !== props.employeeData?.employees_photo
