@@ -1,28 +1,20 @@
 <script setup>
 import { ref, watch, computed, onMounted, onUnmounted } from "vue";
 import {
-  ListFilter,
-  RotateCcw,
-  Calendar,
   Users,
-  CheckCircle2,
-  XCircle,
-  Clock,
-  X,
   ChevronDown,
   ArrowRight,
   Check,
   Calendar as CalendarIcon,
   Search,
-  CheckSquare,
-  Square,
+  X,
 } from "lucide-vue-next";
-import { TASK_STATUS } from '@/constants/status';
 
+// (คง Script เดิมไว้ทั้งหมด ไม่แตะต้อง Logic)
 const props = defineProps({
   activeTab: String,
   searchQuery: String,
-  selectedMaid: [String, Number], // ✅ รองรับทั้ง ID (Number) และ 'all' (String)
+  selectedMaid: [String, Number],
   maids: { type: Array, default: () => [] },
   isSelectionMode: Boolean,
   isAllSelected: Boolean,
@@ -76,13 +68,14 @@ const currentDateLabel = computed(
   () => dateOptions.find((o) => o.value === currentRange.value)?.label || "เลือกช่วงเวลา"
 );
 
+// ✅ แก้ไข: ปรับรูปแบบวันที่เป็นแบบเต็ม (เช่น 13 ก.พ. 2569)
 const displayThaiDate = (isoDate) => {
   if (!isoDate) return "-";
   const date = new Date(isoDate);
   return date.toLocaleDateString("th-TH", {
     day: "numeric",
     month: "short",
-    year: "2-digit",
+    year: "numeric", // เปลี่ยนจาก '2-digit' เป็น 'numeric'
   });
 };
 
@@ -147,10 +140,8 @@ const selectMaid = (val) => {
   closeDropdown();
 };
 
-// ✅ Helper: หาชื่อจาก ID (ปรับให้รองรับทั้ง String/Number กันเหนียว)
 const getMaidLabel = computed(() => {
     if (!props.selectedMaid || props.selectedMaid === 'all') return 'พนักงานทุกคน';
-    // ใช้ == (Loose Equality) เพื่อให้ "1" (String) เท่ากับ 1 (Number)
     const found = props.maids.find(m => m.id == props.selectedMaid);
     return found ? found.fullname : 'พนักงานทุกคน';
 });
@@ -210,275 +201,164 @@ onUnmounted(() => window.removeEventListener("click", handleClickOutside));
 </script>
 
 <template>
-  <div class="flex flex-col rounded-xl border border-gray-200 bg-white dark:bg-slate-800 dark:border-slate-700 shadow-sm">
-    <div
-      class="flex flex-col md:flex-row md:items-center justify-between gap-3  p-2  transition-colors duration-300 "
-    >
-      <div
-        class="flex overflow-x-auto custom-scrollbar gap-2 flex-1 min-w-0 items-center pb-1 md:pb-0"
-      >
-        <button
-          v-for="tab in [
-            { id: TASK_STATUS.WAITING, label: 'รอตรวจสอบ', icon: Clock },
-            { id: TASK_STATUS.APPROVED, label: 'ตรวจแล้ว', icon: CheckCircle2 },
-            { id: TASK_STATUS.REJECTED, label: 'แก้ไข', icon: XCircle },
-            { id: 'all', label: 'ทั้งหมด', icon: ListFilter },
-          ]"
-          :key="tab.id"
-          @click="$emit('update:activeTab', tab.id)"
-          class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap border shrink-0"
-          :class="
-            activeTab === tab.id
-              ? 'bg-indigo-50 dark:bg-indigo-900/30 border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-400 shadow-sm'
-              : 'bg-white dark:bg-slate-800 border-transparent text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-700'
-          "
-        >
-          <component :is="tab.icon" class="w-4 h-4" />
-          <span>{{ tab.label }}</span>
-          <span
-            v-if="tab.id === TASK_STATUS.WAITING && waitingCount > 0"
-            class="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-bold"
-          >
-            {{ waitingCount }}
-          </span>
-        </button>
-      </div>
+  <div class="bg-white dark:bg-slate-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 flex flex-col gap-4 transition-all duration-300">
 
-      <div
-        class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-none justify-end border-t md:border-t-0 border-gray-100 dark:border-slate-700 pt-2 md:pt-0"
-      >
-        <div class="relative custom-dropdown-container w-full sm:w-64">
-          <div class="relative w-full">
-            <Search
-              class="absolute left-3 top-2.5 h-4 w-4 text-gray-400 dark:text-slate-500 z-10"
-            />
+    <div class="flex flex-wrap gap-4 items-end">
+
+      <div class="w-full sm:flex-1 sm:min-w-[200px] flex flex-col gap-1.5 relative custom-dropdown-container">
+        <label class="text-sm font-bold text-gray-600 dark:text-gray-300 flex items-center gap-2">
+          <Search class="w-4 h-4" /> ค้นหารายการ
+        </label>
+
+        <div class="relative w-full">
             <input
               :value="searchQuery"
-              @input="
-                (e) => {
+              @input="(e) => {
                   $emit('update:searchQuery', e.target.value);
                   showSearchSuggestions = true;
-                }
-              "
+                }"
               @focus="showSearchSuggestions = true"
               type="text"
-              placeholder="ค้นหาชื่อ, รหัส..."
-              class="w-full h-10 pl-9 pr-4 rounded-lg border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-900 text-sm dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all dark:placeholder-slate-500"
+              placeholder="พิมพ์ชื่องาน, รหัส..."
+              class="w-full px-3 py-2.5 pl-9 border border-gray-200 dark:border-slate-600 rounded-lg text-sm
+                     focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500
+                     bg-white dark:bg-slate-900 text-gray-800 dark:text-white transition-all"
               autocomplete="off"
             />
-          </div>
-          <div
+            <Search class="absolute left-3 top-3 h-4 w-4 text-gray-400 dark:text-slate-500 pointer-events-none" />
+
+            <button
+               v-if="searchQuery"
+               @click="$emit('update:searchQuery', '')"
+               class="absolute right-3 top-2.5 text-gray-400 hover:text-red-500 transition-colors"
+            >
+               <X class="w-4 h-4" />
+            </button>
+        </div>
+
+        <div
             v-if="showSearchSuggestions && filteredSearchList.length > 0"
             class="absolute top-full left-0 mt-1 w-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95"
-          >
+        >
             <div class="max-h-60 overflow-y-auto custom-scrollbar p-1">
-              <div
+                <div
                 v-for="(item, index) in filteredSearchList"
                 :key="index"
                 @click="selectSuggestion(item)"
                 class="px-3 py-2.5 rounded-md hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-sm cursor-pointer flex items-center gap-2 text-gray-700 dark:text-gray-200 transition-colors"
-              >
+                >
                 <Search class="w-3.5 h-3.5 text-gray-400 dark:text-slate-500" />
                 <span v-html="highlightMatch(item, searchQuery)"></span>
-              </div>
+                </div>
             </div>
-          </div>
-        </div>
-
-        <div class="flex items-center gap-2 justify-end">
-          <button
-            @click="$emit('refresh')"
-            class="h-10 w-10 flex items-center justify-center rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-700 shadow-sm transition-colors shrink-0"
-            title="รีเฟรชข้อมูล"
-          >
-            <RotateCcw class="w-4 h-4" />
-          </button>
-
-          <div v-if="activeTab === TASK_STATUS.WAITING" class="flex gap-2">
-            <button
-              @click="$emit('toggleSelectionMode')"
-              class="h-10 px-3 flex items-center gap-2 rounded-lg border text-sm font-medium transition-colors whitespace-nowrap"
-              :class="
-                isSelectionMode
-                  ? 'bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-900/30 dark:border-indigo-800 dark:text-indigo-400'
-                  : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-slate-800 dark:border-slate-700 dark:text-gray-300 dark:hover:bg-slate-700'
-              "
-            >
-              <CheckSquare class="w-4 h-4" />
-              <span class=" sm:inline">{{
-                isSelectionMode ? "ยกเลิก" : "เลือกรายการ"
-              }}</span>
-            </button>
-
-            <button
-              v-if="isSelectionMode"
-              @click="$emit('toggleSelectAll')"
-              class="h-10 px-3 flex items-center gap-2 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-700 text-sm font-medium transition-colors whitespace-nowrap"
-            >
-              <component
-                :is="isAllSelected ? CheckSquare : Square"
-                class="w-4 h-4"
-                :class="isAllSelected ? 'text-indigo-600 dark:text-indigo-400' : ''"
-              />
-              <span class=" sm:inline">ทั้งหมด</span>
-            </button>
-          </div>
         </div>
       </div>
-    </div>
 
-    <div
-      class="grid grid-cols-1 md:grid-cols-12 gap-3  p-3 items-center transition-colors duration-300"
-    >
-      <div
-        class="md:col-span-6 lg:col-span-6 flex flex-col sm:flex-row items-stretch sm:items-center gap-2"
-      >
-        <div class="relative custom-dropdown-container shrink-0">
-          <button
+      <div class="w-full sm:w-auto sm:min-w-[180px] flex flex-col gap-1.5 relative custom-dropdown-container">
+        <label class="text-sm font-bold text-gray-600 dark:text-gray-300 flex items-center gap-2">
+          <CalendarIcon class="w-4 h-4" /> ช่วงเวลา
+        </label>
+
+        <button
             @click="toggleDropdown('date')"
-            class="h-10 px-3 w-full sm:w-auto rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs font-medium text-gray-700 dark:text-gray-200 flex items-center justify-between sm:justify-start gap-2 hover:border-indigo-500 transition-colors"
-            :class="{
-              'ring-2 ring-indigo-500 border-indigo-500': activeDropdown === 'date',
-            }"
-          >
-            <div class="flex items-center gap-2">
-              <CalendarIcon class="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
-              <span class="truncate max-w-[120px] text-left">{{ currentDateLabel }}</span>
-            </div>
-            <ChevronDown class="h-3 w-3 text-gray-400" />
-          </button>
+            class="w-full px-3 py-2.5 rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-900
+                   text-sm text-left flex items-center justify-between hover:border-indigo-500 transition-all
+                   focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+            :class="{'ring-2 ring-indigo-500 border-indigo-500': activeDropdown === 'date'}"
+        >
+            <span class="text-gray-700 dark:text-gray-200 truncate">{{ currentDateLabel }}</span>
+            <ChevronDown class="h-4 w-4 text-gray-400" />
+        </button>
 
-          <div
+        <div
             v-if="activeDropdown === 'date'"
-            class="absolute top-full left-0 mt-1 w-full sm:w-[160px] bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-xl z-50 animate-in fade-in zoom-in-95 p-1"
-          >
-            <div
-              v-for="option in dateOptions"
-              :key="option.value"
-              @click="selectDateRange(option.value)"
-              class="px-3 py-2 rounded-md hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-xs cursor-pointer flex items-center justify-between text-gray-700 dark:text-gray-200 transition-colors"
-            >
-              <span>{{ option.label }}</span>
-              <Check
-                v-if="currentRange === option.value"
-                class="w-3 h-3 text-indigo-600 dark:text-indigo-400"
-              />
-            </div>
-          </div>
-        </div>
-
-        <div
-          v-if="currentRange === 'custom'"
-          class="flex items-center gap-2 bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-gray-200 dark:border-slate-600 shadow-sm animate-in fade-in slide-in-from-left-2 flex-1 min-w-0"
+            class="absolute top-full left-0 mt-1 w-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-xl z-50 animate-in fade-in zoom-in-95 p-1"
         >
-          <div
-            class="relative group cursor-pointer flex-1 min-w-0"
-            @click="openStartCalendar"
-          >
             <div
-              class="flex items-center justify-center gap-2 px-3 py-1.5 bg-indigo-50 dark:bg-slate-900 hover:bg-indigo-100 dark:hover:bg-slate-700 rounded-md transition-all h-full text-indigo-600 dark:text-indigo-400 font-medium border border-transparent dark:border-slate-700"
+                v-for="option in dateOptions"
+                :key="option.value"
+                @click="selectDateRange(option.value)"
+                class="px-3 py-2 rounded-md hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-sm cursor-pointer flex items-center justify-between text-gray-700 dark:text-gray-200 transition-colors"
             >
-              <CalendarIcon class="w-3.5 h-3.5 shrink-0" />
-              <span class="text-xs truncate dark:text-white">{{
-                displayThaiDate(customStart)
-              }}</span>
+                <span>{{ option.label }}</span>
+                <Check v-if="currentRange === option.value" class="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
             </div>
-            <input
-              ref="startInputRef"
-              type="date"
-              v-model="customStart"
-              class="absolute inset-0 opacity-0 cursor-pointer w-full"
-            />
-          </div>
-
-          <ArrowRight class="w-3 h-3 text-gray-300 dark:text-slate-600 shrink-0" />
-
-          <div
-            class="relative group cursor-pointer flex-1 min-w-0"
-            @click="openEndCalendar"
-          >
-            <div
-              class="flex items-center justify-center gap-2 px-3 py-1.5 bg-indigo-50 dark:bg-slate-900 hover:bg-indigo-100 dark:hover:bg-slate-700 rounded-md transition-all h-full text-indigo-600 dark:text-indigo-400 font-medium border border-transparent dark:border-slate-700"
-            >
-              <CalendarIcon class="w-3.5 h-3.5 shrink-0" />
-              <span class="text-xs truncate dark:text-white">{{
-                displayThaiDate(customEnd)
-              }}</span>
-            </div>
-            <input
-              ref="endInputRef"
-              type="date"
-              v-model="customEnd"
-              class="absolute inset-0 opacity-0 cursor-pointer w-full"
-            />
-          </div>
-
-          <button
-            @click="handleCustomSearch"
-            class="ml-1 bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-600 dark:hover:bg-indigo-500 text-white w-8 h-8 rounded-lg flex items-center justify-center shadow-sm active:scale-95 transition-all shrink-0"
-            title="ค้นหา"
-          >
-            <Search class="w-4 h-4" />
-          </button>
         </div>
       </div>
 
-      <div class="md:col-span-5 lg:col-span-5 relative custom-dropdown-container">
+      <div v-if="currentRange === 'custom'" class="w-full sm:w-auto flex flex-col sm:flex-row gap-2 sm:items-center animate-fade-in">
+        <div class="flex flex-col gap-1.5 w-full sm:w-auto">
+            <label class="text-xs font-bold text-gray-500 dark:text-gray-400">เริ่ม</label>
+            <div class="relative group cursor-pointer w-full" @click="openStartCalendar">
+                <div class="flex items-center gap-2 px-3 py-2.5 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-600 rounded-lg h-[42px] w-full">
+                    <span class="text-sm text-gray-700 dark:text-gray-200 truncate">{{ displayThaiDate(customStart) }}</span>
+                </div>
+                <input
+                    ref="startInputRef"
+                    type="date"
+                    v-model="customStart"
+                    class="absolute inset-0 opacity-0 cursor-pointer w-full"
+                />
+            </div>
+        </div>
+
+        <div class="hidden sm:block pt-6 text-gray-400"><ArrowRight class="w-4 h-4" /></div>
+
+        <div class="flex flex-col gap-1.5 w-full sm:w-auto">
+            <label class="text-xs font-bold text-gray-500 dark:text-gray-400">ถึง</label>
+            <div class="relative group cursor-pointer w-full" @click="openEndCalendar">
+                 <div class="flex items-center gap-2 px-3 py-2.5 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-600 rounded-lg h-[42px] w-full">
+                    <span class="text-sm text-gray-700 dark:text-gray-200 truncate">{{ displayThaiDate(customEnd) }}</span>
+                </div>
+                <input
+                    ref="endInputRef"
+                    type="date"
+                    v-model="customEnd"
+                    class="absolute inset-0 opacity-0 cursor-pointer w-full"
+                />
+            </div>
+        </div>
+      </div>
+
+      <div class="w-full sm:w-auto sm:min-w-[200px] flex flex-col gap-1.5 relative custom-dropdown-container">
+        <label class="text-sm font-bold text-gray-600 dark:text-gray-300 flex items-center gap-2">
+          <Users class="w-4 h-4" /> พนักงาน
+        </label>
+
         <button
-          @click="toggleDropdown('maid')"
-          class="w-full h-10 px-3 rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm text-left flex items-center justify-between hover:border-indigo-500 dark:hover:border-indigo-500 transition-colors"
-          :class="{
-            'ring-2 ring-indigo-500 border-indigo-500': activeDropdown === 'maid',
-          }"
+            @click="toggleDropdown('maid')"
+            class="w-full px-3 py-2.5 rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-900
+                   text-sm text-left flex items-center justify-between hover:border-indigo-500 transition-all
+                   focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+            :class="{'ring-2 ring-indigo-500 border-indigo-500': activeDropdown === 'maid'}"
         >
-          <div class="flex items-center gap-2 truncate">
-            <Users class="w-4 h-4 text-gray-400 dark:text-slate-500" />
-            <span class="text-gray-700 dark:text-gray-200 truncate">{{
-              getMaidLabel
-            }}</span>
-          </div>
-          <ChevronDown class="h-4 w-4 text-gray-400" />
+            <span class="text-gray-700 dark:text-gray-200 truncate">{{ getMaidLabel }}</span>
+            <ChevronDown class="h-4 w-4 text-gray-400" />
         </button>
 
         <div
-          v-if="activeDropdown === 'maid'"
-          class="absolute top-full left-0 mt-1 w-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-xl z-50 animate-in fade-in zoom-in-95 max-h-48 overflow-y-auto custom-scrollbar p-1"
+            v-if="activeDropdown === 'maid'"
+            class="absolute top-full left-0 mt-1 w-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-xl z-50 animate-in fade-in zoom-in-95 max-h-60 overflow-y-auto custom-scrollbar p-1"
         >
-          <div
-            @click="selectMaid('all')"
-            class="px-3 py-2 rounded-md hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-sm cursor-pointer flex items-center justify-between text-gray-700 dark:text-gray-200 transition-colors"
-          >
-            <span>พนักงานทุกคน</span>
-            <Check
-              v-if="selectedMaid === 'all'"
-              class="w-3 h-3 text-indigo-600 dark:text-indigo-400"
-            />
-          </div>
-          <div
-            v-for="maid in maids"
-            :key="maid.id"
-            @click="selectMaid(maid.id)"
-            class="px-3 py-2 rounded-md hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-sm cursor-pointer flex items-center justify-between text-gray-700 dark:text-gray-200 transition-colors"
-          >
-            <span>{{ maid.fullname }}</span>
-            <Check
-              v-if="selectedMaid === maid.id"
-              class="w-3 h-3 text-indigo-600 dark:text-indigo-400"
-            />
-          </div>
+            <div
+                @click="selectMaid('all')"
+                class="px-3 py-2 rounded-md hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-sm cursor-pointer flex items-center justify-between text-gray-700 dark:text-gray-200 transition-colors"
+            >
+                <span>พนักงานทุกคน</span>
+                <Check v-if="selectedMaid === 'all'" class="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
+            </div>
+            <div
+                v-for="maid in maids"
+                :key="maid.id"
+                @click="selectMaid(maid.id)"
+                class="px-3 py-2 rounded-md hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-sm cursor-pointer flex items-center justify-between text-gray-700 dark:text-gray-200 transition-colors"
+            >
+                <span>{{ maid.fullname }}</span>
+                <Check v-if="selectedMaid === maid.id" class="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
+            </div>
         </div>
       </div>
 
-      <div class="md:col-span-1 flex justify-end md:justify-end items-center h-10">
-        <button
-          v-if="hasFilters"
-          @click="resetFilters"
-          class="h-9 w-9 flex items-center justify-center rounded-lg bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 text-red-600 dark:text-red-400 transition-colors"
-          title="ล้างตัวกรอง"
-        >
-          <X class="w-4 h-4" />
-        </button>
-      </div>
     </div>
   </div>
 </template>
@@ -497,5 +377,13 @@ onUnmounted(() => window.removeEventListener("click", handleClickOutside));
 /* ✅ Dark Mode Scrollbar */
 :global(.dark) .custom-scrollbar::-webkit-scrollbar-thumb {
   background: #475569;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-5px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in {
+    animation: fadeIn 0.2s ease-out forwards;
 }
 </style>

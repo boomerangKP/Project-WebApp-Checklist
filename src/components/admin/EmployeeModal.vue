@@ -799,7 +799,7 @@ const handleSubmit = async () => {
                   :value="form.email"
                   @input="handleEmailInput"
                   type="email"
-                  class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 outline-none transition-all dark:bg-slate-900 dark:text-white"
+                  class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 outline-none transition-all dark:bg-slate-900 dark:text-white bg-white"
                   :class="
                     emailError
                       ? 'border-red-500 focus:ring-red-200 bg-red-50 dark:bg-red-900/20 text-red-900 dark:text-red-300'
