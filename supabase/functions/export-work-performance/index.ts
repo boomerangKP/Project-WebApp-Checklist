@@ -1,6 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
-// ✅ ใช้ xlsx แบบมาตรฐาน (ถ้าต้องการ Style สีสันสวยงามอาจต้องใช้ library เสริม แต่ xlsx มาตรฐานทำ Layout/Merge ได้ครบครับ)
 import * as XLSX from "https://esm.sh/xlsx@0.18.5"
 
 const corsHeaders = {
@@ -9,7 +8,6 @@ const corsHeaders = {
 }
 
 // --- Helpers ---
-// แปลงวันที่เป็นไทย
 const formatThaiDate = (isoString: string, type: 'date' | 'time' | 'full' = 'full') => {
   if (!isoString) return '-'
   const date = new Date(isoString)
@@ -26,7 +24,6 @@ const formatThaiDate = (isoString: string, type: 'date' | 'time' | 'full' = 'ful
   return `${d}/${m}/${y} ${hr}:${min}`
 }
 
-// แปลงสถานะ
 const translateStatus = (status: string) => {
   const map: Record<string, string> = {
     pass: "รอตรวจ",
@@ -39,7 +36,6 @@ const translateStatus = (status: string) => {
   return map[status] || status
 }
 
-// แปลงตำแหน่ง
 const getRoleName = (role: string) => {
   const map: Record<string, string> = {
     admin: 'ผู้ดูแลระบบ',
@@ -55,13 +51,29 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
+    // 🛡️ 1. SECURITY CHECK: ตรวจสอบว่ามี Token ส่งมาไหม
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader) {
+      throw new Error('Missing Authorization header')
+    }
+
     const { start, end } = await req.json()
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // 1. Query ข้อมูล (ดึงเหมือนหน้าบ้านเป๊ะๆ รวมถึง Inspector Role)
+    // 🛡️ 2. SECURITY CHECK: ตรวจสอบความถูกต้องของ User
+    const token = authHeader.replace('Bearer ', '')
+    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token)
+
+    if (authError || !user) {
+        return new Response(JSON.stringify({ error: 'Unauthorized: กรุณาเข้าสู่ระบบ' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+
+    // --- เริ่มดึงข้อมูล (เหมือนเดิม) ---
+
+    // 1. Query
     const { data: rawLogs, error } = await supabaseAdmin
       .from('check_sessions')
       .select(`
@@ -94,15 +106,13 @@ serve(async (req) => {
         throw new Error("ไม่พบข้อมูลในช่วงเวลาที่เลือก")
     }
 
-    // 2. Process Data (คำนวณรอบ, กะเช้า/บ่าย, Role)
+    // 2. Process Data
     const roundTracker: Record<string, number> = {}
     const processedRows: any[] = []
 
     rawLogs.forEach((log: any) => {
-        // คำนวณกะ (Shift)
         let isMorning = true
-        const createdAt = new Date(log.created_at) // UTC
-        // ปรับเวลา UTC เป็นเวลาไทยเพื่อคำนวณกะให้ถูกต้อง (UTC+7)
+        const createdAt = new Date(log.created_at)
         const thaiHour = new Date(createdAt.getTime() + (7 * 60 * 60 * 1000)).getUTCHours()
 
         if (log.time_slots && log.time_slots.time_slots_start) {
@@ -118,7 +128,6 @@ serve(async (req) => {
         if (!roundTracker[groupKey]) roundTracker[groupKey] = 0
         roundTracker[groupKey]++
 
-        // เตรียมข้อมูล Inspector
         let inspectorName = ""
         let inspectorRole = ""
         let checkDateStr = ""
@@ -140,12 +149,11 @@ serve(async (req) => {
 
         processedRows.push({
             id: log.check_sessions_id,
-            dateRaw: log.check_sessions_date, // เอาไว้ sort
-            createdAtRaw: createdAt.getTime(), // เอาไว้ sort
-            buildingRaw: log.locations?.locations_building || '-', // เอาไว้ sort
-            floorRaw: Number(log.locations?.locations_floor) || 0, // เอาไว้ sort
-
-            // ข้อมูลที่จะลง Excel
+            dateRaw: log.check_sessions_date,
+            createdAtRaw: createdAt.getTime(),
+            buildingRaw: log.locations?.locations_building || '-',
+            floorRaw: Number(log.locations?.locations_floor) || 0,
+            
             date: formatThaiDate(log.check_sessions_date, 'date'),
             empName: `${log.employees?.employees_firstname || ''} ${log.employees?.employees_lastname || ''}`.trim(),
             building: log.locations?.locations_building || '-',
@@ -163,7 +171,6 @@ serve(async (req) => {
         })
     })
 
-    // Sort ให้เหมือนหน้าบ้าน (วันที่ > ตึก > ชั้น > เวลา)
     processedRows.sort((a, b) => {
         if (a.dateRaw !== b.dateRaw) return a.dateRaw.localeCompare(b.dateRaw)
         if (a.buildingRaw !== b.buildingRaw) return a.buildingRaw.localeCompare(b.buildingRaw)
@@ -171,21 +178,19 @@ serve(async (req) => {
         return a.createdAtRaw - b.createdAtRaw
     })
 
-    // 3. Create Excel Structure (Header & Layout)
+    // 3. Create Excel Structure
     const startDateTh = formatThaiDate(start, 'date')
     const endDateTh = formatThaiDate(end, 'date')
     
-    // Header Data (Array of Arrays)
+    // Headers
     const ws_data = [
-        [`รายงานสรุปการทำความสะอาด (Maid Report)`], // Row 1
-        [`ช่วงวันที่: ${startDateTh} ถึง ${endDateTh}`], // Row 2
-        // Row 3 (Main Headers)
+        [`รายงานสรุปการทำความสะอาด (Maid Report)`],
+        [`ช่วงวันที่: ${startDateTh} ถึง ${endDateTh}`],
         [
             "ลำดับ", "รหัสงาน", "วัน/เดือน/ปี", "ชื่อพนักงาน", "อาคาร", "ชั้น", "ชื่อจุดตรวจ",
             "ข้อมูลงานทำความสะอาด", "", "",
             "ข้อมูลติดตามงาน", "", "", "", "", "หมายเหตุ"
         ],
-        // Row 4 (Sub Headers)
         [
             "", "", "", "", "", "", "",
             "ครั้งที่", "ประทับเวลา", "ช่วงการทำงาน",
@@ -193,53 +198,46 @@ serve(async (req) => {
         ]
     ]
 
-    // Fill Data
-    processedRows.forEach((r, i) => {
-        ws_data.push([
-            i + 1,
-            r.id,
-            r.date,
-            r.empName,
-            r.building,
-            r.floor,
-            r.location,
-            r.round,
-            r.timestamp,
-            r.shift,
-            r.status,
-            r.checkDate,
-            r.checkTime,
-            r.inspector,
-            r.inspectorRole,
-            r.remark
-        ])
-    })
+    // Rows
+    const dataOnly = processedRows.map((r, i) => [
+        i + 1,
+        r.id,
+        r.date,
+        r.empName,
+        r.building,
+        r.floor,
+        r.location,
+        r.round,
+        r.timestamp,
+        r.shift,
+        r.status,
+        r.checkDate,
+        r.checkTime,
+        r.inspector,
+        r.inspectorRole,
+        r.remark
+    ])
+
+    // ✅ Combine Headers + Data
+    const finalData = [...ws_data, ...dataOnly]
 
     // 4. Generate Worksheet
-    const worksheet = XLSX.utils.aoa_to_sheet(ws_data)
+    const worksheet = XLSX.utils.aoa_to_sheet(finalData)
 
-    // 5. Apply Merges (ก๊อปปี้ Coordinates มาจากหน้าบ้าน)
-    // หมายเหตุ: การนับคอลัมน์ A=0, B=1, ..., P=15
+    // 5. Apply Merges
     worksheet['!merges'] = [
-        // Title & Date
         { s: { r: 0, c: 0 }, e: { r: 0, c: 15 } },
         { s: { r: 1, c: 0 }, e: { r: 1, c: 15 } },
-
-        // Vertical Merges (Main Columns)
-        { s: { r: 2, c: 0 }, e: { r: 3, c: 0 } }, // ลำดับ
-        { s: { r: 2, c: 1 }, e: { r: 3, c: 1 } }, // รหัสงาน
-        { s: { r: 2, c: 2 }, e: { r: 3, c: 2 } }, // วันที่
-        { s: { r: 2, c: 3 }, e: { r: 3, c: 3 } }, // ชื่อ
-        { s: { r: 2, c: 4 }, e: { r: 3, c: 4 } }, // อาคาร
-        { s: { r: 2, c: 5 }, e: { r: 3, c: 5 } }, // ชั้น
-        { s: { r: 2, c: 6 }, e: { r: 3, c: 6 } }, // จุดตรวจ
-
-        // Horizontal Merges (Sub Headers)
-        { s: { r: 2, c: 7 }, e: { r: 2, c: 9 } }, // ข้อมูลงานทำความสะอาด (3 ช่อง)
-        { s: { r: 2, c: 10 }, e: { r: 2, c: 14 } }, // ข้อมูลติดตามงาน (5 ช่อง - เพิ่มตำแหน่งแล้ว)
-
-        // Vertical Merge (Remark)
-        { s: { r: 2, c: 15 }, e: { r: 3, c: 15 } } // หมายเหตุ
+        { s: { r: 2, c: 0 }, e: { r: 3, c: 0 } },
+        { s: { r: 2, c: 1 }, e: { r: 3, c: 1 } },
+        { s: { r: 2, c: 2 }, e: { r: 3, c: 2 } },
+        { s: { r: 2, c: 3 }, e: { r: 3, c: 3 } },
+        { s: { r: 2, c: 4 }, e: { r: 3, c: 4 } },
+        { s: { r: 2, c: 5 }, e: { r: 3, c: 5 } },
+        { s: { r: 2, c: 6 }, e: { r: 3, c: 6 } },
+        { s: { r: 2, c: 7 }, e: { r: 2, c: 9 } },
+        { s: { r: 2, c: 10 }, e: { r: 2, c: 14 } },
+        { s: { r: 2, c: 15 }, e: { r: 3, c: 15 } }
     ]
 
     // 6. Set Column Widths

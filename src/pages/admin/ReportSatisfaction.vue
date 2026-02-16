@@ -32,7 +32,7 @@ const {
   stats,
   trendChartData,
   topicChartData,
-  // exportToExcel, // ไม่ใช้จาก Composable แล้ว เพราะคุณเขียนเองในหน้านี้
+  // exportToExcel, // ไม่ใช้จาก Composable เพราะเขียนเองในหน้านี้
   // Pagination Vars
   totalItems,
   currentPage,
@@ -117,20 +117,18 @@ const selectFilter = (value) => {
 // --- Export Logic ---
 const isExporting = ref(false);
 
-// ... (code ส่วนบนเหมือนเดิม)
-
 const confirmExport = () => {
   const count = totalItems?.value || 0;
   if (count === 0) {
-    Swal.fire({ 
-        icon: "warning", 
-        title: "ไม่มีข้อมูล", 
-        text: "ไม่พบรายการข้อมูลในช่วงเวลาที่เลือก" 
+    Swal.fire({
+        icon: "warning",
+        title: "ไม่มีข้อมูล",
+        text: "ไม่พบรายการข้อมูลในช่วงเวลาที่เลือก"
     });
     return;
   }
 
-  // ดึงค่าวันที่ (startStr, endStr เป็นรูปแบบยาว เช่น "1 มกราคม 2567" อยู่แล้วจาก getActualDateRange)
+  // ดึงค่าวันที่
   const { startStr, endStr, start, end } = getActualDateRange();
 
   // 1. แจ้งเตือนยืนยัน (ใส่ Style เหมือน ExportReportButton)
@@ -145,14 +143,14 @@ const confirmExport = () => {
     showCancelButton: true,
     confirmButtonText: "ใช่, ดาวน์โหลด",
     cancelButtonText: "ยกเลิก",
-    confirmButtonColor: "#10b981", // สีเขียวเหมือนเดิม หรือจะลบออกเพื่อให้เป็นสี default ของ theme ก็ได้
+    confirmButtonColor: "#10b981",
   }).then(async (result) => {
     if (result.isConfirmed) {
       isExporting.value = true;
 
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        
+
         // ✅ ป้องกัน Error access_token เป็น null
         if (!session) {
             throw new Error("ไม่พบ Session ผู้ใช้งาน กรุณา Login ใหม่");
@@ -193,10 +191,10 @@ const confirmExport = () => {
         const url = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        
+
         // ✅ ตั้งชื่อไฟล์ภาษาไทย
         link.setAttribute('download', fileName);
-        
+
         document.body.appendChild(link);
         link.click();
         link.remove();
