@@ -267,7 +267,8 @@ export function useReportSatisfaction() {
         icon: "success",
         title: "ดาวน์โหลดสำเร็จ",
         text: `ไฟล์ "${fileName}" ถูกบันทึกเรียบร้อยแล้ว`,
-        showConfirmButton: "ปิดหน้าต่าง",
+        showConfirmButton: true,
+        confirmButtonText: "ปิดหน้าต่าง",
       });
 
     } catch (error) {
