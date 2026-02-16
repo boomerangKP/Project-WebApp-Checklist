@@ -12,7 +12,7 @@ import {
   Trash2,
   Bell,
   Plus,
-  Eye, 
+  Eye,
   EyeOff
 } from "lucide-vue-next";
 import { supabase } from "@/lib/supabase";
@@ -59,7 +59,7 @@ const form = ref({
   email: "",
   notification_email: "",
   employees_photo: null,
-  password: "", 
+  password: "",
 });
 
 const isGeneratingCode = ref(false);
@@ -158,7 +158,7 @@ const resetForm = () => {
     email: "",
     notification_email: "",
     employees_photo: null,
-    password: "", 
+    password: "",
   };
   imagePreview.value = null;
   emailError.value = "";
@@ -804,7 +804,7 @@ const handleSubmit = async () => {
                       ? 'border-red-500 focus:ring-red-200 bg-red-50 dark:bg-red-900/20 text-red-900 dark:text-red-300'
                       : 'border-gray-300 dark:border-slate-600 focus:ring-indigo-500'
                   "
-                  placeholder="example@role.com"
+                  placeholder="กรอกอีเมลสำหรับเข้าสู่ระบบ"
                 />
                 <p
                   v-if="emailError"
@@ -817,25 +817,25 @@ const handleSubmit = async () => {
               <div class="space-y-1">
                 <label
                   class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase"
-                  >รหัสผ่าน (Password) 
+                  >รหัสผ่าน (Password)
                   <span v-if="!isEditing" class="text-red-500">*</span>
                   <span v-else class="text-gray-400 font-normal text-[10px] ml-1">(เว้นว่างหากไม่ต้องการเปลี่ยน)</span>
                 </label>
-                
+
                 <div class="relative">
                   <input
                     v-model="form.password"
-                    :type="showPassword ? 'text' : 'password'" 
+                    :type="showPassword ? 'text' : 'password'"
                     class="w-full border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 pr-10 text-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                     :placeholder="isEditing ? 'กรอกเพื่อเปลี่ยนรหัสผ่านใหม่' : 'กำหนดรหัสผ่าน (อย่างน้อย 6 ตัวอักษร)'"
                   />
-                  
+
                   <button
-                    v-show="form.password" 
+                    v-show="form.password"
                     type="button"
                     @click="showPassword = !showPassword"
                     class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-all focus:outline-none animate-in fade-in zoom-in-95 duration-200"
-                    tabindex="-1" 
+                    tabindex="-1"
                   >
                     <Eye v-if="!showPassword" class="w-4 h-4" />
                     <EyeOff v-else class="w-4 h-4" />
@@ -875,7 +875,7 @@ const handleSubmit = async () => {
                   inputmode="numeric"
                   maxlength="10"
                   class="w-full border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                  placeholder="0987654321"
+                  placeholder="กรอกหมายเลขโทรศัพท์ 10 หลัก"
                 />
               </div>
             </form>
