@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, watch } from "vue";
+import { supabase } from "@/lib/supabase";
 import {
   FileSpreadsheet,
   Loader2,
@@ -31,12 +32,12 @@ const {
   stats,
   trendChartData,
   topicChartData,
-  exportToExcel,
+  // exportToExcel, // ไม่ใช้จาก Composable แล้ว เพราะคุณเขียนเองในหน้านี้
   // Pagination Vars
   totalItems,
   currentPage,
   totalPages,
-  itemsPerPage, 
+  itemsPerPage,
   changePage,
 } = useReportSatisfaction();
 
@@ -116,44 +117,106 @@ const selectFilter = (value) => {
 // --- Export Logic ---
 const isExporting = ref(false);
 
+// ... (code ส่วนบนเหมือนเดิม)
+
 const confirmExport = () => {
   const count = totalItems?.value || 0;
-
   if (count === 0) {
-    Swal.fire({
-      icon: "warning",
-      title: "ไม่มีข้อมูล",
-      text: "ไม่พบรายการข้อมูลในช่วงเวลาที่เลือก",
-      confirmButtonText: "ตกลง",
+    Swal.fire({ 
+        icon: "warning", 
+        title: "ไม่มีข้อมูล", 
+        text: "ไม่พบรายการข้อมูลในช่วงเวลาที่เลือก" 
     });
     return;
   }
 
+  // ดึงค่าวันที่ (startStr, endStr เป็นรูปแบบยาว เช่น "1 มกราคม 2567" อยู่แล้วจาก getActualDateRange)
   const { startStr, endStr, start, end } = getActualDateRange();
 
+  // 1. แจ้งเตือนยืนยัน (ใส่ Style เหมือน ExportReportButton)
   Swal.fire({
     title: "ยืนยันการดาวน์โหลด?",
     html: `
       ต้องการดาวน์โหลดรายงานตั้งแต่วันที่ <br/>
-      <b class="text-indigo-600 dark:text-indigo-400">${startStr}</b> ถึง <b class="text-indigo-600 dark:text-indigo-400">${endStr}</b> <br/><br/>
-      จำนวนทั้งสิ้น <b class="text-emerald-600 dark:text-emerald-400 text-lg">${count}</b> รายการ
+      <b class="text-indigo-600 dark:text-indigo-400">${startStr}</b> ถึง <b class="text-indigo-600 dark:text-indigo-400">${endStr}</b> <br/>
+      ใช่หรือไม่?
     `,
     icon: "question",
     showCancelButton: true,
-    confirmButtonText: "ใช่, ดาวน์โหลดเลย",
+    confirmButtonText: "ใช่, ดาวน์โหลด",
     cancelButtonText: "ยกเลิก",
+    confirmButtonColor: "#10b981", // สีเขียวเหมือนเดิม หรือจะลบออกเพื่อให้เป็นสี default ของ theme ก็ได้
   }).then(async (result) => {
     if (result.isConfirmed) {
       isExporting.value = true;
-      await new Promise((r) => setTimeout(r, 800));
 
-      // ส่ง startDate และ endDate ไปให้ฟังก์ชัน exportToExcel
-      await exportToExcel({
-          startDate: start.toISOString(),
-          endDate: end.toISOString()
-      });
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        // ✅ ป้องกัน Error access_token เป็น null
+        if (!session) {
+            throw new Error("ไม่พบ Session ผู้ใช้งาน กรุณา Login ใหม่");
+        }
 
-      isExporting.value = false;
+        // ✅ เรียก Edge Function export-satisfaction
+        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/export-satisfaction`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            startDate: start.toISOString(),
+            endDate: end.toISOString()
+          })
+        });
+
+        if (!response.ok) {
+            const errJson = await response.json();
+            throw new Error(errJson.error || 'Export failed from server');
+        }
+
+        // --- ✨ ส่วนจัดการชื่อไฟล์ภาษาไทย ✨ ---
+        // ฟังก์ชันแปลงวันที่สำหรับชื่อไฟล์ (เช่น 01-มกราคม-2567)
+        const formatDateForFile = (date) => {
+             const d = new Date(date);
+             const day = d.getDate().toString().padStart(2, '0');
+             const month = d.toLocaleDateString("th-TH", { month: 'long' });
+             const year = d.toLocaleDateString("th-TH", { year: 'numeric' });
+             return `${day}-${month}-${year}`;
+        };
+
+        const fileName = `รายงานความพึงพอใจ_${formatDateForFile(start)}_ถึง_${formatDateForFile(end)}.xlsx`;
+
+        // รับไฟล์ Blob
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        
+        // ✅ ตั้งชื่อไฟล์ภาษาไทย
+        link.setAttribute('download', fileName);
+        
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(url);
+
+        // ✅ แสดงชื่อไฟล์ใน Swal + ปุ่มกดปิด (เหมือนกันแล้ว)
+        Swal.fire({
+          icon: "success",
+          title: "ดาวน์โหลดสำเร็จ",
+          text: `ไฟล์ "${fileName}" ถูกบันทึกเรียบร้อยแล้ว`,
+          showConfirmButton: true,
+          confirmButtonText: "ตกลง"
+        });
+
+      } catch (err) {
+        console.error(err);
+        Swal.fire("Error", "ดาวน์โหลดไม่สำเร็จ: " + err.message, "error");
+      } finally {
+        isExporting.value = false;
+      }
     }
   });
 };

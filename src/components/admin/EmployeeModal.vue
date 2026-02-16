@@ -12,10 +12,11 @@ import {
   Trash2,
   Bell,
   Plus,
+  Eye, 
+  EyeOff
 } from "lucide-vue-next";
 import { supabase } from "@/lib/supabase";
 import { useSwal } from "@/composables/useSwal";
-import imageCompression from "browser-image-compression";
 import { Cropper } from "vue-advanced-cropper";
 import "vue-advanced-cropper/dist/style.css";
 
@@ -26,6 +27,8 @@ const props = defineProps({
   loading: Boolean,
 });
 
+// สร้างตัวแปร state
+const showPassword = ref(false);
 const emit = defineEmits(["close", "save"]);
 const { swalError, Swal } = useSwal();
 
@@ -56,6 +59,7 @@ const form = ref({
   email: "",
   notification_email: "",
   employees_photo: null,
+  password: "", 
 });
 
 const isGeneratingCode = ref(false);
@@ -70,7 +74,6 @@ const genderOptions = [
 
 const departmentOptions = ref([{ value: "แผนกซ่อมบำรุง", label: "แผนกซ่อมบำรุง" }]);
 
-// ✅ Role Options (ไม่มีการ push ค่าใหม่จากการพิมพ์เองแล้ว)
 const roleOptions = ref([
   { value: "admin", label: "ผู้ดูแลระบบ" },
   { value: "maid", label: "แม่บ้าน" },
@@ -94,9 +97,7 @@ const selectOption = (field, value) => {
   activeDropdown.value = null;
 };
 
-// ✅ ปรับแก้ handleAddNew ให้รองรับแค่ department เท่านั้น (ตัด role ออก)
 const handleAddNew = async (field) => {
-  // ถ้าเรียก role ให้ return ทิ้งเลย (เผื่อมีคนเรียกผิด)
   if (field === "role") return;
 
   activeDropdown.value = null;
@@ -157,6 +158,7 @@ const resetForm = () => {
     email: "",
     notification_email: "",
     employees_photo: null,
+    password: "", 
   };
   imagePreview.value = null;
   emailError.value = "";
@@ -212,12 +214,9 @@ const onFileSelect = (event) => {
   reader.readAsDataURL(file);
 };
 
-// แก้ไขใน function confirmCrop
-
 const confirmCrop = () => {
   if (!cropperRef.value) return;
 
-  // ดึงรูปจาก Cropper (Resize เป็น 500x500 เพื่อลดขนาดไฟล์)
   const { canvas } = cropperRef.value.getResult({
     width: 500,
     height: 500,
@@ -225,31 +224,25 @@ const confirmCrop = () => {
 
   if (!canvas) return;
 
-  // สร้าง Canvas ใหม่เพื่อรองพื้นสีขาว
   const finalCanvas = document.createElement("canvas");
   finalCanvas.width = canvas.width;
   finalCanvas.height = canvas.height;
   const ctx = finalCanvas.getContext("2d");
 
-  // ✅ 1. เทสีขาวลงไปก่อน (แก้ปัญหา JPG พื้นหลังดำ)
   ctx.fillStyle = "#FFFFFF";
   ctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
-
-  // ✅ 2. วางรูปที่ Crop ทับลงไป
   ctx.drawImage(canvas, 0, 0);
 
   imagePreview.value = finalCanvas.toDataURL("image/jpeg", 0.8);
   showCropper.value = false;
   isUploadingImage.value = true;
 
-  // ✅ 3. ส่งออกเป็น JPEG (Quality 0.8)
-  // ไม่ต้องใช้ browser-image-compression แล้ว เพราะ toBlob ทำได้เลย
   finalCanvas.toBlob(
     (blob) => {
       if (blob) processAndUpload(blob);
     },
     "image/jpeg",
-    0.8 // ความคมชัด 80% (ไฟล์เล็กและชัดพอ)
+    0.8
   );
 };
 
@@ -267,24 +260,19 @@ const processAndUpload = async (fileBlob) => {
       await deleteOldImage(form.value.employees_photo);
     }
 
-    // แสดง Preview ทันที
     imagePreview.value = URL.createObjectURL(fileBlob);
-
-    // ตั้งชื่อไฟล์
     const fileName = `avatar_${Date.now()}.jpg`;
 
-    // อัปโหลด
     const { error: uploadError } = await supabase.storage
       .from("avatars")
       .upload(fileName, fileBlob, {
         cacheControl: "3600",
         upsert: false,
-        contentType: "image/jpeg", // ระบุว่าเป็น JPEG
+        contentType: "image/jpeg",
       });
 
     if (uploadError) throw uploadError;
 
-    // เอา URL มาแปะในฟอร์ม
     const { data } = supabase.storage.from("avatars").getPublicUrl(fileName);
     form.value.employees_photo = data.publicUrl;
 
@@ -335,6 +323,7 @@ watch(
         email: newData.employees_email || newData.email,
         notification_email: newData.notification_email || "",
         employees_photo: newData.employees_photo || null,
+        password: "", // ✅ เมื่อแก้ไข ไม่ต้องดึง password มาแสดง
       };
 
       if (
@@ -346,8 +335,6 @@ watch(
           label: form.value.department,
         });
       }
-
-      // ✅ Logic: ตรง role ไม่ต้อง push ค่าแปลกๆ เข้าไปแล้ว เพราะเราล็อคแค่ 4 ค่า
 
       imagePreview.value = newData.employees_photo || null;
       emailError.value = "";
@@ -383,6 +370,17 @@ const handleSubmit = async () => {
   if (form.value.phone.length !== 10)
     return swalError("ข้อมูลไม่ถูกต้อง", "เบอร์โทรศัพท์ต้องมี 10 หลักถ้วน");
 
+  // ✅ Logic: ตรวจสอบรหัสผ่านเฉพาะกรณีสร้างใหม่ (ถ้าแก้ไข จะว่างได้)
+  if (!props.isEditing) {
+    if (!form.value.password) return swalError("ข้อมูลไม่ครบ", "กรุณากำหนดรหัสผ่าน");
+    if (form.value.password.length < 6) return swalError("ข้อมูลไม่ถูกต้อง", "รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร");
+  } else {
+    // กรณีแก้ไข: ถ้ากรอกรหัสผ่านใหม่ ต้องเช็คความยาว
+    if (form.value.password && form.value.password.length < 6) {
+      return swalError("ข้อมูลไม่ถูกต้อง", "รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร");
+    }
+  }
+
   if (props.isEditing && props.employeeData.employees_photo) {
     if (form.value.employees_photo !== props.employeeData.employees_photo) {
       await deleteOldImage(props.employeeData.employees_photo);
@@ -402,6 +400,7 @@ const handleSubmit = async () => {
     email: form.value.email.toLowerCase(),
     notification_email: finalRole === "admin" ? form.value.notification_email : null,
     employees_photo: form.value.employees_photo,
+    password: form.value.password, // ✅ ส่ง password ไปด้วย
   });
 };
 </script>
@@ -813,6 +812,35 @@ const handleSubmit = async () => {
                 >
                   {{ emailError }}
                 </p>
+              </div>
+
+              <div class="space-y-1">
+                <label
+                  class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase"
+                  >รหัสผ่าน (Password) 
+                  <span v-if="!isEditing" class="text-red-500">*</span>
+                  <span v-else class="text-gray-400 font-normal text-[10px] ml-1">(เว้นว่างหากไม่ต้องการเปลี่ยน)</span>
+                </label>
+                
+                <div class="relative">
+                  <input
+                    v-model="form.password"
+                    :type="showPassword ? 'text' : 'password'" 
+                    class="w-full border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 pr-10 text-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                    :placeholder="isEditing ? 'กรอกเพื่อเปลี่ยนรหัสผ่านใหม่' : 'กำหนดรหัสผ่าน (อย่างน้อย 6 ตัวอักษร)'"
+                  />
+                  
+                  <button
+                    v-show="form.password" 
+                    type="button"
+                    @click="showPassword = !showPassword"
+                    class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-all focus:outline-none animate-in fade-in zoom-in-95 duration-200"
+                    tabindex="-1" 
+                  >
+                    <Eye v-if="!showPassword" class="w-4 h-4" />
+                    <EyeOff v-else class="w-4 h-4" />
+                  </button>
+                </div>
               </div>
 
               <div
