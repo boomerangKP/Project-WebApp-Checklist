@@ -157,26 +157,32 @@ const handleSave = async (formData) => {
       // ✅ กรณีแก้ไข (Update)
       // -----------------------------------------------------------
       
-      if (
+      // ตรวจสอบว่าจำเป็นต้องอัปเดต Auth หรือไม่ (รวมถึงชื่อ-นามสกุล)
+      const isAuthUpdateNeeded = 
         formData.password || 
         formData.email !== selectedEmployee.value.email || 
-        formData.role !== selectedEmployee.value.role
-      ) {
-          // ⚠️ ตรวจสอบว่ามี auth_user_id หรือไม่ (User เก่าอาจไม่มี)
+        formData.role !== selectedEmployee.value.role ||
+        formData.firstname !== selectedEmployee.value.employees_firstname || // ✅ เช็คชื่อ
+        formData.lastname !== selectedEmployee.value.employees_lastname;     // ✅ เช็คนามสกุล
+
+      if (isAuthUpdateNeeded) {
+          // ⚠️ ตรวจสอบว่ามี auth_user_id หรือไม่
           if (!selectedEmployee.value.auth_user_id) {
-             throw new Error("ไม่พบข้อมูลผู้ใช้ในระบบ Auth (อาจเป็นข้อมูลเก่า) กรุณาลบและสร้างใหม่");
+             console.warn("ไม่พบข้อมูลผู้ใช้ในระบบ Auth (อาจเป็นข้อมูลเก่า) ข้ามการอัปเดต Auth");
+          } else {
+              const { error: authError } = await supabase.functions.invoke('update-employee', {
+                body: {
+                  userId: selectedEmployee.value.auth_user_id, // ใช้ auth_user_id (UUID)
+                  email: formData.email,
+                  password: formData.password || undefined,
+                  role: formData.role,
+                  firstName: formData.firstname, // ✅ ส่งชื่อไปอัปเดต
+                  lastName: formData.lastname    // ✅ ส่งนามสกุลไปอัปเดต
+                }
+              });
+
+              if (authError) throw new Error("ไม่สามารถอัปเดตข้อมูลเข้าระบบ (Auth) ได้: " + authError.message);
           }
-
-          const { error: authError } = await supabase.functions.invoke('update-employee', {
-            body: {
-              userId: selectedEmployee.value.auth_user_id, // ✅ แก้ตรงนี้: ใช้ auth_user_id (UUID)
-              email: formData.email,
-              password: formData.password || undefined,
-              role: formData.role
-            }
-          });
-
-          if (authError) throw new Error("ไม่สามารถอัปเดตข้อมูลเข้าระบบ (Auth) ได้: " + authError.message);
       }
 
       // 2. อัปเดตข้อมูลทั่วไปลงตาราง employees
@@ -203,7 +209,6 @@ const handleSave = async (formData) => {
       // -----------------------------------------------------------
       
       // ส่งข้อมูลทั้งหมดไปให้ Edge Function 'create-employee' จัดการ
-      // (ต้องแน่ใจว่า Function create-employee รองรับ field เหล่านี้ หรือถ้าไม่รองรับ มันจะสร้าง User ให้และเราอาจต้องมา update เพิ่มทีหลัง แต่ในที่นี้ส่งไปให้ครบไว้ก่อน)
       const { data, error } = await supabase.functions.invoke('create-employee', {
         body: {
           // Auth Data
@@ -211,13 +216,13 @@ const handleSave = async (formData) => {
           password: formData.password,
           role: formData.role,
           
-          // Profile Data (Map ให้ตรงกับที่ Function คาดหวัง)
+          // Profile Data
           firstName: formData.firstname,
           lastName: formData.lastname,
           phone: formData.phone,
           position: formData.position,
           
-          // Extra Data (เผื่อ Function อัปเดตให้รองรับ หรือใช้ trigger)
+          // Extra Data
           code: formData.code,
           department: formData.department,
           gender: formData.gender,
@@ -243,13 +248,26 @@ const handleSave = async (formData) => {
 };
 
 // --- 5. CRUD: Delete (Soft Delete) ---
-// src/pages/admin/EmployeeList.vue
-
 const handleDeleteConfirm = async (empToDelete) => {
   submitting.value = true;
   try {
     // ---------------------------------------------------------
-    // 1. ลบ User ออกจาก Auth (เรียก Edge Function)
+    // 1. ✅ แก้ไข Database ก่อน: ปลด auth_user_id เป็น NULL
+    // เพื่อให้ไม่ติด Foreign Key Constraint เวลาลบ User ใน Auth
+    // ---------------------------------------------------------
+    const { error } = await supabase
+      .from("employees")
+      .update({
+        employees_status: "inactive",
+        deleted_at: new Date(),
+        auth_user_id: null // 🔑 สำคัญมาก! ปลดล็อกความสัมพันธ์
+      })
+      .eq("employees_id", empToDelete.employees_id);
+
+    if (error) throw error;
+
+    // ---------------------------------------------------------
+    // 2. ✅ ลบ User ออกจาก Auth (เรียก Edge Function) ทีหลัง
     // ---------------------------------------------------------
     if (empToDelete.auth_user_id) {
       const { error: funcError } = await supabase.functions.invoke('delete-employee', {
@@ -257,33 +275,11 @@ const handleDeleteConfirm = async (empToDelete) => {
       })
       
       if (funcError) {
-        console.error("Auth Delete Error:", funcError);
-        // อาจจะยอมให้ผ่านไปก่อน หรือจะ throw error ก็ได้ แล้วแต่ requirement
-        // throw new Error("ลบ User จากระบบ Auth ไม่สำเร็จ");
+        // กรณีลบ Auth ไม่สำเร็จ (เช่น Network Error) แต่ DB ลบไปแล้ว
+        // เราจะแค่ Log Error ไว้ แต่ไม่ throw เพื่อให้ User เห็นว่าการลบข้อมูลสำเร็จ
+        console.error("Auth Delete Warning:", funcError);
       }
     }
-
-    // ---------------------------------------------------------
-    // 2. ลบข้อมูลในตาราง employees (Database)
-    // ---------------------------------------------------------
-    
-    // ⚠️ ทางเลือก A: ถ้าอยากลบถาวร (Hard Delete)
-    // const { error } = await supabase
-    //   .from("employees")
-    //   .delete()
-    //   .eq("employees_id", empToDelete.employees_id);
-
-    // ✅ ทางเลือก B: ถ้าอยากเก็บประวัติไว้ (Soft Delete) *ตามโค้ดเดิมของคุณ*
-    const { error } = await supabase
-      .from("employees")
-      .update({
-        employees_status: "inactive",
-        deleted_at: new Date(),
-        // auth_user_id: null // (Optional) อาจจะปลด link ออกด้วยก็ได้
-      })
-      .eq("employees_id", empToDelete.employees_id);
-
-    if (error) throw error;
 
     // ลบออกจาก list หน้าเว็บ
     employees.value = employees.value.filter(

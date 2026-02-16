@@ -7,43 +7,28 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-// --- Helpers ---
+// Helpers (คงเดิม)
 const formatThaiDate = (isoString: string, type: 'date' | 'time' | 'full' = 'full') => {
   if (!isoString) return '-'
   const date = new Date(isoString)
   const thaiDate = new Date(date.getTime() + (7 * 60 * 60 * 1000))
-  
   const d = String(thaiDate.getUTCDate()).padStart(2, '0')
   const m = String(thaiDate.getUTCMonth() + 1).padStart(2, '0')
   const y = thaiDate.getUTCFullYear() + 543
   const hr = String(thaiDate.getUTCHours()).padStart(2, '0')
   const min = String(thaiDate.getUTCMinutes()).padStart(2, '0')
-  
   if (type === 'time') return `${hr}:${min}`
   if (type === 'date') return `${d}/${m}/${y}`
   return `${d}/${m}/${y} ${hr}:${min}`
 }
 
 const translateStatus = (status: string) => {
-  const map: Record<string, string> = {
-    pass: "รอตรวจ",
-    approved: "ตรวจแล้ว",
-    fixed: "แก้ไขแล้ว",
-    fail: "พบปัญหา",
-    rejected: "ปฏิเสธ",
-    waiting: "รอตรวจ",
-  }
+  const map: Record<string, string> = { pass: "รอตรวจ", approved: "ตรวจแล้ว", fixed: "แก้ไขแล้ว", fail: "พบปัญหา", rejected: "ปฏิเสธ", waiting: "รอตรวจ" }
   return map[status] || status
 }
 
 const getRoleName = (role: string) => {
-  const map: Record<string, string> = {
-    admin: 'ผู้ดูแลระบบ',
-    supervisor: 'หัวหน้างาน',
-    user: 'พนักงานทั่วไป',
-    maid: 'แม่บ้าน',
-    cleaner: 'พนักงานทำความสะอาด'
-  }
+  const map: Record<string, string> = { admin: 'ผู้ดูแลระบบ', supervisor: 'หัวหน้างาน', user: 'พนักงานทั่วไป', maid: 'แม่บ้าน', cleaner: 'พนักงานทำความสะอาด' }
   return map[role] || role || '-'
 }
 
@@ -51,11 +36,8 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
-    // 🛡️ 1. SECURITY CHECK: ตรวจสอบว่ามี Token ส่งมาไหม
     const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
-      throw new Error('Missing Authorization header')
-    }
+    if (!authHeader) throw new Error('Missing Authorization header')
 
     const { start, end } = await req.json()
     const supabaseAdmin = createClient(
@@ -63,21 +45,24 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // 🛡️ 2. SECURITY CHECK: ตรวจสอบความถูกต้องของ User
+    // Security Check
     const token = authHeader.replace('Bearer ', '')
     const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token)
-
     if (authError || !user) {
-        return new Response(JSON.stringify({ error: 'Unauthorized: กรุณาเข้าสู่ระบบ' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
-    // --- เริ่มดึงข้อมูล (เหมือนเดิม) ---
-
-    // 1. Query
+    // 1. Query (⚡ Optimized Query: เลือกเฉพาะ Field ที่ใช้)
+    // การใช้ * กับตารางที่มีการ Join เยอะๆ จะทำให้ช้ามาก
     const { data: rawLogs, error } = await supabaseAdmin
       .from('check_sessions')
       .select(`
-        *,
+        check_sessions_id,
+        check_sessions_date,
+        check_sessions_status,
+        supervisor_comment,
+        created_at,
+        updated_at,
         employees:employees!check_sessions_employees_id_fkey (
             employees_firstname,
             employees_lastname
@@ -96,7 +81,7 @@ serve(async (req) => {
             employees_lastname,
             role
         )
-      `)
+      `) // ✅ ดึงเฉพาะที่ใช้จริง
       .gte('created_at', start)
       .lte('created_at', end)
       .order('created_at', { ascending: true })
@@ -123,7 +108,8 @@ serve(async (req) => {
         }
 
         const shiftKey = isMorning ? 'M' : 'A'
-        const groupKey = `${log.check_sessions_date}_${log.locations_id}_${shiftKey}`
+        const locId = log.locations?.locations_id || 'unk'
+        const groupKey = `${log.check_sessions_date}_${locId}_${shiftKey}`
 
         if (!roundTracker[groupKey]) roundTracker[groupKey] = 0
         roundTracker[groupKey]++
@@ -171,6 +157,7 @@ serve(async (req) => {
         })
     })
 
+    // Sort Logic
     processedRows.sort((a, b) => {
         if (a.dateRaw !== b.dateRaw) return a.dateRaw.localeCompare(b.dateRaw)
         if (a.buildingRaw !== b.buildingRaw) return a.buildingRaw.localeCompare(b.buildingRaw)
@@ -178,86 +165,48 @@ serve(async (req) => {
         return a.createdAtRaw - b.createdAtRaw
     })
 
-    // 3. Create Excel Structure
+    // 3. Create Excel
     const startDateTh = formatThaiDate(start, 'date')
     const endDateTh = formatThaiDate(end, 'date')
     
-    // Headers
     const ws_data = [
         [`รายงานสรุปการทำความสะอาด (Maid Report)`],
         [`ช่วงวันที่: ${startDateTh} ถึง ${endDateTh}`],
-        [
-            "ลำดับ", "รหัสงาน", "วัน/เดือน/ปี", "ชื่อพนักงาน", "อาคาร", "ชั้น", "ชื่อจุดตรวจ",
-            "ข้อมูลงานทำความสะอาด", "", "",
-            "ข้อมูลติดตามงาน", "", "", "", "", "หมายเหตุ"
-        ],
-        [
-            "", "", "", "", "", "", "",
-            "ครั้งที่", "ประทับเวลา", "ช่วงการทำงาน",
-            "สถานะ", "วัน/เดือน/ปี", "เวลา", "ชื่อผู้ตรวจ", "ตำแหน่ง", ""
-        ]
+        ["ลำดับ", "รหัสงาน", "วัน/เดือน/ปี", "ชื่อพนักงาน", "อาคาร", "ชั้น", "ชื่อจุดตรวจ", "ข้อมูลงานทำความสะอาด", "", "", "ข้อมูลติดตามงาน", "", "", "", "", "หมายเหตุ"],
+        ["", "", "", "", "", "", "", "ครั้งที่", "ประทับเวลา", "ช่วงการทำงาน", "สถานะ", "วัน/เดือน/ปี", "เวลา", "ชื่อผู้ตรวจ", "ตำแหน่ง", ""]
     ]
 
-    // Rows
     const dataOnly = processedRows.map((r, i) => [
-        i + 1,
-        r.id,
-        r.date,
-        r.empName,
-        r.building,
-        r.floor,
-        r.location,
-        r.round,
-        r.timestamp,
-        r.shift,
-        r.status,
-        r.checkDate,
-        r.checkTime,
-        r.inspector,
-        r.inspectorRole,
-        r.remark
+        i + 1, r.id, r.date, r.empName, r.building, r.floor, r.location, r.round, r.timestamp, r.shift, r.status, r.checkDate, r.checkTime, r.inspector, r.inspectorRole, r.remark
     ])
 
-    // ✅ Combine Headers + Data
     const finalData = [...ws_data, ...dataOnly]
-
-    // 4. Generate Worksheet
     const worksheet = XLSX.utils.aoa_to_sheet(finalData)
 
-    // 5. Apply Merges
     worksheet['!merges'] = [
         { s: { r: 0, c: 0 }, e: { r: 0, c: 15 } },
         { s: { r: 1, c: 0 }, e: { r: 1, c: 15 } },
-        { s: { r: 2, c: 0 }, e: { r: 3, c: 0 } },
-        { s: { r: 2, c: 1 }, e: { r: 3, c: 1 } },
-        { s: { r: 2, c: 2 }, e: { r: 3, c: 2 } },
-        { s: { r: 2, c: 3 }, e: { r: 3, c: 3 } },
-        { s: { r: 2, c: 4 }, e: { r: 3, c: 4 } },
-        { s: { r: 2, c: 5 }, e: { r: 3, c: 5 } },
+        { s: { r: 2, c: 0 }, e: { r: 3, c: 0 } }, { s: { r: 2, c: 1 }, e: { r: 3, c: 1 } },
+        { s: { r: 2, c: 2 }, e: { r: 3, c: 2 } }, { s: { r: 2, c: 3 }, e: { r: 3, c: 3 } },
+        { s: { r: 2, c: 4 }, e: { r: 3, c: 4 } }, { s: { r: 2, c: 5 }, e: { r: 3, c: 5 } },
         { s: { r: 2, c: 6 }, e: { r: 3, c: 6 } },
-        { s: { r: 2, c: 7 }, e: { r: 2, c: 9 } },
-        { s: { r: 2, c: 10 }, e: { r: 2, c: 14 } },
+        { s: { r: 2, c: 7 }, e: { r: 2, c: 9 } }, { s: { r: 2, c: 10 }, e: { r: 2, c: 14 } },
         { s: { r: 2, c: 15 }, e: { r: 3, c: 15 } }
     ]
-
-    // 6. Set Column Widths
-    worksheet['!cols'] = [
-        { wch: 6 }, { wch: 8 }, { wch: 12 }, { wch: 20 }, { wch: 6 }, { wch: 5 }, { wch: 20 },
-        { wch: 6 }, { wch: 10 }, { wch: 10 },
-        { wch: 12 }, { wch: 12 }, { wch: 8 }, { wch: 20 }, { wch: 15 }, { wch: 20 }
-    ]
+    worksheet['!cols'] = [{ wch: 6 }, { wch: 8 }, { wch: 12 }, { wch: 20 }, { wch: 6 }, { wch: 5 }, { wch: 20 }, { wch: 6 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 8 }, { wch: 20 }, { wch: 15 }, { wch: 20 }]
 
     const workbook = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(workbook, worksheet, "Maid Report")
     
-    const fileBuffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" })
+    // ⚡ ปิด Compression เพื่อความเร็ว
+    const fileBuffer = XLSX.write(workbook, { 
+        type: "buffer", 
+        bookType: "xlsx", 
+        compression: false // ✅ จุดสำคัญ!
+    })
 
     return new Response(fileBuffer, {
-      headers: {
-        ...corsHeaders,
-        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': `attachment; filename="Work_Report_${start}_${end}.xlsx"`
-      }
+      headers: { ...corsHeaders, 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Content-Disposition': `attachment; filename="Work_Report_${start}_${end}.xlsx"` }
     })
 
   } catch (error) {

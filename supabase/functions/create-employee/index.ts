@@ -14,21 +14,27 @@ serve(async (req) => {
   }
 
   try {
+    // 🛡️ 1. SECURITY CHECK: ตรวจสอบว่ามี Token ส่งมาไหม
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader) {
+      throw new Error('Missing Authorization header')
+    }
+
     // 1. รับค่าจากหน้าบ้าน
-    const { 
-      email, 
-      password, 
-      role, 
-      firstName, 
-      lastName, 
-      phone, 
-      position, 
-      code, 
-      department, 
-      gender, 
-      status, 
-      employees_photo, 
-      notification_email 
+    const {
+      email,
+      password,
+      role,
+      firstName,
+      lastName,
+      phone,
+      position,
+      code,
+      department,
+      gender,
+      status,
+      employees_photo,
+      notification_email
     } = await req.json()
 
     // 2. สร้าง Client Admin
@@ -37,15 +43,38 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // 3. สร้าง User ใน Auth
+    // 🛡️ 2. SECURITY CHECK: ตรวจสอบความถูกต้องของ User (ต้อง Login แล้วเท่านั้น)
+    const token = authHeader.replace('Bearer ', '')
+    const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token)
+    if (userError || !user) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized: กรุณาเข้าสู่ระบบ' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // ✅ 3. จัดการรูปแบบเบอร์โทรศัพท์ (Method 2: Backend Fix)
+    // ลบขีด, เว้นวรรค หรือตัวอักษรอื่นๆ ออกให้หมดก่อน
+    const cleanPhone = phone ? phone.replace(/[^0-9+]/g, '') : '';
+    let authPhone = cleanPhone;
+
+    // แปลงให้เป็น E.164 (เช่น 0812345678 -> +66812345678)
+    if (cleanPhone.startsWith('0')) {
+        authPhone = '+66' + cleanPhone.slice(1);
+    } else if (cleanPhone.startsWith('66')) {
+        authPhone = '+' + cleanPhone;
+    }
+    // ถ้าไม่มีเบอร์มาเลย ให้เป็น null (Auth จะไม่ error ถ้า config อนุญาต) หรือปล่อยว่าง
+
+    // 4. สร้าง User ใน Auth
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email: email,
       password: password,
       email_confirm: true,
-      // ✅ เพิ่ม 2 บรรทัดนี้ครับ
-      phone: phone,          // ส่งเบอร์โทรไปเก็บใน Auth
-      phone_confirm: true,   // ยืนยันเบอร์ให้อัตโนมัติ (จะได้ไม่ติดสถานะรอ verified)
-      
+      // ✅ ส่งเบอร์ที่แปลงรูปแบบแล้ว (E.164)
+      phone: authPhone,
+      phone_confirm: true,
+
       user_metadata: {
         first_name: firstName,
         last_name: lastName,
@@ -57,21 +86,23 @@ serve(async (req) => {
 
     const userId = authData.user.id
 
-    // 4. บันทึกข้อมูลลงตาราง employees (✅ แก้ไขให้ตรง Schema)
+    // 5. บันทึกข้อมูลลงตาราง employees
     const { error: dbError } = await supabaseAdmin
       .from('employees')
       .insert([
         {
-          // ❌ ไม่ต้องใส่ employees_id (Database สร้างให้เอง)
-          auth_user_id: userId, // ✅ ใส่ UUID ตรงนี้แทน
-          
+          auth_user_id: userId, // ✅ ใส่ UUID
+
           employees_code: code,
           employees_firstname: firstName,
           employees_lastname: lastName,
           employees_position: position,
           employees_department: department,
           employees_gender: gender,
+
+          // ✅ ใน Database เก็บเบอร์แบบเดิมที่ User กรอกมา (เช่น 081-xxx) เพื่อความสวยงามในตาราง
           employees_phone: phone,
+
           employees_status: status || 'active',
           email: email,
           role: role,
@@ -83,7 +114,7 @@ serve(async (req) => {
 
     if (dbError) {
         console.error('DB Insert Error:', dbError)
-        // ลบ User ทิ้งถ้าลง DB ไม่สำเร็จ
+        // ลบ User ทิ้งถ้าลง DB ไม่สำเร็จ เพื่อไม่ให้ข้อมูลขยะค้างใน Auth
         await supabaseAdmin.auth.admin.deleteUser(userId)
         throw new Error(`Database error: ${dbError.message}`)
     }

@@ -7,7 +7,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-// Helper แปลงวันที่
+// Helper แปลงวันที่ (คงเดิม)
 const formatThaiDate = (isoString: string, type: 'date' | 'time' | 'full' = 'full') => {
   if (!isoString) return '-'
   const date = new Date(isoString)
@@ -28,11 +28,8 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
-    // 🛡️ 1. SECURITY CHECK: ตรวจสอบว่ามี Token ส่งมาไหม
     const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
-      throw new Error('Missing Authorization header')
-    }
+    if (!authHeader) throw new Error('Missing Authorization header')
 
     const { startDate, endDate } = await req.json()
 
@@ -41,26 +38,34 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // 🛡️ 2. SECURITY CHECK: ตรวจสอบความถูกต้องของ User
+    // Security Check
     const token = authHeader.replace('Bearer ', '')
     const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token)
-
     if (authError || !user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized: กรุณาเข้าสู่ระบบ' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
-    // --- เริ่มดึงข้อมูล (เหมือนเดิม) ---
-
-    // 1. ดึงหัวข้อ
+    // 1. ดึงหัวข้อ (ดึงเฉพาะที่ใช้)
     const { data: topicsData } = await supabaseAdmin.from('feedback_topics').select('id, name').order('id')
     const topicsMap = (topicsData || []).reduce((acc: any, curr: any) => { acc[curr.id] = curr.name; return acc }, {})
     const sortedTopicIds = Object.keys(topicsMap).sort((a, b) => Number(a) - Number(b))
     const topicNames = sortedTopicIds.map(id => topicsMap[id] || `หัวข้อ ${id}`)
 
-    // 2. ดึงข้อมูล
-    let query = supabaseAdmin.from('feedbacks').select(`*, locations (locations_name, locations_building, locations_floor)`).order('created_at', { ascending: true })
+    // 2. ดึงข้อมูล (⚡ Optimized Query: ระบุ Field แทน *)
+    let query = supabaseAdmin
+        .from('feedbacks')
+        .select(`
+            created_at, 
+            rating, 
+            answers, 
+            comment,
+            locations (locations_name, locations_building, locations_floor)
+        `) // ✅ ดึงแค่นี้พอ เร็วขึ้นมาก
+        .order('created_at', { ascending: true })
+    
     if (startDate) query = query.gte('created_at', startDate)
     if (endDate) query = query.lte('created_at', endDate)
+    
     const { data: feedbacks, error } = await query
     if (error) throw error
 
@@ -86,9 +91,10 @@ serve(async (req) => {
       return row
     })
 
-    // 4. สร้าง Excel และจัด Format (Merged Cells)
+    // 4. สร้าง Excel
     const topicCount = topicNames.length
     const dateRangeStr = `ข้อมูลตั้งแต่วันที่ ${formatThaiDate(startDate, 'date')} ถึง ${formatThaiDate(endDate, 'date')}`
+    
     const ws_data = [
       ["รายงานคะแนนแบบประเมินความพึงพอใจการบริการด้านความสะอาด"],
       [dateRangeStr],
@@ -96,7 +102,9 @@ serve(async (req) => {
       ["", "", "", "", "", "", ...topicNames, ""]
     ]
 
-    const worksheet = XLSX.utils.aoa_to_sheet([...ws_data, ...dataRows])
+    const finalData = [...ws_data, ...dataRows]
+    const worksheet = XLSX.utils.aoa_to_sheet(finalData)
+    
     const lastColIndex = 6 + topicCount
     worksheet['!merges'] = [
       { s: { r: 0, c: 0 }, e: { r: 0, c: lastColIndex } },
@@ -115,8 +123,13 @@ serve(async (req) => {
     const workbook = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(workbook, worksheet, "Feedback Report")
 
-    // 5. ส่งไฟล์ .xlsx กลับไป
-    const fileBuffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" })
+    // 5. ส่งไฟล์ (⚡ ปิด Compression เพื่อความเร็วสูงสุด)
+    const fileBuffer = XLSX.write(workbook, { 
+        type: "buffer", 
+        bookType: "xlsx", 
+        compression: false // ✅ จุดสำคัญ! ปิดการบีบอัดเพื่อให้เร็วขึ้น
+    })
+    
     return new Response(fileBuffer, { headers: { ...corsHeaders, 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Content-Disposition': `attachment; filename="satisfaction_report.xlsx"` } })
 
   } catch (error) {
