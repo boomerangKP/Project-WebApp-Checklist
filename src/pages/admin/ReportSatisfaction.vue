@@ -14,7 +14,6 @@ import {
 } from "lucide-vue-next";
 import { useReportSatisfaction } from "@/composables/useReportSatisfaction";
 import { useSwal } from "@/composables/useSwal";
-// ✅ 1. เพิ่ม Import useExport
 import { useExport } from "@/composables/useExport";
 
 // Components
@@ -144,7 +143,8 @@ const confirmExport = async () => {
     functionName: 'export-satisfaction',
     startDate: start,
     endDate: end,
-    filePrefix: 'รายงานความพึงพอใจ'
+    filePrefix: 'รายงานความพึงพอใจ',
+    maxMonths: 6
   });
 };
 </script>

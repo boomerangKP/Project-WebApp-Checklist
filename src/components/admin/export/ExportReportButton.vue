@@ -1,7 +1,6 @@
 <script setup>
 import { Loader2, FileSpreadsheet } from "lucide-vue-next";
 import { useSwal } from "@/composables/useSwal";
-// ✅ 1. Import Composable ที่สร้างไว้
 import { useExport } from "@/composables/useExport";
 
 const props = defineProps({
@@ -9,39 +8,25 @@ const props = defineProps({
   endDate: { type: String, default: "" },
 });
 
-const { Swal } = useSwal();
-// ✅ 2. เรียกใช้ state และ function จาก Composable แทนการเขียนเอง
+
+const { Swal } = useSwal(); 
+
 const { isExporting, runExport } = useExport();
 
 const handleExport = async () => {
-  // 1. Validation วันที่ (คงโครงสร้างเดิมไว้ตาม requirement)
+ 
   const start =
     props.startDate ||
     new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
   const end = props.endDate || new Date().toISOString();
 
-  const startDateObj = new Date(start);
-  const endDateObj = new Date(end);
-  const maxAllowedDate = new Date(startDateObj);
-  maxAllowedDate.setMonth(maxAllowedDate.getMonth() + 4);
 
-  if (endDateObj > maxAllowedDate) {
-    Swal.fire({
-      icon: "warning",
-      title: "ช่วงเวลาเกินกำหนด",
-      text: "ระบบอนุญาตให้ดาวน์โหลดข้อมูลได้สูงสุดครั้งละ 4 เดือน",
-      confirmButtonText: "เข้าใจแล้ว",
-    });
-    return;
-  }
-
-  // ✅ 3. เรียกใช้ฟังก์ชันกลาง (แทนโค้ดยาวๆ เดิม)
-  // ฟังก์ชันนี้จะจัดการทั้ง Dialog ยืนยัน, เรียก Edge Function, ดาวน์โหลดไฟล์ และแจ้งเตือนสำเร็จ
   await runExport({
     functionName: 'export-work-performance',
-    startDate: startDateObj,
-    endDate: endDateObj,
-    filePrefix: 'รายงานการปฏิบัติงาน'
+    startDate: start,
+    endDate: end,
+    filePrefix: 'รายงานการปฏิบัติงาน',
+    maxMonths: 6
   });
 };
 </script>
