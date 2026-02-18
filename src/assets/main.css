@@ -3,54 +3,73 @@
 @tailwind utilities;
 
 /* =========================================
-   ✅ 1. ส่วนที่ต้องเพิ่ม (แก้ปัญหากรอบขาว/Scrollbar เพี้ยน)
+   ✅ 1. CORE SETUP (แก้ปัญหาขอบขาว)
    ========================================= */
 :root {
-  color-scheme: light dark; /* 👈 ตัวนี้สำคัญ! บอก Browser ให้ทำ Scrollbar/Form เป็นสีดำตามโหมด */
+  color-scheme: light dark; 
 }
 
-html, body {
+html {
+  scroll-behavior: smooth;
+  /* ป้องกันการเลื่อนซ้ายขวาโดยไม่ตั้งใจ */
+  overflow-x: hidden; 
+}
+
+body {
   margin: 0;
   padding: 0;
+  
+  font-family: 'Prompt', sans-serif;
+
+  /* ✅ เพิ่ม antialiased ให้ตัวหนังสือคมชัดขึ้น */
+  @apply bg-gray-50 text-gray-900 antialiased transition-colors duration-300;
+  /* ป้องกัน Scrollbar ซ้อนกัน */
+  overflow-x: hidden; 
+}
+
+/* --- 🌙 Dark Mode Fixes --- */
+/* ✅ แก้ปัญหาขอบขาว: ต้องใส่สีพื้นหลังให้ html ด้วย ไม่ใช่แค่ body */
+html.dark {
+  background-color: #020617; /* สีเดียวกับ slate-950 */
+}
+
+.dark body {
+  @apply bg-slate-950 text-gray-100;
 }
 
 /* =========================================
-   Fix SweetAlert2 z-index (ของเดิม)
-   ========================================= */
-.swal2-container {
-  z-index: 20000 !important;
-}
-
-/* =========================================
-   ✅ SCROLLBAR CUSTOMIZATION (Global)
+   ✅ 2. SCROLLBAR (ปรับให้บางลงและเนียนไปกับพื้นหลัง)
    ========================================= */
 
-/* 1. Light Mode */
+/* ขนาดของ Scrollbar (ปรับให้เล็กลงจาก 8px เหลือ 6px จะได้ไม่รก) */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
+/* --- Light Mode --- */
 ::-webkit-scrollbar-track {
-  background: #f1f5f9;
+  background: transparent; /* โปร่งใสเพื่อให้กลืนกับพื้นหลัง */
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 4px;
+  background: #cbd5e1; /* slate-300 */
+  border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #94a3b8; /* slate-400 */
 }
 
-/* 2. Dark Mode */
+/* --- Dark Mode --- */
+/* ✅ แก้ปัญหา Sidebar ซ้อน: ปรับรางเลื่อนให้สีเดียวกับพื้นหลังเป๊ะๆ หรือโปร่งใส */
 .dark ::-webkit-scrollbar-track {
-  background: #0f172a; /* slate-900 */
+  background: #020617; /* สีเดียวกับ bg-slate-950 (สำคัญ!) */
 }
 
 .dark ::-webkit-scrollbar-thumb {
   background: #334155; /* slate-700 */
+  border-radius: 10px;
 }
 
 .dark ::-webkit-scrollbar-thumb:hover {
@@ -58,15 +77,34 @@ html, body {
 }
 
 /* =========================================
-   ✅ GLOBAL BODY STYLES (ของเดิม + ปรับนิดหน่อย)
+   ✅ 3. UTILITIES อื่นๆ (ของเดิม)
    ========================================= */
 
-body {
-  /* ใช้ @apply เหมือนเดิม */
-  @apply bg-gray-50 text-gray-900 transition-colors duration-300;
+/* Fix SweetAlert2 z-index */
+.swal2-container {
+  z-index: 20000 !important;
 }
 
-/* Dark Mode Default Body */
-.dark body {
-  @apply bg-slate-950 text-gray-100;
+/* ซ่อนปุ่มลูกตาของ Microsoft Edge/IE */
+input::-ms-reveal,
+input::-ms-clear {
+  display: none;
+}
+
+/* Autofill Fix (ปรับสีให้เข้ากับ Dark Mode ยากหน่อย แต่วิธีนี้ Work สุด) */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 30px white inset !important;
+    transition: background-color 5000s ease-in-out 0s;
+}
+
+/* ✅ แถม: Utility สำหรับซ่อน Scrollbar แต่ยังเลื่อนได้ (ใช้กับ Sidebar) */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
 }

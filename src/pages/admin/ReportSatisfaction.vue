@@ -13,6 +13,7 @@ import {
 } from "lucide-vue-next";
 import { useReportSatisfaction } from "@/composables/useReportSatisfaction";
 import { useSwal } from "@/composables/useSwal";
+import { useExport } from "@/composables/useExport";
 
 // Components
 import StatsCards from "@/components/admin/report/StatsCards.vue";
@@ -20,6 +21,10 @@ import FeedbackCharts from "@/components/admin/report/FeedbackCharts.vue";
 import RecentFeedbackTable from "@/components/admin/report/RecentFeedbackTable.vue";
 
 const { Swal } = useSwal();
+
+// ✅ 2. เรียกใช้ Composable
+// (isExporting จะถูกควบคุมโดย useExport แทน local ref)
+const { isExporting, runExport } = useExport();
 
 const {
   loading,
@@ -31,18 +36,18 @@ const {
   stats,
   trendChartData,
   topicChartData,
-  exportToExcel,
+  // exportToExcel, // ไม่ใช้แล้ว
   // Pagination Vars
   totalItems,
   currentPage,
   totalPages,
-  itemsPerPage, 
+
   changePage,
 } = useReportSatisfaction();
 
 // --- Helper: คำนวณช่วงวันที่จริง ---
 const getActualDateRange = () => {
-  const now = new Date();
+
   let start = new Date();
   let end = new Date();
 
@@ -114,47 +119,31 @@ const selectFilter = (value) => {
 };
 
 // --- Export Logic ---
-const isExporting = ref(false);
+// ❌ ลบตัวแปร isExporting เดิมออก (เพราะใช้จาก useExport แล้ว)
+// const isExporting = ref(false);
 
-const confirmExport = () => {
+const confirmExport = async () => {
   const count = totalItems?.value || 0;
-
   if (count === 0) {
     Swal.fire({
-      icon: "warning",
-      title: "ไม่มีข้อมูล",
-      text: "ไม่พบรายการข้อมูลในช่วงเวลาที่เลือก",
-      confirmButtonText: "ตกลง",
+        icon: "warning",
+        title: "ไม่มีข้อมูล",
+        text: "ไม่พบรายการข้อมูลในช่วงเวลาที่เลือก"
     });
     return;
   }
 
-  const { startStr, endStr, start, end } = getActualDateRange();
+  // ดึงค่าวันที่
+  const { start, end } = getActualDateRange();
 
-  Swal.fire({
-    title: "ยืนยันการดาวน์โหลด?",
-    html: `
-      ต้องการดาวน์โหลดรายงานตั้งแต่วันที่ <br/>
-      <b class="text-indigo-600 dark:text-indigo-400">${startStr}</b> ถึง <b class="text-indigo-600 dark:text-indigo-400">${endStr}</b> <br/><br/>
-      จำนวนทั้งสิ้น <b class="text-emerald-600 dark:text-emerald-400 text-lg">${count}</b> รายการ
-    `,
-    icon: "question",
-    showCancelButton: true,
-    confirmButtonText: "ใช่, ดาวน์โหลดเลย",
-    cancelButtonText: "ยกเลิก",
-  }).then(async (result) => {
-    if (result.isConfirmed) {
-      isExporting.value = true;
-      await new Promise((r) => setTimeout(r, 800));
-
-      // ส่ง startDate และ endDate ไปให้ฟังก์ชัน exportToExcel
-      await exportToExcel({
-          startDate: start.toISOString(),
-          endDate: end.toISOString()
-      });
-
-      isExporting.value = false;
-    }
+  // ✅ 3. ใช้ runExport แทน Logic เดิมทั้งหมด
+  // (ฟังก์ชันนี้จัดการทั้ง Dialog ยืนยัน, เรียก API, ดาวน์โหลด, และแจ้งเตือนสำเร็จ)
+  await runExport({
+    functionName: 'export-satisfaction',
+    startDate: start,
+    endDate: end,
+    filePrefix: 'รายงานความพึงพอใจ',
+    maxMonths: 12
   });
 };
 </script>

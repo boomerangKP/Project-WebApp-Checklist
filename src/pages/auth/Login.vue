@@ -9,7 +9,9 @@ import {
   Lock,
   ArrowRight,
   AlertCircle,
-  Loader2
+  Loader2,
+  Eye,      // ✅ เพิ่ม
+  EyeOff    // ✅ เพิ่ม
 } from 'lucide-vue-next'
 
 const router = useRouter()
@@ -19,6 +21,7 @@ const email = ref('')
 const password = ref('')
 const loading = ref(false)
 const errorMsg = ref('')
+const showPassword = ref(false) // ✅ เพิ่มตัวแปรสำหรับเปิด/ปิดตา
 
 async function handleLogin() {
   // ป้องกันการกดรัวๆ
@@ -125,7 +128,7 @@ async function handleLogin() {
                 required
                 @keyup.enter="handleLogin"
                 class="block w-full pl-11 pr-4 py-3 border border-slate-200 rounded-xl bg-slate-50 text-slate-900 placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-medium"
-                placeholder="user@example.com"
+                placeholder="กรอกอีเมลของคุณ"
               >
             </div>
           </div>
@@ -136,14 +139,26 @@ async function handleLogin() {
               <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
                 <Lock class="h-5 w-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
               </div>
+
               <input
                 v-model="password"
-                type="password"
+                :type="showPassword ? 'text' : 'password'"
                 required
                 @keyup.enter="handleLogin"
-                class="block w-full pl-11 pr-4 py-3 border border-slate-200 rounded-xl bg-slate-50 text-slate-900 placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-medium"
-                placeholder="••••••••"
+                class="block w-full pl-11 pr-12 py-3 border border-slate-200 rounded-xl bg-slate-50 text-slate-900 placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-medium"
+                placeholder="กรอกรหัสของคุณ"
               >
+
+              <button
+                v-show="password"
+                type="button"
+                @click="showPassword = !showPassword"
+                class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 focus:outline-none transition-all animate-in fade-in zoom-in-95 duration-200"
+                tabindex="-1"
+              >
+                <Eye v-if="!showPassword" class="h-5 w-5" />
+                <EyeOff v-else class="h-5 w-5" />
+              </button>
             </div>
           </div>
 
