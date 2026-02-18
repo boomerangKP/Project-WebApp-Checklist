@@ -98,12 +98,24 @@ export function useExport() {
       }
 
       // 5. จัดการไฟล์ Download
+      // ✅ ตรวจสอบ Content-Type เพื่อหานามสกุลไฟล์ (CSV หรือ Excel)
+      const contentType = response.headers.get('content-type');
+      let extension = 'xlsx'; // ค่า Default เดิม
+      
+      // ถ้า Header ส่งมาว่าเป็น CSV ให้ใช้นามสกุล .csv
+      if (contentType && contentType.includes('text/csv')) {
+        extension = 'csv';
+      }
+
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      const fileName = `${filePrefix}_${formatDateThaiFull(startObj)}_ถึง_${formatDateThaiFull(endObj)}.xlsx`;
+      
+      // ✅ ตั้งชื่อไฟล์ตามนามสกุลที่ถูกต้อง
+      const fileName = `${filePrefix}_${formatDateThaiFull(startObj)}_ถึง_${formatDateThaiFull(endObj)}.${extension}`;
       link.setAttribute('download', fileName);
+
       document.body.appendChild(link);
       link.click();
       link.remove();

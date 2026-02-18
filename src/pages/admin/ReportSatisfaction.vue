@@ -1,6 +1,5 @@
 <script setup>
 import { ref, computed, watch } from "vue";
-import { supabase } from "@/lib/supabase";
 import {
   FileSpreadsheet,
   Loader2,
@@ -42,13 +41,13 @@ const {
   totalItems,
   currentPage,
   totalPages,
-  itemsPerPage,
+
   changePage,
 } = useReportSatisfaction();
 
 // --- Helper: คำนวณช่วงวันที่จริง ---
 const getActualDateRange = () => {
-  const now = new Date();
+
   let start = new Date();
   let end = new Date();
 
@@ -144,7 +143,7 @@ const confirmExport = async () => {
     startDate: start,
     endDate: end,
     filePrefix: 'รายงานความพึงพอใจ',
-    maxMonths: 6
+    maxMonths: 12
   });
 };
 </script>

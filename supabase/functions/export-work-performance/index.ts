@@ -1,13 +1,12 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
-import * as XLSX from "https://esm.sh/xlsx@0.18.5"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-// Helpers (คงเดิม)
+// --- Helpers ---
 const formatThaiDate = (isoString: string, type: 'date' | 'time' | 'full' = 'full') => {
   if (!isoString) return '-'
   const date = new Date(isoString)
@@ -32,6 +31,21 @@ const getRoleName = (role: string) => {
   return map[role] || role || '-'
 }
 
+// ✅ Helper สร้าง CSV String (รองรับภาษาไทย)
+const toCSV = (rows: any[]) => {
+  const escape = (val: any) => {
+    if (val === null || val === undefined) return ''
+    const str = String(val)
+    // ถ้ามี , " หรือ ขึ้นบรรทัดใหม่ ให้ใส่ " ครอบ และ escape " เป็น ""
+    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+      return `"${str.replace(/"/g, '""')}"`
+    }
+    return str
+  }
+  // \uFEFF คือ BOM เพื่อให้ Excel เปิดแล้วอ่านภาษาไทยออก
+  return "\uFEFF" + rows.map(row => row.map(escape).join(',')).join('\n')
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
@@ -52,8 +66,7 @@ serve(async (req) => {
         return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
-    // 1. Query (⚡ Optimized Query: เลือกเฉพาะ Field ที่ใช้)
-    // การใช้ * กับตารางที่มีการ Join เยอะๆ จะทำให้ช้ามาก
+    // 1. Query (Optimized)
     const { data: rawLogs, error } = await supabaseAdmin
       .from('check_sessions')
       .select(`
@@ -63,25 +76,11 @@ serve(async (req) => {
         supervisor_comment,
         created_at,
         updated_at,
-        employees:employees!check_sessions_employees_id_fkey (
-            employees_firstname,
-            employees_lastname
-        ),
-        locations (
-            locations_id,
-            locations_name,
-            locations_building,
-            locations_floor
-        ),
-        time_slots (
-            time_slots_start
-        ),
-        inspector:employees!check_sessions_checked_by_fkey (
-            employees_firstname,
-            employees_lastname,
-            role
-        )
-      `) // ✅ ดึงเฉพาะที่ใช้จริง
+        employees:employees!check_sessions_employees_id_fkey (employees_firstname, employees_lastname),
+        locations (locations_name, locations_building, locations_floor),
+        time_slots (time_slots_start),
+        inspector:employees!check_sessions_checked_by_fkey (employees_firstname, employees_lastname, role)
+      `)
       .gte('created_at', start)
       .lte('created_at', end)
       .order('created_at', { ascending: true })
@@ -133,80 +132,55 @@ serve(async (req) => {
             }
         }
 
-        processedRows.push({
-            id: log.check_sessions_id,
-            dateRaw: log.check_sessions_date,
-            createdAtRaw: createdAt.getTime(),
-            buildingRaw: log.locations?.locations_building || '-',
-            floorRaw: Number(log.locations?.locations_floor) || 0,
-            
-            date: formatThaiDate(log.check_sessions_date, 'date'),
-            empName: `${log.employees?.employees_firstname || ''} ${log.employees?.employees_lastname || ''}`.trim(),
-            building: log.locations?.locations_building || '-',
-            floor: log.locations?.locations_floor || '-',
-            location: log.locations?.locations_name || '-',
-            round: roundTracker[groupKey],
-            timestamp: formatThaiDate(log.created_at, 'time'),
-            shift: isMorning ? 'เช้า' : 'บ่าย',
-            status: translateStatus(log.check_sessions_status),
-            checkDate: checkDateStr,
-            checkTime: checkTimeStr,
-            inspector: inspectorName,
-            inspectorRole: inspectorRole,
-            remark: log.supervisor_comment || ''
-        })
+        processedRows.push([
+            processedRows.length + 1, // ลำดับ
+            log.check_sessions_id,
+            formatThaiDate(log.check_sessions_date, 'date'),
+            `${log.employees?.employees_firstname || ''} ${log.employees?.employees_lastname || ''}`.trim(),
+            log.locations?.locations_building || '-',
+            log.locations?.locations_floor || '-',
+            log.locations?.locations_name || '-',
+            roundTracker[groupKey], // ครั้งที่
+            formatThaiDate(log.created_at, 'time'),
+            isMorning ? 'เช้า' : 'บ่าย',
+            translateStatus(log.check_sessions_status),
+            checkDateStr,
+            checkTimeStr,
+            inspectorName,
+            inspectorRole,
+            log.supervisor_comment || ''
+        ])
     })
 
-    // Sort Logic
-    processedRows.sort((a, b) => {
-        if (a.dateRaw !== b.dateRaw) return a.dateRaw.localeCompare(b.dateRaw)
-        if (a.buildingRaw !== b.buildingRaw) return a.buildingRaw.localeCompare(b.buildingRaw)
-        if (a.floorRaw !== b.floorRaw) return a.floorRaw - b.floorRaw
-        return a.createdAtRaw - b.createdAtRaw
-    })
-
-    // 3. Create Excel
+    // 3. Create CSV (Structure preserved)
     const startDateTh = formatThaiDate(start, 'date')
     const endDateTh = formatThaiDate(end, 'date')
     
-    const ws_data = [
+    // ✅ โครงสร้าง Header แบบเดิม (แต่ใน CSV จะไม่มีการ Merge)
+    // บรรทัดที่ 1-2: Title
+    // บรรทัดที่ 3: Header หลัก (เว้นว่างไว้ตรงที่เคย Merge)
+    // บรรทัดที่ 4: Sub-Header
+    const headersStructure = [
         [`รายงานสรุปการทำความสะอาด (Maid Report)`],
         [`ช่วงวันที่: ${startDateTh} ถึง ${endDateTh}`],
+        // Header Row 1 (Main Categories)
         ["ลำดับ", "รหัสงาน", "วัน/เดือน/ปี", "ชื่อพนักงาน", "อาคาร", "ชั้น", "ชื่อจุดตรวจ", "ข้อมูลงานทำความสะอาด", "", "", "ข้อมูลติดตามงาน", "", "", "", "", "หมายเหตุ"],
+        // Header Row 2 (Sub Categories) - ตรงไหนที่เป็นช่องว่างใน Row 1 จะมาโผล่ตรงนี้แทน
         ["", "", "", "", "", "", "", "ครั้งที่", "ประทับเวลา", "ช่วงการทำงาน", "สถานะ", "วัน/เดือน/ปี", "เวลา", "ชื่อผู้ตรวจ", "ตำแหน่ง", ""]
     ]
 
-    const dataOnly = processedRows.map((r, i) => [
-        i + 1, r.id, r.date, r.empName, r.building, r.floor, r.location, r.round, r.timestamp, r.shift, r.status, r.checkDate, r.checkTime, r.inspector, r.inspectorRole, r.remark
-    ])
-
-    const finalData = [...ws_data, ...dataOnly]
-    const worksheet = XLSX.utils.aoa_to_sheet(finalData)
-
-    worksheet['!merges'] = [
-        { s: { r: 0, c: 0 }, e: { r: 0, c: 15 } },
-        { s: { r: 1, c: 0 }, e: { r: 1, c: 15 } },
-        { s: { r: 2, c: 0 }, e: { r: 3, c: 0 } }, { s: { r: 2, c: 1 }, e: { r: 3, c: 1 } },
-        { s: { r: 2, c: 2 }, e: { r: 3, c: 2 } }, { s: { r: 2, c: 3 }, e: { r: 3, c: 3 } },
-        { s: { r: 2, c: 4 }, e: { r: 3, c: 4 } }, { s: { r: 2, c: 5 }, e: { r: 3, c: 5 } },
-        { s: { r: 2, c: 6 }, e: { r: 3, c: 6 } },
-        { s: { r: 2, c: 7 }, e: { r: 2, c: 9 } }, { s: { r: 2, c: 10 }, e: { r: 2, c: 14 } },
-        { s: { r: 2, c: 15 }, e: { r: 3, c: 15 } }
-    ]
-    worksheet['!cols'] = [{ wch: 6 }, { wch: 8 }, { wch: 12 }, { wch: 20 }, { wch: 6 }, { wch: 5 }, { wch: 20 }, { wch: 6 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 8 }, { wch: 20 }, { wch: 15 }, { wch: 20 }]
-
-    const workbook = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Maid Report")
+    // รวม Header + Data
+    const finalData = [...headersStructure, ...processedRows]
     
-    // ⚡ ปิด Compression เพื่อความเร็ว
-    const fileBuffer = XLSX.write(workbook, { 
-        type: "buffer", 
-        bookType: "xlsx", 
-        compression: false // ✅ จุดสำคัญ!
-    })
+    // แปลงเป็น CSV Text
+    const csvContent = toCSV(finalData)
 
-    return new Response(fileBuffer, {
-      headers: { ...corsHeaders, 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Content-Disposition': `attachment; filename="Work_Report_${start}_${end}.xlsx"` }
+    return new Response(csvContent, {
+      headers: { 
+        ...corsHeaders, 
+        'Content-Type': 'text/csv; charset=utf-8', 
+        'Content-Disposition': `attachment; filename="Work_Report_${start}_${end}.csv"` 
+      }
     })
 
   } catch (error) {
