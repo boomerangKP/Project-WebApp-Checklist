@@ -424,7 +424,6 @@ const getRoleConfig = (role) => {
 }
 :global(.dark) .custom-scrollbar::-webkit-scrollbar-thumb {
   background: #475569; /* slate-600 */
-  border: 2px solid #1e293b;
 }
 :global(.dark) .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #64748b; /* slate-500 */

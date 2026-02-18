@@ -201,11 +201,11 @@ onUnmounted(() => window.removeEventListener("click", handleClickOutside));
 </script>
 
 <template>
-  <div class="bg-white dark:bg-slate-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 flex flex-col gap-4 transition-all duration-300">
+  <div class="bg-white dark:bg-slate-800 p-3 sm:p-5 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 flex flex-col gap-4 transition-all duration-300">
 
-    <div class="flex flex-wrap gap-4 items-end">
+    <div class="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:gap-4 sm:items-end">
 
-      <div class="w-full sm:flex-1 sm:min-w-[200px] flex flex-col gap-1.5 relative custom-dropdown-container">
+      <div class="col-span-2 sm:flex-1 sm:min-w-[200px] flex flex-col gap-1.5 relative custom-dropdown-container">
         <label class="text-sm font-bold text-gray-600 dark:text-gray-300 flex items-center gap-2">
           <Search class="w-4 h-4" /> ค้นหารายการ
         </label>
@@ -254,7 +254,7 @@ onUnmounted(() => window.removeEventListener("click", handleClickOutside));
         </div>
       </div>
 
-      <div class="w-full sm:w-auto sm:min-w-[180px] flex flex-col gap-1.5 relative custom-dropdown-container">
+      <div class="col-span-1 sm:w-auto sm:min-w-[180px] flex flex-col gap-1.5 relative custom-dropdown-container">
         <label class="text-sm font-bold text-gray-600 dark:text-gray-300 flex items-center gap-2">
           <CalendarIcon class="w-4 h-4" /> ช่วงเวลา
         </label>
@@ -267,7 +267,7 @@ onUnmounted(() => window.removeEventListener("click", handleClickOutside));
             :class="{'ring-2 ring-indigo-500 border-indigo-500': activeDropdown === 'date'}"
         >
             <span class="text-gray-700 dark:text-gray-200 truncate">{{ currentDateLabel }}</span>
-            <ChevronDown class="h-4 w-4 text-gray-400" />
+            <ChevronDown class="h-4 w-4 text-gray-400 shrink-0 ml-1" />
         </button>
 
         <div
@@ -286,7 +286,46 @@ onUnmounted(() => window.removeEventListener("click", handleClickOutside));
         </div>
       </div>
 
-      <div v-if="currentRange === 'custom'" class="w-full sm:w-auto flex flex-col sm:flex-row gap-2 sm:items-center animate-fade-in">
+      <div class="col-span-1 sm:w-auto sm:min-w-[200px] flex flex-col gap-1.5 relative custom-dropdown-container">
+        <label class="text-sm font-bold text-gray-600 dark:text-gray-300 flex items-center gap-2">
+          <Users class="w-4 h-4" /> พนักงาน
+        </label>
+
+        <button
+            @click="toggleDropdown('maid')"
+            class="w-full px-3 py-2.5 rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-900
+                   text-sm text-left flex items-center justify-between hover:border-indigo-500 transition-all
+                   focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+            :class="{'ring-2 ring-indigo-500 border-indigo-500': activeDropdown === 'maid'}"
+        >
+            <span class="text-gray-700 dark:text-gray-200 truncate">{{ getMaidLabel }}</span>
+            <ChevronDown class="h-4 w-4 text-gray-400 shrink-0 ml-1" />
+        </button>
+
+        <div
+            v-if="activeDropdown === 'maid'"
+            class="absolute top-full left-0 mt-1 w-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-xl z-50 animate-in fade-in zoom-in-95 max-h-60 overflow-y-auto custom-scrollbar p-1"
+        >
+            <div
+                @click="selectMaid('all')"
+                class="px-3 py-2 rounded-md hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-sm cursor-pointer flex items-center justify-between text-gray-700 dark:text-gray-200 transition-colors"
+            >
+                <span>พนักงานทุกคน</span>
+                <Check v-if="selectedMaid === 'all'" class="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
+            </div>
+            <div
+                v-for="maid in maids"
+                :key="maid.id"
+                @click="selectMaid(maid.id)"
+                class="px-3 py-2 rounded-md hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-sm cursor-pointer flex items-center justify-between text-gray-700 dark:text-gray-200 transition-colors"
+            >
+                <span>{{ maid.fullname }}</span>
+                <Check v-if="selectedMaid === maid.id" class="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
+            </div>
+        </div>
+      </div>
+
+      <div v-if="currentRange === 'custom'" class="col-span-2 sm:w-auto grid grid-cols-2 gap-2 sm:flex sm:items-center animate-fade-in">
         <div class="flex flex-col gap-1.5 w-full sm:w-auto">
             <label class="text-xs font-bold text-gray-500 dark:text-gray-400">เริ่ม</label>
             <div class="relative group cursor-pointer w-full" @click="openStartCalendar">
@@ -316,45 +355,6 @@ onUnmounted(() => window.removeEventListener("click", handleClickOutside));
                     v-model="customEnd"
                     class="absolute inset-0 opacity-0 cursor-pointer w-full"
                 />
-            </div>
-        </div>
-      </div>
-
-      <div class="w-full sm:w-auto sm:min-w-[200px] flex flex-col gap-1.5 relative custom-dropdown-container">
-        <label class="text-sm font-bold text-gray-600 dark:text-gray-300 flex items-center gap-2">
-          <Users class="w-4 h-4" /> พนักงาน
-        </label>
-
-        <button
-            @click="toggleDropdown('maid')"
-            class="w-full px-3 py-2.5 rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-900
-                   text-sm text-left flex items-center justify-between hover:border-indigo-500 transition-all
-                   focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
-            :class="{'ring-2 ring-indigo-500 border-indigo-500': activeDropdown === 'maid'}"
-        >
-            <span class="text-gray-700 dark:text-gray-200 truncate">{{ getMaidLabel }}</span>
-            <ChevronDown class="h-4 w-4 text-gray-400" />
-        </button>
-
-        <div
-            v-if="activeDropdown === 'maid'"
-            class="absolute top-full left-0 mt-1 w-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-xl z-50 animate-in fade-in zoom-in-95 max-h-60 overflow-y-auto custom-scrollbar p-1"
-        >
-            <div
-                @click="selectMaid('all')"
-                class="px-3 py-2 rounded-md hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-sm cursor-pointer flex items-center justify-between text-gray-700 dark:text-gray-200 transition-colors"
-            >
-                <span>พนักงานทุกคน</span>
-                <Check v-if="selectedMaid === 'all'" class="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
-            </div>
-            <div
-                v-for="maid in maids"
-                :key="maid.id"
-                @click="selectMaid(maid.id)"
-                class="px-3 py-2 rounded-md hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-sm cursor-pointer flex items-center justify-between text-gray-700 dark:text-gray-200 transition-colors"
-            >
-                <span>{{ maid.fullname }}</span>
-                <Check v-if="selectedMaid === maid.id" class="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
             </div>
         </div>
       </div>
