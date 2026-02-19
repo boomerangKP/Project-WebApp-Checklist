@@ -39,11 +39,11 @@ const formatTime = (dateString) => {
 };
 
 // ✅ Helper: ฟังก์ชันย่อรูปภาพ (เตรียมไว้สำหรับแสดงรูปหลักฐานในอนาคต)
-const getOptimizedPhoto = (url) => {
-  if (!url) return "";
-  if (url.includes('base64')) return url;
-  return `${url}?width=100&height=100&resize=cover`;
-};
+// const getOptimizedPhoto = (url) => {
+//   if (!url) return "";
+//   if (url.includes('base64')) return url;
+//   return `${url}?width=100&height=100&resize=cover`;
+// };
 
 const calculateRealAverage = (item) => {
   if (item.answers && typeof item.answers === "object") {

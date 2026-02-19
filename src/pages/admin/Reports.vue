@@ -3,7 +3,7 @@ import { ref, onMounted, computed, watch } from "vue";
 import { supabase } from "@/lib/supabase";
 import { useSwal } from "@/composables/useSwal";
 import { useRouter } from "vue-router";
-import { ChevronLeft, ChevronRight, Loader2 } from "lucide-vue-next";
+import { ChevronLeft, ChevronRight, } from "lucide-vue-next";
 
 // Import Components เดิม
 import ReportHeader from "@/components/admin/report/ReportHeader.vue";
@@ -236,13 +236,13 @@ const prevPage = () => {
   }
 };
 
-let searchTimeout;
-watch(searchQuery, (newVal) => {
-    clearTimeout(searchTimeout);
-    searchTimeout = setTimeout(() => {
-        currentPage.value = 1;
-        fetchData();
-    }, 500);
+let searchTimeout = null;
+watch(searchQuery, () => {
+  if (searchTimeout) clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(() => {
+    currentPage.value = 1;
+    fetchData();
+  }, 500);
 });
 
 onMounted(() => fetchData());

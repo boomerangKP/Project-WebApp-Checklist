@@ -6,8 +6,6 @@ import {
   ClipboardList,
   FileText,
   Users,
-  Menu,
-  Settings,
   ChevronDown,
   ChevronRight,
   MapPin,
@@ -23,7 +21,7 @@ import {
 } from "lucide-vue-next";
 
 // ✅ 1. รับ Props isOpen จาก Layout
-const props = defineProps({
+defineProps({
   isOpen: { type: Boolean, default: false },
 });
 

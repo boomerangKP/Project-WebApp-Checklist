@@ -1,6 +1,5 @@
 <script setup>
 import { Loader2, FileSpreadsheet } from "lucide-vue-next";
-import { useSwal } from "@/composables/useSwal";
 import { useExport } from "@/composables/useExport";
 
 const props = defineProps({
@@ -8,8 +7,6 @@ const props = defineProps({
   endDate: { type: String, default: "" },
 });
 
-
-const { Swal } = useSwal(); 
 
 const { isExporting, runExport } = useExport();
 

@@ -1,4 +1,7 @@
+
+
 <script setup>
+
 import { ref, onMounted } from "vue";
 import { supabase } from "@/lib/supabase";
 import { Plus, ListChecks } from "lucide-vue-next";

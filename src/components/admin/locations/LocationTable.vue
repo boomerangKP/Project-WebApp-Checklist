@@ -17,7 +17,7 @@ const props = defineProps({
   highlightId: Number,
 });
 
-const emit = defineEmits(["edit", "delete"]);
+defineEmits(["edit", "delete"]);
 
 // --- 1. Pagination Logic (ระบบแบ่งหน้า) ---
 const currentPage = ref(1);

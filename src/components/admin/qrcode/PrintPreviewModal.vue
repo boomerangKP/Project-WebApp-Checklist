@@ -4,7 +4,7 @@ import { X, Loader2, Printer } from "lucide-vue-next"; // เอา LayoutGrid, 
 import princLogo from "@/assets/logo-header.png";
 import { usePrintQR } from "@/composables/usePrintQR";
 
-const props = defineProps({
+defineProps({
   show: Boolean,
   isGenerating: Boolean,
   selectedCount: Number,
@@ -12,7 +12,7 @@ const props = defineProps({
   qrDataUrls: Object,
 });
 
-const emit = defineEmits(["close", "confirm"]);
+defineEmits(["close", "confirm"]);
 
 const printableContent = ref(null);
 const { printContent } = usePrintQR();

@@ -6,13 +6,12 @@ import {
   ChevronDown,
   ArrowRight,
   Check,
-  ClipboardList,
 } from "lucide-vue-next";
 
 // ✅ 1. นำเข้าปุ่ม Export ที่เราสร้างไว้
 import ExportReportButton from "@/components/admin/export/ExportReportButton.vue";
 
-const props = defineProps(["loading"]);
+defineProps(["loading"]);
 const emit = defineEmits(["update:range"]);
 
 // --- State ---

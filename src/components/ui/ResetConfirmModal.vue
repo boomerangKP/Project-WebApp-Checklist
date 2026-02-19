@@ -6,7 +6,7 @@ defineProps({
   loading: Boolean
 })
 
-const emit = defineEmits(['close', 'confirm'])
+defineEmits(['close', 'confirm'])
 </script>
 
 <template>

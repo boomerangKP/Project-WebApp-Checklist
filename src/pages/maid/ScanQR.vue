@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
-import { BrowserMultiFormatReader, NotFoundException } from "@zxing/library";
+import { BrowserMultiFormatReader, } from "@zxing/library";
 import { ArrowLeft, RefreshCw } from "lucide-vue-next";
 import Swal from "sweetalert2";
 
@@ -25,7 +25,7 @@ const startScan = async () => {
     };
 
     // ใช้ decodeFromConstraints แทน decodeFromVideoDevice
-    await codeReader.decodeFromConstraints(constraints, videoRef.value, (result, err) => {
+    await codeReader.decodeFromConstraints(constraints, videoRef.value, (result, ) => {
       if (result && isScanning.value) {
         handleResult(result.getText());
       }

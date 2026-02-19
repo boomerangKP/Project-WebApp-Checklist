@@ -209,7 +209,7 @@ const handleSave = async (formData) => {
       // -----------------------------------------------------------
       
       // ส่งข้อมูลทั้งหมดไปให้ Edge Function 'create-employee' จัดการ
-      const { data, error } = await supabase.functions.invoke('create-employee', {
+      const { error } = await supabase.functions.invoke('create-employee', {
         body: {
           // Auth Data
           email: formData.email,

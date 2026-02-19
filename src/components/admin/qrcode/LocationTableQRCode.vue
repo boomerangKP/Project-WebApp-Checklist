@@ -15,7 +15,7 @@ const props = defineProps({
   selectedIds: Set,
 });
 
-const emit = defineEmits(["toggle", "toggle-all"]);
+defineEmits(["toggle", "toggle-all"]);
 
 // --- ⚡ ส่วน Pagination State ---
 const currentPage = ref(1);

@@ -136,7 +136,7 @@ const openCheckItemModal = (item = null) => {
   ]
   isModalOpen.value = true
 }
-const handleDeleteCheckItem = async (id) => { /* เหมือนเดิม */ }
+const handleDeleteCheckItem = async () => { /* เหมือนเดิม */ }
 
 
 // ======================= 3. SAVE HANDLER (ฉลาดขึ้น) =======================

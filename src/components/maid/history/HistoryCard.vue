@@ -2,7 +2,7 @@
 import { CheckCircle2, Clock, AlertCircle, UserCheck } from 'lucide-vue-next'
 
 // รับข้อมูล item มาจากหน้าหลัก
-const props = defineProps({
+defineProps({
   item: Object
 })
 

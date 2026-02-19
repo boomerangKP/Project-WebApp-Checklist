@@ -1,6 +1,5 @@
 <script setup>
 import { ref, computed, onMounted } from "vue";
-import { useRouter } from "vue-router";
 import { useUserStore } from "@/stores/user";
 import { supabase } from "@/lib/supabase";
 import Swal from "sweetalert2";
@@ -8,7 +7,6 @@ import MaidHeader from "@/components/maid/home/MaidHeader.vue";
 import DailyProgress from "@/components/maid/home/DailyProgress.vue";
 import MaidActions from "@/components/maid/home/MaidActions.vue";
 
-const router = useRouter();
 const userStore = useUserStore();
 
 // State (เหลือแค่ loading ของหน้าจอหลัก)

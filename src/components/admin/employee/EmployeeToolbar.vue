@@ -7,7 +7,6 @@ import {
   Check,
   Filter,
   Shield,
-  User,
   Briefcase,
 } from "lucide-vue-next";
 

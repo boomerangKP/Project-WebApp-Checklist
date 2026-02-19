@@ -1,5 +1,5 @@
 <script setup>
-import { RouterView, useRoute, useRouter } from 'vue-router' // 1. ต้อง import RouterView
+import { RouterView,} from 'vue-router' // 1. ต้อง import RouterView
 // ... (code อื่นๆ)
 </script>
 

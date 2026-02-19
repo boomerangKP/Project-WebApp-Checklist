@@ -140,7 +140,7 @@ const router = createRouter({
     {
       path: '/',
       name: 'root',
-      redirect: to => {
+      redirect: () => {
         // Logic การ Redirect หน้าแรกจะไปอยู่ที่ Navigation Guard ด้านล่าง
         return { name: 'login' }
       }

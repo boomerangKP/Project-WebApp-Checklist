@@ -168,6 +168,7 @@ const highlightMatch = (text, query) => {
   );
 };
 
+/* // ❌ Comment ไว้ก่อนเพราะยังไม่ได้ทำปุ่มเรียกใช้
 const resetFilters = () => {
   currentRange.value = "today";
   emit("update:searchQuery", "");
@@ -188,7 +189,7 @@ const hasFilters = computed(
     currentRange.value !== "today" ||
     props.isSelectionMode
 );
-
+*/
 const handleClickOutside = (e) => {
   if (!e.target.closest(".custom-dropdown-container")) {
     activeDropdown.value = null;

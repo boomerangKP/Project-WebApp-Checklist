@@ -1,9 +1,9 @@
-import { ref, watch, onMounted, onUnmounted, computed } from "vue";
+import { ref, watch, onMounted, computed } from "vue";
 import { supabase } from "@/lib/supabase";
 import { useSwal } from "@/composables/useSwal";
 
 export function useReportSatisfaction() {
-  const { Swal, swalSuccess } = useSwal();
+  const { Swal  } = useSwal();
 
   // --- State ---
   const loading = ref(false);
@@ -12,7 +12,6 @@ export function useReportSatisfaction() {
   const customStart = ref("");
   const customEnd = ref("");
   const topicsMap = ref({});
-  const realtimeChannel = ref(null);
   
   // Pagination
   const currentPage = ref(1);

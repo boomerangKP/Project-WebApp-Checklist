@@ -3,7 +3,7 @@
 export function usePrintQR() {
 
   // columns ในที่นี้จะเป็น 2 เสมอจากไฟล์แม่ที่ส่งมา
-  const printContent = (contentRef, columns = 2) => {
+  const printContent = (contentRef = 2) => {
     if (!contentRef) return;
 
     // 1. สร้าง Iframe (ซ่อนไว้นอกจอ)
