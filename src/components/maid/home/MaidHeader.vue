@@ -6,7 +6,7 @@ defineProps({
 })
 
 // ประกาศว่า component นี้จะส่งสัญญาณชื่อ 'logout' ออกไป
-const emit = defineEmits(['logout'])
+defineEmits(['logout'])
 
 // ✅ ปรับปรุงให้รองรับทุก Role
 const getRoleLabel = (role) => {

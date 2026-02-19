@@ -1,6 +1,6 @@
 <script setup>
 import { ref, watch } from "vue";
-import { X, Save, Loader2 } from "lucide-vue-next";
+import { X, Loader2 } from "lucide-vue-next";
 
 const props = defineProps({
   isOpen: Boolean,

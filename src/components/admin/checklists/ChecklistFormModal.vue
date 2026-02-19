@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive, watch } from "vue";
+import { reactive, watch } from "vue";
 import { X, Loader2, FileText } from "lucide-vue-next";
 
 const props = defineProps({

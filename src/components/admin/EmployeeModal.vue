@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, onMounted, onUnmounted, computed } from "vue";
+import { ref, watch, onMounted, onUnmounted,  } from "vue";
 import {
   Loader2,
   X,
@@ -182,7 +182,7 @@ const generateNextCode = async () => {
       if (!isNaN(currentNum)) nextCode = String(currentNum + 1).padStart(3, "0");
     }
     form.value.code = nextCode;
-  } catch (err) {
+  } catch {
     form.value.code = "001";
   } finally {
     isGeneratingCode.value = false;

@@ -27,7 +27,7 @@ ChartJS.register(
   Filler
 );
 
-const props = defineProps({
+defineProps({
   trendData: Object,
   topicData: Object,
 });

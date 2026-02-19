@@ -17,7 +17,7 @@ const props = defineProps({
   highlightId: Number,
 });
 
-const emit = defineEmits(["edit", "delete"]);
+defineEmits(["edit", "delete"]);
 
 // --- Pagination Logic ---
 const currentPage = ref(1);

@@ -1,5 +1,5 @@
 <script setup>
-import { CheckCircle2, XCircle, Camera, FileText } from 'lucide-vue-next'
+import { CheckCircle2, XCircle, FileText } from 'lucide-vue-next'
 
 defineProps({
   items: Array

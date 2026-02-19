@@ -1,7 +1,7 @@
 <script setup>
 import { AlertTriangle } from 'lucide-vue-next'
 
-const props = defineProps({
+defineProps({
   modelValue: { type: Boolean, required: true }
 })
 

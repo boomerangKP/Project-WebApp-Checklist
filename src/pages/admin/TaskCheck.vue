@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from "vue";
 import { useRouter } from "vue-router";
-import { Loader2, CheckCircle, Search } from "lucide-vue-next";
+import { Loader2, CheckCircle, } from "lucide-vue-next";
 import { useTaskLogic } from "@/composables/useTaskLogic";
 import { TASK_STATUS } from '@/constants/status';
 

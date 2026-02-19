@@ -31,7 +31,6 @@ const {
   nextStep,
   prevStep,
   submitFeedback,
-  resetForm
 } = useFeedbackLogic(locationId);
 
 // คำนวณคะแนนเฉลี่ยเพื่อแสดงผล

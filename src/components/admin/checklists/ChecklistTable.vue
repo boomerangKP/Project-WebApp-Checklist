@@ -18,7 +18,7 @@ defineProps({
   loading: Boolean,
 });
 
-const emit = defineEmits(["edit", "delete"]);
+defineEmits(["edit", "delete"]);
 
 // --- Copy Logic ---
 const copiedId = ref(null);

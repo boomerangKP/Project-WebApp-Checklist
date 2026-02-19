@@ -5,10 +5,11 @@ import { supabase } from "@/lib/supabase";
 import { useUserStore } from "@/stores/user";
 import Notification from "@/components/admin/NotificationBell.vue";
 import { useSwal } from "@/composables/useSwal";
-import { Menu, LogOut, ShieldCheck, Moon, Sun, User } from "lucide-vue-next"; // ✅ เพิ่ม icon User
+import { Menu, LogOut, ShieldCheck, Moon, Sun, } from "lucide-vue-next"; // ✅ เพิ่ม icon User
 import { useTheme } from "@/composables/useTheme";
 
-const emit = defineEmits(["toggle-sidebar"]);
+
+defineEmits(["toggle-sidebar"]);
 
 const route = useRoute();
 const userStore = useUserStore();

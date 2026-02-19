@@ -155,7 +155,9 @@ const copyJobId = async (id) => {
     await navigator.clipboard.writeText(`${id.toString().padStart(6, "0")}`);
     copiedId.value = id;
     setTimeout(() => (copiedId.value = null), 2000);
-  } catch (e) {}
+  } catch {
+      // กรณี Copy ไม่ได้ (เช่น Browser ไม่รองรับ) ให้ข้ามไปเลย
+  }
 };
 
 const getRoleConfig = (role) => {

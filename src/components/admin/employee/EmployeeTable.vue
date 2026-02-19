@@ -18,7 +18,7 @@ import {
   SprayCan,
 } from "lucide-vue-next";
 
-const props = defineProps({
+defineProps({
   employees: {
     type: Array,
     default: () => [],
@@ -30,7 +30,7 @@ const props = defineProps({
   itemsPerPage: Number,
 });
 
-const emit = defineEmits(["edit", "delete", "changePage", "update:itemsPerPage"]);
+defineEmits(["edit", "delete", "changePage", "update:itemsPerPage"]);
 
 // State สำหรับจัดการ Effect ตอน Copy
 const copiedId = ref(null);

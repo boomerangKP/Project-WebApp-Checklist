@@ -10,7 +10,6 @@ import {
   CheckCircle2,
   Hammer,
   Ban,
-  Box,
 } from "lucide-vue-next";
 
 const props = defineProps({
