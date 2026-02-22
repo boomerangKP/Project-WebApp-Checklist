@@ -1,71 +1,55 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { supabase } from '@/lib/supabase'
 import { useUserStore } from '@/stores/user'
 import Logo from '@/assets/Logo.png'
 import {
-  Mail,
+  User,
   Lock,
   ArrowRight,
   AlertCircle,
   Loader2,
-  Eye,      // ✅ เพิ่ม
-  EyeOff    // ✅ เพิ่ม
+  Eye,
+  EyeOff
 } from 'lucide-vue-next'
 
 const router = useRouter()
 const userStore = useUserStore()
 
-const email = ref('')
+const username = ref('')
 const password = ref('')
 const loading = ref(false)
 const errorMsg = ref('')
-const showPassword = ref(false) // ✅ เพิ่มตัวแปรสำหรับเปิด/ปิดตา
+const showPassword = ref(false)
 
 async function handleLogin() {
-  // ป้องกันการกดรัวๆ
   if (loading.value) return
 
   loading.value = true
   errorMsg.value = ''
 
   try {
-    // 1. Login
-    const { data: { session }, error: authError } = await supabase.auth.signInWithPassword({
-      email: email.value,
-      password: password.value
-    })
+    const res = await userStore.login(username.value, password.value)
 
-    if (authError) throw authError
+    if (!res.success) {
+      throw new Error(res.error)
+    }
 
-    // 2. ดึงข้อมูล
-    const { data: employee, error: empError } = await supabase
-      .from('employees')
-      .select('*')
-      .eq('email', email.value)
-      .single()
+    const employee = userStore.profile
 
-    if (empError || !employee) {
-      await supabase.auth.signOut()
+    if (!employee) {
+      await userStore.clearSession()
       throw new Error('ไม่พบข้อมูลพนักงานในระบบ')
     }
 
     if (employee.employees_status !== 'active') {
-      await supabase.auth.signOut()
+      await userStore.clearSession()
       throw new Error('บัญชีนี้ถูกระงับการใช้งาน')
     }
 
-    // 3. Save to Pinia (ใส่ await เพื่อความชัวร์ว่าข้อมูลมาครบก่อนไปหน้าอื่น)
-    if (userStore.setSession) await userStore.setSession(session)
-    if (userStore.setProfile) await userStore.setProfile(employee)
-
-    // 4. Redirect (แก้ตรงนี้แหละที่ทำให้หายค้าง!)
-    // เช็คทั้ง Maid และ Cleaner ให้ไปหน้าเดียวกัน
     const role = employee.role ? employee.role.toLowerCase() : 'user'
 
-    if (role === 'maid' || role === 'cleaner') {
-      // ใช้ replace แทน push เพื่อไม่ให้กด Back แล้วกลับมาหน้า Login (เร็วกว่าด้วย)
+    if (['maid', 'cleaner'].includes(role)) {
       await router.replace({ name: 'maid-home' })
     } else {
       await router.replace('/admin')
@@ -73,16 +57,19 @@ async function handleLogin() {
 
   } catch (err) {
     console.error('Login Error:', err)
-    if (err.message.includes('Invalid login') || err.message.includes('invalid_grant')) {
-      errorMsg.value = 'อีเมลหรือรหัสผ่านไม่ถูกต้อง'
-    } else if (err.message.includes('network')) {
+    
+    // ✅ โค้ดสั้นลงมาก! เอาข้อความภาษาไทยจาก Edge Function มาโชว์เลย
+    const msg = err.message || 'เกิดข้อผิดพลาดในการเชื่อมต่อ กรุณาลองใหม่'
+    
+    if (msg.includes('network') || msg.includes('fetch')) {
       errorMsg.value = 'การเชื่อมต่อขัดข้อง กรุณาตรวจสอบอินเทอร์เน็ต'
     } else {
-      errorMsg.value = err.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่'
+      errorMsg.value = msg // โชว์ข้อความจากหลังบ้านตรงๆ
     }
-    // ล้างค่าทิ้งถ้าพัง
-    await supabase.auth.signOut()
-    userStore.clearSession()
+    
+    if (!userStore.session) {
+      await userStore.clearSession()
+    }
   } finally {
     loading.value = false
   }
@@ -90,54 +77,57 @@ async function handleLogin() {
 </script>
 
 <template>
-  <div class="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4 font-sans text-slate-600">
+  <div class="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4 sm:p-6 lg:p-8 font-sans text-slate-600">
 
-    <div class="mb-8 text-center animate-in fade-in slide-in-from-bottom-4 duration-700">
-
+    <div class="mb-6 sm:mb-8 text-center animate-in fade-in slide-in-from-bottom-4 duration-700 w-full max-w-md px-2">
       <img
         :src="Logo"
         alt="Smart Maid System"
-        class="w-24 h-24 object-contain mx-auto mb-4 drop-shadow-sm hover:scale-105 transition-transform duration-300"
+        class="w-20 h-20 sm:w-24 sm:h-24 object-contain mx-auto mb-3 sm:mb-4 drop-shadow-sm hover:scale-105 transition-transform duration-300"
       />
-
-      <h1 class="text-2xl font-bold text-slate-800 tracking-tight">ระบบบริหารจัดการสุขอนามัยอาคาร</h1>
-      <p class="text-sm text-slate-500 mt-1">Building Hygiene Management System | Princ Ubon</p>
+      <h1 class="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-800 tracking-tight leading-tight">
+        ระบบบริหารจัดการสุขอนามัยอาคาร
+      </h1>
+      <p class="text-xs sm:text-sm text-slate-500 mt-1.5 sm:mt-2">
+        Building Hygiene Management System | Princ Ubon
+      </p>
     </div>
 
-    <div class="w-full max-w-sm bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-500 delay-150">
-      <div class="p-8">
-        <h2 class="text-lg font-bold text-slate-700 mb-6 flex items-center gap-2">
+    <div class="w-full max-w-sm sm:max-w-md bg-white rounded-2xl shadow-sm sm:shadow-md border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-500 delay-150">
+      
+      <div class="p-6 sm:p-8 md:p-10">
+        <h2 class="text-lg sm:text-xl font-bold text-slate-700 mb-6 flex items-center gap-2">
           เข้าสู่ระบบ
         </h2>
 
-        <form @submit.prevent="handleLogin" class="space-y-5">
-          <div v-if="errorMsg" class="bg-rose-50 border border-rose-100 text-rose-600 p-3 rounded-xl text-sm flex items-start gap-3 animate-in shake">
-            <AlertCircle class="w-5 h-5 shrink-0 mt-0.5" />
-            <span class="font-medium">{{ errorMsg }}</span>
+        <form @submit.prevent="handleLogin" class="space-y-4 sm:space-y-5">
+          <div v-if="errorMsg" class="bg-rose-50 border border-rose-100 text-rose-600 p-3 sm:p-4 rounded-xl text-xs sm:text-sm flex items-start gap-2.5 sm:gap-3 animate-in shake">
+            <AlertCircle class="w-4 h-4 sm:w-5 sm:h-5 shrink-0 mt-0.5" />
+            <span class="font-medium leading-relaxed">{{ errorMsg }}</span>
           </div>
 
           <div class="space-y-1.5">
-            <label class="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">อีเมล</label>
+            <label class="text-[11px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">ชื่อผู้ใช้ (Firstname)</label>
             <div class="relative group">
               <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                <Mail class="h-5 w-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                <User class="h-4 w-4 sm:h-5 sm:w-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
               </div>
               <input
-                v-model="email"
-                type="email"
+                v-model="username"
+                type="text"
                 required
                 @keyup.enter="handleLogin"
-                class="block w-full pl-11 pr-4 py-3 border border-slate-200 rounded-xl bg-slate-50 text-slate-900 placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-medium"
-                placeholder="กรอกอีเมลของคุณ"
+                class="block w-full pl-10 sm:pl-11 pr-4 py-2.5 sm:py-3 border border-slate-200 rounded-xl bg-slate-50 text-slate-900 placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-medium"
+                placeholder="กรอกชื่อจริง หรือ รหัสพนักงาน"
               >
             </div>
           </div>
 
           <div class="space-y-1.5">
-            <label class="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">รหัสผ่าน</label>
+            <label class="text-[11px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">รหัสผ่าน (Password)</label>
             <div class="relative group">
               <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                <Lock class="h-5 w-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                <Lock class="h-4 w-4 sm:h-5 sm:w-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
               </div>
 
               <input
@@ -145,19 +135,19 @@ async function handleLogin() {
                 :type="showPassword ? 'text' : 'password'"
                 required
                 @keyup.enter="handleLogin"
-                class="block w-full pl-11 pr-12 py-3 border border-slate-200 rounded-xl bg-slate-50 text-slate-900 placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-medium"
-                placeholder="กรอกรหัสของคุณ"
+                class="block w-full pl-10 sm:pl-11 pr-12 py-2.5 sm:py-3 border border-slate-200 rounded-xl bg-slate-50 text-slate-900 placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-medium"
+                placeholder="กรอกรหัสพนักงาน"
               >
 
               <button
                 v-show="password"
                 type="button"
                 @click="showPassword = !showPassword"
-                class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 focus:outline-none transition-all animate-in fade-in zoom-in-95 duration-200"
+                class="absolute inset-y-0 right-0 pr-3 sm:pr-3.5 flex items-center text-slate-400 hover:text-slate-600 focus:outline-none transition-all animate-in fade-in zoom-in-95 duration-200"
                 tabindex="-1"
               >
-                <Eye v-if="!showPassword" class="h-5 w-5" />
-                <EyeOff v-else class="h-5 w-5" />
+                <Eye v-if="!showPassword" class="h-4 w-4 sm:h-5 sm:w-5" />
+                <EyeOff v-else class="h-4 w-4 sm:h-5 sm:w-5" />
               </button>
             </div>
           </div>
@@ -165,17 +155,17 @@ async function handleLogin() {
           <button
             type="submit"
             :disabled="loading"
-            class="w-full flex justify-center items-center gap-2 py-3.5 px-4 border border-transparent rounded-xl shadow-md shadow-indigo-200 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-70 disabled:cursor-not-allowed disabled:shadow-none transition-all mt-4 active:scale-[0.98]"
+            class="w-full flex justify-center items-center gap-2 py-3 sm:py-3.5 px-4 border border-transparent rounded-xl shadow-md shadow-indigo-200 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-70 disabled:cursor-not-allowed disabled:shadow-none transition-all mt-6 active:scale-[0.98]"
           >
-            <Loader2 v-if="loading" class="w-5 h-5 animate-spin" />
+            <Loader2 v-if="loading" class="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
             <span v-else>เข้าใช้งานระบบ</span>
             <ArrowRight v-if="!loading" class="w-4 h-4" />
           </button>
         </form>
       </div>
 
-      <div class="bg-slate-50 p-4 border-t border-slate-100 text-center">
-        <p class="text-xs text-slate-400">© 2024 Princ Hospital Ubon Ratchathani</p>
+      <div class="bg-slate-50 p-3 sm:p-4 border-t border-slate-100 text-center">
+        <p class="text-[10px] sm:text-xs text-slate-400">© 2025 Princ Hospital Ubon Ratchathani</p>
       </div>
     </div>
   </div>

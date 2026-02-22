@@ -1,9 +1,8 @@
 <script setup>
-import { ref, watch, onMounted, onUnmounted,  } from "vue";
+import { ref, watch, onMounted, onUnmounted } from "vue";
 import {
   Loader2,
   X,
-  RefreshCw,
   ChevronDown,
   Check,
   Camera,
@@ -62,7 +61,6 @@ const form = ref({
   password: "",
 });
 
-const isGeneratingCode = ref(false);
 const activeDropdown = ref(null);
 
 // ตัวเลือก (Options)
@@ -164,29 +162,6 @@ const resetForm = () => {
   emailError.value = "";
   selectedImage.value = null;
   showCropper.value = false;
-};
-
-const generateNextCode = async () => {
-  if (props.isEditing) return;
-  isGeneratingCode.value = true;
-  try {
-    const { data } = await supabase
-      .from("employees")
-      .select("employees_code")
-      .order("employees_id", { ascending: false })
-      .limit(1)
-      .single();
-    let nextCode = "001";
-    if (data && data.employees_code) {
-      const currentNum = parseInt(data.employees_code, 10);
-      if (!isNaN(currentNum)) nextCode = String(currentNum + 1).padStart(3, "0");
-    }
-    form.value.code = nextCode;
-  } catch {
-    form.value.code = "001";
-  } finally {
-    isGeneratingCode.value = false;
-  }
 };
 
 const deleteOldImage = async (oldUrl) => {
@@ -348,13 +323,13 @@ watch(
   (isOpen) => {
     if (isOpen && !props.isEditing) {
       resetForm();
-      generateNextCode();
+      // ✅ ไม่มีการเรียก generateNextCode() อีกต่อไป เพื่อให้กรอกเอง
     }
   }
 );
 
 const handleSubmit = async () => {
-  if (!form.value.code) return swalError("ข้อผิดพลาด", "ไม่พบรหัสพนักงาน");
+  if (!form.value.code.trim()) return swalError("ข้อมูลไม่ครบ", "กรุณากรอก รหัสพนักงาน");
   if (!form.value.firstname.trim())
     return swalError("ข้อมูลไม่ครบ", "กรุณากรอก ชื่อจริง");
   if (!form.value.lastname.trim()) return swalError("ข้อมูลไม่ครบ", "กรุณากรอก นามสกุล");
@@ -521,36 +496,17 @@ const handleSubmit = async () => {
             <form id="employeeForm" @submit.prevent="handleSubmit" class="space-y-4">
               <div class="space-y-1">
                 <label
-                  class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase flex justify-between"
+                  class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase"
                 >
-                  รหัสพนักงาน (Auto) <span class="text-red-500">*</span>
-                  <span
-                    v-if="isGeneratingCode"
-                    class="text-indigo-500 text-[10px] flex items-center gap-1"
-                    ><Loader2 class="w-3 h-3 animate-spin" /> ...</span
-                  >
+                  รหัสพนักงาน <span class="text-red-500">*</span>
                 </label>
-                <div class="relative">
-                  <input
-                    v-model="form.code"
-                    type="text"
-                    class="w-full border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-gray-100 dark:bg-slate-900 text-gray-600 dark:text-gray-400 font-mono font-bold focus:ring-0 cursor-not-allowed"
-                    placeholder="001"
-                    readonly
-                  />
-                  <button
-                    type="button"
-                    v-if="!isEditing"
-                    @click="generateNextCode"
-                    class="absolute right-2 top-2 text-gray-400 hover:text-indigo-600 transition-colors"
-                    title="รันเลขใหม่"
-                  >
-                    <RefreshCw
-                      class="w-4 h-4"
-                      :class="{ 'animate-spin': isGeneratingCode }"
-                    />
-                  </button>
-                </div>
+                <input
+                  v-model="form.code"
+                  type="text"
+                  :disabled="isEditing"
+                  class="w-full border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all disabled:bg-gray-100 disabled:dark:bg-slate-800 disabled:text-gray-500 disabled:cursor-not-allowed"
+                  placeholder="กรุณากรอกรหัสพนักงาน (เช่น EMP001)"
+                />
               </div>
 
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">

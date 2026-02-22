@@ -12,6 +12,10 @@ export function useReportSatisfaction() {
   const customStart = ref("");
   const customEnd = ref("");
   const topicsMap = ref({});
+
+  // 🔥 NEW: เพิ่มตัวแปรมารับค่าจากหน้าจอ (Checkbox ตัวกรองพื้นที่)
+  const selectedFloors = ref([]); 
+  const selectedTypes = ref([]);
   
   // Pagination
   const currentPage = ref(1);
@@ -58,6 +62,36 @@ export function useReportSatisfaction() {
     }
   };
 
+  // 🔥 Helper ใหม่: สำหรับจัดการเงื่อนไข Filter กรองพื้นที่ 🔥
+  const applyLocationFilters = (queryBuilder) => {
+    let q = queryBuilder;
+    
+    // 1. กรองตามชั้น (Floor)
+    if (selectedFloors.value.length > 0) {
+      q = q.in("locations.locations_floor", selectedFloors.value);
+    }
+
+    // 2. กรองตามประเภทห้องน้ำ (ค้นหาจากคำในชื่อสถานที่)
+    if (selectedTypes.value.length > 0) {
+      const orConditions = [];
+      if (selectedTypes.value.includes('patient')) {
+        orConditions.push('locations_name.ilike.%คนไข้%');
+        orConditions.push('locations_name.ilike.%ผู้ป่วย%');
+        orConditions.push('locations_name.ilike.%ward%');
+      }
+      if (selectedTypes.value.includes('staff')) {
+        orConditions.push('locations_name.ilike.%เจ้าหน้าที่%');
+        orConditions.push('locations_name.ilike.%staff%');
+      }
+      
+      if (orConditions.length > 0) {
+        // ใช้ foreignTable ระบุว่าให้ไปหาในตาราง locations
+        q = q.or(orConditions.join(','), { foreignTable: 'locations' });
+      }
+    }
+    return q;
+  };
+
   // ✅ Fetch Table Data (สำหรับแสดงผลหน้าเว็บ)
   const fetchTableData = async () => {
     try {
@@ -67,12 +101,16 @@ export function useReportSatisfaction() {
         const from = (currentPage.value - 1) * itemsPerPage.value;
         const to = from + itemsPerPage.value - 1;
 
+        // 🔥 เปลี่ยนจากการดึง locations ธรรมดา เป็น locations!inner เพื่อให้สามารถกรองจากตารางลูกได้
         let query = supabase.from("feedbacks")
-            .select(`*, locations (locations_name, locations_building, locations_floor)`, { count: 'exact' })
+            .select(`*, locations!inner (locations_name, locations_building, locations_floor)`, { count: 'exact' })
             .order("created_at", { ascending: false })
             .range(from, to);
 
         if (range) query = query.gte("created_at", range.start).lte("created_at", range.end);
+
+        // ใช้งานตัวกรองพื้นที่
+        query = applyLocationFilters(query);
 
         const { data, count, error } = await query;
         if (error) throw error;
@@ -87,9 +125,15 @@ export function useReportSatisfaction() {
         const range = getDateRange(dateFilter.value);
         if (dateFilter.value === 'custom' && !range) return;
         
-        let query = supabase.from("feedbacks").select('rating, answers, created_at');
+        // 🔥 ดึง locations!inner มาด้วยเพื่อให้กราฟและการ์ดสถิติถูกกรองไปด้วย
+        let query = supabase.from("feedbacks")
+            .select('rating, answers, created_at, locations!inner (locations_name, locations_building, locations_floor)');
+            
         if (range) query = query.gte("created_at", range.start).lte("created_at", range.end);
         
+        // ใช้งานตัวกรองพื้นที่
+        query = applyLocationFilters(query);
+
         const { data } = await query;
         if (data) {
             calculateStats(data);
@@ -291,6 +335,7 @@ export function useReportSatisfaction() {
   return {
     loading, feedbacks, dateFilter, customStart, customEnd, searchCustom, stats, trendChartData, topicChartData, 
     exportToExcel,
-    totalItems, currentPage, itemsPerPage, totalPages, changePage
+    totalItems, currentPage, itemsPerPage, totalPages, changePage,
+    selectedFloors, selectedTypes // ✅ ส่งออกให้ ReportSatisfaction.vue เอาไปใช้
   };
 }

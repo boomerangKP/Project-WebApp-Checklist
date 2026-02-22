@@ -23,7 +23,8 @@ const handleExport = async () => {
     startDate: start,
     endDate: end,
     filePrefix: 'รายงานการปฏิบัติงาน',
-    maxMonths: 6
+    maxMonths: 6,
+    showCloseRoundOption: true
   });
 };
 </script>
