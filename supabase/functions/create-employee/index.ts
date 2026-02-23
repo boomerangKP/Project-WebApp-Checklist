@@ -20,7 +20,7 @@ serve(async (req) => {
       throw new Error('Missing Authorization header')
     }
 
-    // 1. รับค่าจากหน้าบ้าน
+    // 1. รับค่าจากหน้าบ้าน (🚨 ลบ notification_email ออกแล้ว)
     const {
       email,
       password,
@@ -33,8 +33,7 @@ serve(async (req) => {
       department,
       gender,
       status,
-      employees_photo,
-      notification_email
+      employees_photo
     } = await req.json()
 
     // 2. สร้าง Client Admin
@@ -86,7 +85,7 @@ serve(async (req) => {
 
     const userId = authData.user.id
 
-    // 5. บันทึกข้อมูลลงตาราง employees
+    // 5. บันทึกข้อมูลลงตาราง employees (🚨 ลบ notification_email ออกแล้ว)
     const { error: dbError } = await supabaseAdmin
       .from('employees')
       .insert([
@@ -107,7 +106,6 @@ serve(async (req) => {
           email: email,
           role: role,
           employees_photo: employees_photo,
-          notification_email: notification_email,
           created_at: new Date()
         }
       ])

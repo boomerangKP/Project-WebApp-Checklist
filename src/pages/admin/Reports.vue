@@ -5,6 +5,9 @@ import { useSwal } from "@/composables/useSwal";
 import { useRouter } from "vue-router";
 import { ChevronLeft, ChevronRight, } from "lucide-vue-next";
 
+// ✅ 1. Import useExport ที่เราเพิ่งสร้าง
+import { useExport } from "@/composables/useExport"; 
+
 // Import Components เดิม
 import ReportHeader from "@/components/admin/report/ReportHeader.vue";
 import ReportStats from "@/components/admin/report/ReportStats.vue";
@@ -12,6 +15,9 @@ import ReportTable from "@/components/admin/report/ReportTable.vue";
 
 const router = useRouter();
 const { Swal } = useSwal();
+
+// ✅ 2. เรียกใช้ useExport
+const { runExport } = useExport();
 
 // --- State ---
 const loading = ref(true);
@@ -155,69 +161,28 @@ const fetchData = async (rangeObj = currentRange.value) => {
   }
 };
 
-// --- 🔥 Handle Export (Logic ที่เพิ่มกลับมา) ---
+// --- 🔥 Handle Export (ปรับให้สั้นลงโดยใช้ useExport) ---
 const handleExport = async () => {
   const { start, end } = getQueryDates(currentRange.value);
   const endDateStr = end || start;
 
-  const result = await Swal.fire({
-    title: "ดาวน์โหลดรายงาน?",
-    text: `ต้องการดาวน์โหลดข้อมูลวันที่ ${start} ถึง ${endDateStr} เป็น Excel หรือไม่?`,
-    icon: "question",
-    showCancelButton: true,
-    confirmButtonText: "ดาวน์โหลด",
-    confirmButtonColor: "#10b981",
-  });
-
-  if (!result.isConfirmed) return;
-
-  Swal.fire({
-    title: "กำลังสร้างไฟล์...",
-    html: "ระบบกำลังประมวลผลที่ Server กรุณารอสักครู่",
-    allowOutsideClick: false,
-    didOpen: () => Swal.showLoading(),
-  });
-
-  try {
-    const { data: { session } } = await supabase.auth.getSession();
-
-    // เรียก Edge Function
-    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/export-work-performance`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${session.access_token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        start: start,
-        end: endDateStr,
-        search: searchQuery.value
-      })
+  if (totalItems.value === 0) {
+    return Swal.fire({
+      icon: "warning",
+      title: "ไม่มีข้อมูล",
+      text: "ไม่พบรายการข้อมูลในช่วงเวลาที่เลือก"
     });
-
-    if (!response.ok) {
-        const errJson = await response.json();
-        throw new Error(errJson.error || 'Export failed');
-    }
-
-    const blob = await response.blob();
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    // ตั้งชื่อไฟล์เป็น .xlsx
-    link.setAttribute('download', `Work_Report_${start}_to_${endDateStr}.xlsx`);
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.URL.revokeObjectURL(url);
-
-    Swal.close();
-    Swal.fire("สำเร็จ", "ดาวน์โหลดรายงานเรียบร้อยแล้ว", "success");
-
-  } catch (err) {
-    console.error("Export Error:", err);
-    Swal.fire("Error", "เกิดข้อผิดพลาดในการดาวน์โหลด: " + err.message, "error");
   }
+
+  // ✅ 3. เรียกใช้งาน runExport แทน Logic เดิมทั้งหมด
+  await runExport({
+    functionName: 'export-work-performance',
+    startDate: start,
+    endDate: endDateStr,
+    filePrefix: 'รายงานการปฏิบัติงาน',
+    maxMonths: 6,
+    showCloseRoundOption: true // ✅ เปิดให้ติ๊ก Checkbox "ปิดรอบ" ได้
+  });
 };
 
 const totalPages = computed(() => Math.ceil(totalItems.value / itemsPerPage.value) || 1);

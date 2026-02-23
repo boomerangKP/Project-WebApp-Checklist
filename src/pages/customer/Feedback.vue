@@ -194,8 +194,8 @@ const overallAverage = computed(() => {
         </div>
 
         <div class="text-center">
-          <router-link :to="`/login?redirect=/maid/job/${locationId}`" class="inline-flex items-center gap-1.5 text-[15px] text-gray-400 hover:text-indigo-600 transition-colors">
-            <UserCog class="w-3.5 h-3.5" />
+          <router-link :to="`/login?redirect=/maid/job/${locationId}`" class="inline-flex items-center gap-1.5 text-[20px] text-red-500 hover:text-indigo-600 transition-colors">
+            <UserCog class="w-5 h-5" />
             <span>สำหรับพนักงานทำความสะอาด</span>
           </router-link>
         </div>

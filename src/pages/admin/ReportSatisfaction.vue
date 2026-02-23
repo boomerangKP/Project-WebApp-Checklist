@@ -10,6 +10,7 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  Filter // ✅ เพิ่มไอคอน Filter
 } from "lucide-vue-next";
 import { useReportSatisfaction } from "@/composables/useReportSatisfaction";
 import { useSwal } from "@/composables/useSwal";
@@ -22,10 +23,10 @@ import RecentFeedbackTable from "@/components/admin/report/RecentFeedbackTable.v
 
 const { Swal } = useSwal();
 
-// ✅ 2. เรียกใช้ Composable
-// (isExporting จะถูกควบคุมโดย useExport แทน local ref)
+// เรียกใช้ Composable สำหรับ Export
 const { isExporting, runExport } = useExport();
 
+// 🔥 แก้ไขตรงนี้: ดึง selectedFloors และ selectedTypes มาจาก Composable
 const {
   loading,
   feedbacks,
@@ -36,18 +37,18 @@ const {
   stats,
   trendChartData,
   topicChartData,
-  // exportToExcel, // ไม่ใช้แล้ว
   // Pagination Vars
   totalItems,
   currentPage,
   totalPages,
-
   changePage,
+  fetchData,
+  selectedFloors, // ✅ ดึงตัวแปรนี้มาใช้
+  selectedTypes   // ✅ ดึงตัวแปรนี้มาใช้
 } = useReportSatisfaction();
 
 // --- Helper: คำนวณช่วงวันที่จริง ---
 const getActualDateRange = () => {
-
   let start = new Date();
   let end = new Date();
 
@@ -71,8 +72,8 @@ const getActualDateRange = () => {
   if (isNaN(end.getTime())) end = new Date();
 
   return {
-    start, // ส่ง object วันที่ออกไปด้วย
-    end,   // ส่ง object วันที่ออกไปด้วย
+    start,
+    end,
     startStr: start.toLocaleDateString("th-TH", { dateStyle: "long" }),
     endStr: end.toLocaleDateString("th-TH", { dateStyle: "long" }),
   };
@@ -101,7 +102,7 @@ watch(dateFilter, (newVal) => {
   }
 });
 
-// --- Dropdown Logic ---
+// --- Dropdown Logic (Date) ---
 const isFilterOpen = ref(false);
 const filterOptions = [
   { value: "today", label: "วันนี้" },
@@ -118,10 +119,28 @@ const selectFilter = (value) => {
   isFilterOpen.value = false;
 };
 
-// --- Export Logic ---
-// ❌ ลบตัวแปร isExporting เดิมออก (เพราะใช้จาก useExport แล้ว)
-// const isExporting = ref(false);
+// --- 🔥 NEW: Advanced Filter Logic (ตัวกรองพื้นที่) 🔥 ---
+const isAdvancedFilterOpen = ref(false);
+// ❌ ลบ const selectedFloors = ref([]); ออกไป เพราะไปดึงจากข้างบนมาแล้ว
+// ❌ ลบ const selectedTypes = ref([]); ออกไป เพราะไปดึงจากข้างบนมาแล้ว
 
+const activeFilterCount = computed(() => selectedFloors.value.length + selectedTypes.value.length);
+const hasActiveFilters = computed(() => activeFilterCount.value > 0);
+
+const applyFilters = () => {
+  isAdvancedFilterOpen.value = false;
+  currentPage.value = 1;
+  // เรียกฟังก์ชันดึงข้อมูลใหม่ (บังคับดึงค่า fetchData() เลยเพื่อให้ทำงานทุกกรณี)
+  fetchData();
+};
+
+const clearFilters = () => {
+  selectedFloors.value = [];
+  selectedTypes.value = [];
+  applyFilters();
+};
+
+// --- Export Logic ---
 const confirmExport = async () => {
   const count = totalItems?.value || 0;
   if (count === 0) {
@@ -133,17 +152,15 @@ const confirmExport = async () => {
     return;
   }
 
-  // ดึงค่าวันที่
   const { start, end } = getActualDateRange();
 
-  // ✅ 3. ใช้ runExport แทน Logic เดิมทั้งหมด
-  // (ฟังก์ชันนี้จัดการทั้ง Dialog ยืนยัน, เรียก API, ดาวน์โหลด, และแจ้งเตือนสำเร็จ)
   await runExport({
     functionName: 'export-satisfaction',
     startDate: start,
     endDate: end,
     filePrefix: 'รายงานความพึงพอใจ',
-    maxMonths: 12
+    maxMonths: 12,
+    showCloseRoundOption: true
   });
 };
 </script>
@@ -251,6 +268,66 @@ const confirmExport = async () => {
           </button>
         </div>
 
+        <div class="relative">
+          <button
+            @click="isAdvancedFilterOpen = !isAdvancedFilterOpen"
+            class="flex items-center justify-between gap-2 px-3 py-2 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-sm hover:bg-gray-50 dark:hover:bg-slate-700 text-sm font-medium text-gray-700 dark:text-white transition-all h-10"
+            :class="{ 'ring-2 ring-indigo-500 border-indigo-500': hasActiveFilters }"
+          >
+            <div class="flex items-center gap-2">
+              <Filter class="w-4 h-4 text-gray-500 dark:text-gray-400" :class="{ 'text-indigo-600 dark:text-indigo-400': hasActiveFilters }" />
+              <span class="hidden sm:inline">ตัวกรองพื้นที่</span>
+              <span v-if="activeFilterCount > 0" class="bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-300 py-0.5 px-2 rounded-full text-xs font-bold">
+                {{ activeFilterCount }}
+              </span>
+            </div>
+            <ChevronDown class="w-4 h-4 text-gray-400 dark:text-slate-500 transition-transform hidden sm:block" :class="{ 'rotate-180': isAdvancedFilterOpen }" />
+          </button>
+
+          <div
+            v-if="isAdvancedFilterOpen"
+            class="absolute top-full right-0 mt-1 w-64 sm:w-72 bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-700 rounded-xl shadow-xl z-30 p-4 animate-in fade-in zoom-in-95"
+          >
+            <div class="mb-4">
+              <h4 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">เลือกชั้นอาคาร (Floor)</h4>
+              <div class="space-y-2 max-h-32 overflow-y-auto pr-2 custom-scrollbar">
+                <label class="flex items-center gap-2 cursor-pointer group">
+                  <input type="checkbox" value="4" v-model="selectedFloors" class="w-4 h-4 text-indigo-600 bg-white border-gray-300 rounded focus:ring-indigo-500">
+                  <span class="text-sm text-gray-700 dark:text-gray-300 group-hover:text-indigo-600">ชั้น 4 (Ward)</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer group">
+                  <input type="checkbox" value="5" v-model="selectedFloors" class="w-4 h-4 text-indigo-600 bg-white border-gray-300 rounded focus:ring-indigo-500">
+                  <span class="text-sm text-gray-700 dark:text-gray-300 group-hover:text-indigo-600">ชั้น 5 (Ward)</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer group">
+                  <input type="checkbox" value="6" v-model="selectedFloors" class="w-4 h-4 text-indigo-600 bg-white border-gray-300 rounded focus:ring-indigo-500">
+                  <span class="text-sm text-gray-700 dark:text-gray-300 group-hover:text-indigo-600">ชั้น 6 (Ward)</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="mb-4">
+              <h4 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">ประเภทห้องน้ำ (Type)</h4>
+              <div class="space-y-2">
+                <label class="flex items-center gap-2 cursor-pointer group">
+                  <input type="checkbox" value="patient" v-model="selectedTypes" class="w-4 h-4 text-indigo-600 bg-white border-gray-300 rounded focus:ring-indigo-500">
+                  <span class="text-sm text-gray-700 dark:text-gray-300 group-hover:text-indigo-600">ห้องน้ำคนไข้</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer group">
+                  <input type="checkbox" value="staff" v-model="selectedTypes" class="w-4 h-4 text-indigo-600 bg-white border-gray-300 rounded focus:ring-indigo-500">
+                  <span class="text-sm text-gray-700 dark:text-gray-300 group-hover:text-indigo-600">ห้องน้ำเจ้าหน้าที่</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="pt-3 border-t border-gray-100 dark:border-slate-700 flex justify-end gap-2">
+              <button @click="clearFilters" class="px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">ล้างทั้งหมด</button>
+              <button @click="applyFilters" class="px-3 py-1.5 text-xs font-medium bg-indigo-600 text-white rounded hover:bg-indigo-700 shadow-sm transition-colors">ตกลง</button>
+            </div>
+          </div>
+          <div v-if="isAdvancedFilterOpen" @click="isAdvancedFilterOpen = false" class="fixed inset-0 z-20"></div>
+        </div>
+
         <button
           @click="confirmExport"
           :disabled="isExporting"
@@ -258,7 +335,8 @@ const confirmExport = async () => {
         >
           <Loader2 v-if="isExporting" class="w-4 h-4 animate-spin" />
           <FileSpreadsheet v-else class="w-4 h-4" />
-          <span>{{ isExporting ? "กำลังสร้างไฟล์..." : "Export Excel" }}</span>
+          <span class="hidden sm:inline">{{ isExporting ? "กำลังสร้างไฟล์..." : "Export Excel" }}</span>
+          <span class="sm:hidden">{{ isExporting ? "กำลังโหลด..." : "Export" }}</span>
         </button>
       </div>
     </div>
@@ -311,3 +389,20 @@ const confirmExport = async () => {
     </div>
   </div>
 </template>
+
+<style scoped>
+/* ทำให้ Scrollbar ของตัวเลือกชั้นเล็กลงและสวยงามขึ้น */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 10px;
+}
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #475569;
+}
+</style>

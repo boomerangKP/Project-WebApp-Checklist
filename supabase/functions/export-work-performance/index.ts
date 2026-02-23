@@ -53,7 +53,9 @@ serve(async (req) => {
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) throw new Error('Missing Authorization header')
 
-    const { start, end } = await req.json()
+    // ✅ เพิ่มการรับค่า isClosingRound
+    const { start, end, isClosingRound } = await req.json()
+    
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -93,8 +95,13 @@ serve(async (req) => {
     // 2. Process Data
     const roundTracker: Record<string, number> = {}
     const processedRows: any[] = []
+    
+    // เก็บ ID สำหรับการลบข้อมูล (ถ้ามีการปิดรอบ)
+    const sessionIdsToDelete: number[] = []
 
     rawLogs.forEach((log: any) => {
+        sessionIdsToDelete.push(log.check_sessions_id) // เก็บ ID ไว้
+
         let isMorning = true
         const createdAt = new Date(log.created_at)
         const thaiHour = new Date(createdAt.getTime() + (7 * 60 * 60 * 1000)).getUTCHours()
@@ -156,16 +163,11 @@ serve(async (req) => {
     const startDateTh = formatThaiDate(start, 'date')
     const endDateTh = formatThaiDate(end, 'date')
     
-    // ✅ โครงสร้าง Header แบบเดิม (แต่ใน CSV จะไม่มีการ Merge)
-    // บรรทัดที่ 1-2: Title
-    // บรรทัดที่ 3: Header หลัก (เว้นว่างไว้ตรงที่เคย Merge)
-    // บรรทัดที่ 4: Sub-Header
+    // โครงสร้าง Header แบบเดิม (แต่ใน CSV จะไม่มีการ Merge)
     const headersStructure = [
         [`รายงานสรุปการทำความสะอาด (Maid Report)`],
         [`ช่วงวันที่: ${startDateTh} ถึง ${endDateTh}`],
-        // Header Row 1 (Main Categories)
         ["ลำดับ", "รหัสงาน", "วัน/เดือน/ปี", "ชื่อพนักงาน", "อาคาร", "ชั้น", "ชื่อจุดตรวจ", "ข้อมูลงานทำความสะอาด", "", "", "ข้อมูลติดตามงาน", "", "", "", "", "หมายเหตุ"],
-        // Header Row 2 (Sub Categories) - ตรงไหนที่เป็นช่องว่างใน Row 1 จะมาโผล่ตรงนี้แทน
         ["", "", "", "", "", "", "", "ครั้งที่", "ประทับเวลา", "ช่วงการทำงาน", "สถานะ", "วัน/เดือน/ปี", "เวลา", "ชื่อผู้ตรวจ", "ตำแหน่ง", ""]
     ]
 
@@ -175,15 +177,73 @@ serve(async (req) => {
     // แปลงเป็น CSV Text
     const csvContent = toCSV(finalData)
 
+    // ✅ 4. จัดการกระบวนการปิดรอบ (Backup & Purge Data)
+    if (isClosingRound && sessionIdsToDelete.length > 0) {
+      console.log(`[Close Cycle] เริ่มต้นกระบวนการปิดรอบ สำรองข้อมูลจำนวน ${sessionIdsToDelete.length} รายการ`)
+      
+      // 🚨 แก้ไขชื่อไฟล์ให้ไม่มีภาษาไทย เพื่อไม่ให้ Supabase Storage Error 🚨
+      const timestamp = new Date().getTime();
+      const safeStart = start.split('T')[0];
+      const safeEnd = end.split('T')[0];
+      const backupFileName = `backup_report_${safeStart}_to_${safeEnd}_${timestamp}.csv`
+
+      // 4.1 อัปโหลดเป็น Backup ไปที่ Storage
+      const { error: uploadError } = await supabaseAdmin.storage
+        .from('archives')
+        .upload(backupFileName, csvContent, {
+          contentType: 'text/csv; charset=utf-8',
+          upsert: false
+        })
+
+      if (uploadError) {
+        console.error("Backup Failed:", uploadError)
+        throw new Error(`ไม่สามารถสำรองข้อมูลได้ กรุณาลองใหม่ (${uploadError.message})`)
+      }
+
+      console.log(`[Close Cycle] สำรองไฟล์สำเร็จ: ${backupFileName}`)
+
+      // 4.2 ทำการลบข้อมูลใน Database (ใช้ระบบ Chunking ลบทีละชุดเพื่อป้องกัน API Error)
+      const BATCH_SIZE = 1000;
+      for (let i = 0; i < sessionIdsToDelete.length; i += BATCH_SIZE) {
+        const batchIds = sessionIdsToDelete.slice(i, i + BATCH_SIZE);
+
+        // ลบ check_results ก่อน เนื่องจากมีการอ้างอิง (Foreign Key) ไปยัง check_sessions
+        const { error: delResultsError } = await supabaseAdmin
+          .from('check_results')
+          .delete()
+          .in('check_sessions_id', batchIds)
+        
+        if (delResultsError) {
+          console.error("Delete check_results Failed:", delResultsError)
+          throw new Error(`ลบรายละเอียดการตรวจไม่สำเร็จ: ${delResultsError.message}`)
+        }
+
+        // ลบ check_sessions
+        const { error: delSessionsError } = await supabaseAdmin
+          .from('check_sessions')
+          .delete()
+          .in('check_sessions_id', batchIds)
+        
+        if (delSessionsError) {
+          console.error("Delete check_sessions Failed:", delSessionsError)
+          throw new Error(`ลบข้อมูลรอบการตรวจไม่สำเร็จ: ${delSessionsError.message}`)
+        }
+      }
+      
+      console.log(`[Close Cycle] ลบข้อมูลเสร็จสมบูรณ์ ปิดรอบสำเร็จ`)
+    }
+
+    // 5. ส่งไฟล์ดาวน์โหลดกลับไปให้หน้าเว็บ
     return new Response(csvContent, {
       headers: { 
         ...corsHeaders, 
         'Content-Type': 'text/csv; charset=utf-8', 
-        'Content-Disposition': `attachment; filename="Work_Report_${start}_${end}.csv"` 
+        'Content-Disposition': `attachment; filename="Work_Report_${start}_to_${end}.csv"` 
       }
     })
 
   } catch (error) {
+    console.error("Function Error:", error)
     return new Response(JSON.stringify({ error: error.message }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
 })

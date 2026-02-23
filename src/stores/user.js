@@ -8,17 +8,45 @@ export const useUserStore = defineStore('user', {
   }),
 
   actions: {
-    // 1. เก็บ Session (ใช้ตอน Login สำเร็จ)
+    // --- 1. ฟังก์ชัน Login (เพิ่มใหม่เพื่อรองรับ Username) ---
+    async login(username, password) {
+      try {
+        // เรียก Edge Function 'login-with-username' ที่เราสร้างไว้
+        const { data, error } = await supabase.functions.invoke('login-with-username', {
+          body: { username, password }
+        })
+
+        if (error) throw error
+        if (!data || !data.session) throw new Error(data?.error || 'เข้าสู่ระบบไม่สำเร็จ')
+
+        // ตั้งค่า Session ให้ Supabase Client ฝั่งหน้าบ้าน (สำคัญมาก)
+        const { error: sessionError } = await supabase.auth.setSession(data.session)
+        if (sessionError) throw sessionError
+
+        // อัปเดต State
+        this.session = data.session
+
+        // ดึงข้อมูล Profile ต่อทันที
+        await this.fetchUserProfile()
+        
+        return { success: true }
+      } catch (err) {
+        console.error('Login Error:', err)
+        return { success: false, error: err.message || 'เกิดข้อผิดพลาดในการเข้าสู่ระบบ' }
+      }
+    },
+
+    // --- 2. เก็บ Session (Helper) ---
     setSession(session) {
       this.session = session
     },
 
-    // 2. เก็บข้อมูล Profile (ใช้แบบ Manual ถ้าต้องการ)
+    // --- 3. เก็บข้อมูล Profile (Helper) ---
     setProfile(data) {
       this.profile = data
     },
 
-    // 3. ดึงข้อมูลพนักงานจาก Supabase
+    // --- 4. ดึงข้อมูลพนักงานจาก Supabase ---
     async fetchUserProfile() {
       // ถ้าไม่มี Session หรือไม่มี Email ให้จบการทำงาน
       if (!this.session?.user?.email) return null
@@ -26,8 +54,6 @@ export const useUserStore = defineStore('user', {
       try {
         const { data, error } = await supabase
           .from('employees')
-          // ✅ แก้ไข: ระบุชื่อคอลัมน์ให้ครบและชัดเจน (Security & Consistency)
-          // ต้องมั่นใจว่าดึง 'employees_photo' และ 'notification_email' มาด้วย
           .select(`
             employees_id,
             employees_code,
@@ -62,22 +88,22 @@ export const useUserStore = defineStore('user', {
       }
     },
 
-    // 4. ล้างข้อมูล (Logout)
+    // --- 5. ล้างข้อมูล (Logout) ---
     async clearSession() {
       await supabase.auth.signOut() // สั่ง Logout ที่ Supabase ด้วย
       this.session = null
       this.profile = null
-      // เคลียร์ LocalStorage ที่ Pinia Persist เก็บไว้ (ถ้าจำเป็น)
+      // เคลียร์ LocalStorage ที่ Pinia Persist เก็บไว้ (ชื่อ 'user' มาจาก id ของ store)
       localStorage.removeItem('user') 
     },
 
-    // 5. โหลดข้อมูลตอนเข้าเว็บใหม่ (Re-hydrate)
+    // --- 6. โหลดข้อมูลตอนเข้าเว็บใหม่ (Re-hydrate) ---
     async loadSession() {
       const { data: { session } } = await supabase.auth.getSession()
 
       if (session) {
         this.session = session
-        // เรียกใช้ฟังก์ชันพระเอกของเรา เพื่อดึง Role/Profile ล่าสุด (รวมถึงรูปที่เพิ่งอัปเดต)
+        // เรียกใช้ฟังก์ชันพระเอกของเรา เพื่อดึง Role/Profile ล่าสุด
         await this.fetchUserProfile()
       }
     }

@@ -12,6 +12,10 @@ export function useReportSatisfaction() {
   const customStart = ref("");
   const customEnd = ref("");
   const topicsMap = ref({});
+
+  // 🔥 NEW: เพิ่มตัวแปรมารับค่าจากหน้าจอ (Checkbox ตัวกรองพื้นที่)
+  const selectedFloors = ref([]); 
+  const selectedTypes = ref([]);
   
   // Pagination
   const currentPage = ref(1);
@@ -19,9 +23,9 @@ export function useReportSatisfaction() {
   const totalItems = ref(0);
   const totalPages = computed(() => Math.ceil(totalItems.value / itemsPerPage.value) || 1);
 
-  // Stats
+  // Stats (🔥 เพิ่ม csatPercent สำหรับหน้า Report)
   const stats = ref({
-    totalReviews: 0, averageRating: "0.0", topTopic: "-", topScore: "0.0", lowTopic: "-", lowScore: "0.0",
+    totalReviews: 0, averageRating: "0.0", csatPercent: 0, topTopic: "-", topScore: "0.0", lowTopic: "-", lowScore: "0.0",
   });
   const trendChartData = ref({ labels: [], datasets: [] });
   const topicChartData = ref({ labels: [], datasets: [] });
@@ -58,6 +62,36 @@ export function useReportSatisfaction() {
     }
   };
 
+  // 🔥 Helper ใหม่: สำหรับจัดการเงื่อนไข Filter กรองพื้นที่ 🔥
+  const applyLocationFilters = (queryBuilder) => {
+    let q = queryBuilder;
+    
+    // 1. กรองตามชั้น (Floor)
+    if (selectedFloors.value.length > 0) {
+      q = q.in("locations.locations_floor", selectedFloors.value);
+    }
+
+    // 2. กรองตามประเภทห้องน้ำ (ค้นหาจากคำในชื่อสถานที่)
+    if (selectedTypes.value.length > 0) {
+      const orConditions = [];
+      if (selectedTypes.value.includes('patient')) {
+        orConditions.push('locations_name.ilike.%คนไข้%');
+        orConditions.push('locations_name.ilike.%ผู้ป่วย%');
+        orConditions.push('locations_name.ilike.%ward%');
+      }
+      if (selectedTypes.value.includes('staff')) {
+        orConditions.push('locations_name.ilike.%เจ้าหน้าที่%');
+        orConditions.push('locations_name.ilike.%staff%');
+      }
+      
+      if (orConditions.length > 0) {
+        // ใช้ referencedTable ระบุว่าให้ไปหาในตาราง locations แทน foreignTable
+        q = q.or(orConditions.join(','), { referencedTable: 'locations' });
+      }
+    }
+    return q;
+  };
+
   // ✅ Fetch Table Data (สำหรับแสดงผลหน้าเว็บ)
   const fetchTableData = async () => {
     try {
@@ -67,12 +101,16 @@ export function useReportSatisfaction() {
         const from = (currentPage.value - 1) * itemsPerPage.value;
         const to = from + itemsPerPage.value - 1;
 
+        // 🔥 เพิ่มการดึง restroom_types(restroom_types_name) สำหรับคอลัมน์ใหม่ในตาราง
         let query = supabase.from("feedbacks")
-            .select(`*, locations (locations_name, locations_building, locations_floor)`, { count: 'exact' })
+            .select(`*, locations!inner (locations_name, locations_building, locations_floor, restroom_types(restroom_types_name))`, { count: 'exact' })
             .order("created_at", { ascending: false })
             .range(from, to);
 
         if (range) query = query.gte("created_at", range.start).lte("created_at", range.end);
+
+        // ใช้งานตัวกรองพื้นที่
+        query = applyLocationFilters(query);
 
         const { data, count, error } = await query;
         if (error) throw error;
@@ -87,9 +125,14 @@ export function useReportSatisfaction() {
         const range = getDateRange(dateFilter.value);
         if (dateFilter.value === 'custom' && !range) return;
         
-        let query = supabase.from("feedbacks").select('rating, answers, created_at');
+        let query = supabase.from("feedbacks")
+            .select('rating, answers, created_at, locations!inner (locations_name, locations_building, locations_floor)');
+            
         if (range) query = query.gte("created_at", range.start).lte("created_at", range.end);
         
+        // ใช้งานตัวกรองพื้นที่
+        query = applyLocationFilters(query);
+
         const { data } = await query;
         if (data) {
             calculateStats(data);
@@ -106,14 +149,25 @@ export function useReportSatisfaction() {
 
   const calculateStats = (data) => {
     if (!data.length) {
-      stats.value = { totalReviews: 0, averageRating: "0.0", topTopic: "-", topScore: "0.0", lowTopic: "-", lowScore: "0.0" };
+      stats.value = { 
+        totalReviews: 0, averageRating: "0.0", csatPercent: 0, topTopic: "-", topScore: "0.0", lowTopic: "-", lowScore: "0.0" 
+      };
       return;
     }
+    
     let sumRating = 0;
+    let satisfiedCount = 0; // 🔥 นับคนให้ 4-5 ดาว
     const topicScores = {};
     
     data.forEach((item) => {
-      sumRating += Number(item.rating || 0);
+      const rating = Number(item.rating || 0);
+      sumRating += rating;
+
+      // 🔥 คำนวณ CSAT: ใครให้คะแนน 4 ขึ้นไป ถือว่าพอใจ
+      if (rating >= 4) {
+        satisfiedCount += 1;
+      }
+
       if (item.answers) {
         Object.entries(item.answers).forEach(([key, val]) => {
           const score = Number(val.rating || val);
@@ -127,6 +181,7 @@ export function useReportSatisfaction() {
     });
 
     const avg = (sumRating / data.length).toFixed(1);
+    const csat = Math.round((satisfiedCount / data.length) * 100); // 🔥 % CSAT
     
     let max = -1; let min = 6; let topName = "-"; let lowName = "-";
     for (const [id, obj] of Object.entries(topicScores)) {
@@ -139,6 +194,7 @@ export function useReportSatisfaction() {
     stats.value = {
       totalReviews: data.length,
       averageRating: avg,
+      csatPercent: csat, // 🔥 ส่งค่า CSAT ออกไปให้ UI
       topTopic: max > -1 ? topName : "-",
       topScore: max > -1 ? max.toFixed(1) : "0.0",
       lowTopic: min < 6 ? lowName : "-",
@@ -291,6 +347,7 @@ export function useReportSatisfaction() {
   return {
     loading, feedbacks, dateFilter, customStart, customEnd, searchCustom, stats, trendChartData, topicChartData, 
     exportToExcel,
-    totalItems, currentPage, itemsPerPage, totalPages, changePage
+    totalItems, currentPage, itemsPerPage, totalPages, changePage,
+    selectedFloors, selectedTypes, fetchData // ✅ ส่งออกให้ ReportSatisfaction.vue เอาไปใช้
   };
 }
