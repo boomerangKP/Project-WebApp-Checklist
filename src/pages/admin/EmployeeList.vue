@@ -47,9 +47,9 @@ const fetchEmployees = async () => {
   try {
     const { data, error } = await supabase
       .from("employees")
-      // ✅ เพิ่ม 'auth_user_id' เข้าไปในรายการ select
+      // 🚨 ลบ notification_email ออกจากรายการ select
       .select(
-        "employees_id, auth_user_id, employees_code, employees_firstname, employees_lastname, employees_position, employees_department, employees_gender, employees_phone, employees_status, email, role, notification_email, employees_photo, created_at"
+        "employees_id, auth_user_id, employees_code, employees_firstname, employees_lastname, employees_position, employees_department, employees_gender, employees_phone, employees_status, email, role, employees_photo, created_at"
       )
       .is("deleted_at", null)
       .order("created_at", { ascending: false });
@@ -136,6 +136,7 @@ const handleSave = async (formData) => {
   submitting.value = true;
   try {
     // เตรียมข้อมูลสำหรับอัปเดตตาราง employees (Database)
+    // 🚨 ลบ notification_email ออกจาก dbPayload
     const dbPayload = {
       employees_code: formData.code,
       employees_firstname: formData.firstname,
@@ -148,8 +149,7 @@ const handleSave = async (formData) => {
       employees_phone: formData.phone,
       email: formData.email ? formData.email.toLowerCase() : "",
       updated_at: new Date(),
-      employees_photo: formData.employees_photo,
-      notification_email: formData.notification_email || null,
+      employees_photo: formData.employees_photo
     };
 
     if (isEditing.value) {
@@ -157,27 +157,26 @@ const handleSave = async (formData) => {
       // ✅ กรณีแก้ไข (Update)
       // -----------------------------------------------------------
       
-      // ตรวจสอบว่าจำเป็นต้องอัปเดต Auth หรือไม่ (รวมถึงชื่อ-นามสกุล)
+      // ตรวจสอบว่าจำเป็นต้องอัปเดต Auth หรือไม่
       const isAuthUpdateNeeded = 
         formData.password || 
         formData.email !== selectedEmployee.value.email || 
         formData.role !== selectedEmployee.value.role ||
-        formData.firstname !== selectedEmployee.value.employees_firstname || // ✅ เช็คชื่อ
-        formData.lastname !== selectedEmployee.value.employees_lastname;     // ✅ เช็คนามสกุล
+        formData.firstname !== selectedEmployee.value.employees_firstname || 
+        formData.lastname !== selectedEmployee.value.employees_lastname;   
 
       if (isAuthUpdateNeeded) {
-          // ⚠️ ตรวจสอบว่ามี auth_user_id หรือไม่
           if (!selectedEmployee.value.auth_user_id) {
              console.warn("ไม่พบข้อมูลผู้ใช้ในระบบ Auth (อาจเป็นข้อมูลเก่า) ข้ามการอัปเดต Auth");
           } else {
               const { error: authError } = await supabase.functions.invoke('update-employee', {
                 body: {
-                  userId: selectedEmployee.value.auth_user_id, // ใช้ auth_user_id (UUID)
+                  userId: selectedEmployee.value.auth_user_id,
                   email: formData.email,
                   password: formData.password || undefined,
                   role: formData.role,
-                  firstName: formData.firstname, // ✅ ส่งชื่อไปอัปเดต
-                  lastName: formData.lastname    // ✅ ส่งนามสกุลไปอัปเดต
+                  firstName: formData.firstname,
+                  lastName: formData.lastname
                 }
               });
 
@@ -208,27 +207,21 @@ const handleSave = async (formData) => {
       // ✅ กรณีสร้างใหม่ (Create) - ใช้ Edge Function แบบ One-Stop
       // -----------------------------------------------------------
       
-      // ส่งข้อมูลทั้งหมดไปให้ Edge Function 'create-employee' จัดการ
+      // 🚨 ส่งข้อมูลทั้งหมดโดยไม่มี notification_email
       const { error } = await supabase.functions.invoke('create-employee', {
         body: {
-          // Auth Data
           email: formData.email,
           password: formData.password,
           role: formData.role,
-          
-          // Profile Data
           firstName: formData.firstname,
           lastName: formData.lastname,
           phone: formData.phone,
           position: formData.position,
-          
-          // Extra Data
           code: formData.code,
           department: formData.department,
           gender: formData.gender,
           status: formData.status,
-          employees_photo: formData.employees_photo,
-          notification_email: formData.notification_email
+          employees_photo: formData.employees_photo
         }
       });
 
@@ -251,37 +244,27 @@ const handleSave = async (formData) => {
 const handleDeleteConfirm = async (empToDelete) => {
   submitting.value = true;
   try {
-    // ---------------------------------------------------------
-    // 1. ✅ แก้ไข Database ก่อน: ปลด auth_user_id เป็น NULL
-    // เพื่อให้ไม่ติด Foreign Key Constraint เวลาลบ User ใน Auth
-    // ---------------------------------------------------------
     const { error } = await supabase
       .from("employees")
       .update({
         employees_status: "inactive",
         deleted_at: new Date(),
-        auth_user_id: null // 🔑 สำคัญมาก! ปลดล็อกความสัมพันธ์
+        auth_user_id: null
       })
       .eq("employees_id", empToDelete.employees_id);
 
     if (error) throw error;
 
-    // ---------------------------------------------------------
-    // 2. ✅ ลบ User ออกจาก Auth (เรียก Edge Function) ทีหลัง
-    // ---------------------------------------------------------
     if (empToDelete.auth_user_id) {
       const { error: funcError } = await supabase.functions.invoke('delete-employee', {
         body: { userId: empToDelete.auth_user_id }
       })
       
       if (funcError) {
-        // กรณีลบ Auth ไม่สำเร็จ (เช่น Network Error) แต่ DB ลบไปแล้ว
-        // เราจะแค่ Log Error ไว้ แต่ไม่ throw เพื่อให้ User เห็นว่าการลบข้อมูลสำเร็จ
         console.error("Auth Delete Warning:", funcError);
       }
     }
 
-    // ลบออกจาก list หน้าเว็บ
     employees.value = employees.value.filter(
       (e) => e.employees_id !== empToDelete.employees_id
     );

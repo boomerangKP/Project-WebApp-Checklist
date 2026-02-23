@@ -23,9 +23,9 @@ export function useReportSatisfaction() {
   const totalItems = ref(0);
   const totalPages = computed(() => Math.ceil(totalItems.value / itemsPerPage.value) || 1);
 
-  // Stats
+  // Stats (🔥 เพิ่ม csatPercent สำหรับหน้า Report)
   const stats = ref({
-    totalReviews: 0, averageRating: "0.0", topTopic: "-", topScore: "0.0", lowTopic: "-", lowScore: "0.0",
+    totalReviews: 0, averageRating: "0.0", csatPercent: 0, topTopic: "-", topScore: "0.0", lowTopic: "-", lowScore: "0.0",
   });
   const trendChartData = ref({ labels: [], datasets: [] });
   const topicChartData = ref({ labels: [], datasets: [] });
@@ -85,8 +85,8 @@ export function useReportSatisfaction() {
       }
       
       if (orConditions.length > 0) {
-        // ใช้ foreignTable ระบุว่าให้ไปหาในตาราง locations
-        q = q.or(orConditions.join(','), { foreignTable: 'locations' });
+        // ใช้ referencedTable ระบุว่าให้ไปหาในตาราง locations แทน foreignTable
+        q = q.or(orConditions.join(','), { referencedTable: 'locations' });
       }
     }
     return q;
@@ -101,9 +101,9 @@ export function useReportSatisfaction() {
         const from = (currentPage.value - 1) * itemsPerPage.value;
         const to = from + itemsPerPage.value - 1;
 
-        // 🔥 เปลี่ยนจากการดึง locations ธรรมดา เป็น locations!inner เพื่อให้สามารถกรองจากตารางลูกได้
+        // 🔥 เพิ่มการดึง restroom_types(restroom_types_name) สำหรับคอลัมน์ใหม่ในตาราง
         let query = supabase.from("feedbacks")
-            .select(`*, locations!inner (locations_name, locations_building, locations_floor)`, { count: 'exact' })
+            .select(`*, locations!inner (locations_name, locations_building, locations_floor, restroom_types(restroom_types_name))`, { count: 'exact' })
             .order("created_at", { ascending: false })
             .range(from, to);
 
@@ -125,7 +125,6 @@ export function useReportSatisfaction() {
         const range = getDateRange(dateFilter.value);
         if (dateFilter.value === 'custom' && !range) return;
         
-        // 🔥 ดึง locations!inner มาด้วยเพื่อให้กราฟและการ์ดสถิติถูกกรองไปด้วย
         let query = supabase.from("feedbacks")
             .select('rating, answers, created_at, locations!inner (locations_name, locations_building, locations_floor)');
             
@@ -150,14 +149,25 @@ export function useReportSatisfaction() {
 
   const calculateStats = (data) => {
     if (!data.length) {
-      stats.value = { totalReviews: 0, averageRating: "0.0", topTopic: "-", topScore: "0.0", lowTopic: "-", lowScore: "0.0" };
+      stats.value = { 
+        totalReviews: 0, averageRating: "0.0", csatPercent: 0, topTopic: "-", topScore: "0.0", lowTopic: "-", lowScore: "0.0" 
+      };
       return;
     }
+    
     let sumRating = 0;
+    let satisfiedCount = 0; // 🔥 นับคนให้ 4-5 ดาว
     const topicScores = {};
     
     data.forEach((item) => {
-      sumRating += Number(item.rating || 0);
+      const rating = Number(item.rating || 0);
+      sumRating += rating;
+
+      // 🔥 คำนวณ CSAT: ใครให้คะแนน 4 ขึ้นไป ถือว่าพอใจ
+      if (rating >= 4) {
+        satisfiedCount += 1;
+      }
+
       if (item.answers) {
         Object.entries(item.answers).forEach(([key, val]) => {
           const score = Number(val.rating || val);
@@ -171,6 +181,7 @@ export function useReportSatisfaction() {
     });
 
     const avg = (sumRating / data.length).toFixed(1);
+    const csat = Math.round((satisfiedCount / data.length) * 100); // 🔥 % CSAT
     
     let max = -1; let min = 6; let topName = "-"; let lowName = "-";
     for (const [id, obj] of Object.entries(topicScores)) {
@@ -183,6 +194,7 @@ export function useReportSatisfaction() {
     stats.value = {
       totalReviews: data.length,
       averageRating: avg,
+      csatPercent: csat, // 🔥 ส่งค่า CSAT ออกไปให้ UI
       topTopic: max > -1 ? topName : "-",
       topScore: max > -1 ? max.toFixed(1) : "0.0",
       lowTopic: min < 6 ? lowName : "-",
@@ -336,6 +348,6 @@ export function useReportSatisfaction() {
     loading, feedbacks, dateFilter, customStart, customEnd, searchCustom, stats, trendChartData, topicChartData, 
     exportToExcel,
     totalItems, currentPage, itemsPerPage, totalPages, changePage,
-    selectedFloors, selectedTypes // ✅ ส่งออกให้ ReportSatisfaction.vue เอาไปใช้
+    selectedFloors, selectedTypes, fetchData // ✅ ส่งออกให้ ReportSatisfaction.vue เอาไปใช้
   };
 }

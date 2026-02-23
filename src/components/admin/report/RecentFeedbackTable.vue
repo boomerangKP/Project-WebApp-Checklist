@@ -15,7 +15,6 @@ const props = defineProps({
   topics: { type: Object, default: () => ({}) },
 });
 
-// ✅ ลบ Logic Pagination ภายในออกทั้งหมด (เพราะ Parent จัดการให้แล้ว)
 const totalItems = computed(() => props.feedbacks?.length || 0);
 
 // --- Helper Functions ---
@@ -38,13 +37,6 @@ const formatTime = (dateString) => {
   );
 };
 
-// ✅ Helper: ฟังก์ชันย่อรูปภาพ (เตรียมไว้สำหรับแสดงรูปหลักฐานในอนาคต)
-// const getOptimizedPhoto = (url) => {
-//   if (!url) return "";
-//   if (url.includes('base64')) return url;
-//   return `${url}?width=100&height=100&resize=cover`;
-// };
-
 const calculateRealAverage = (item) => {
   if (item.answers && typeof item.answers === "object") {
     const scores = Object.values(item.answers).map((a) => Number(a.rating || a) || 0);
@@ -55,6 +47,18 @@ const calculateRealAverage = (item) => {
     }
   }
   return Number(item.rating || 0).toFixed(1);
+};
+
+// 🔥 NEW: Helper ดึงชื่อประเภทห้องน้ำ (มี Fallback เผื่อไว้ดักคำจากชื่อสถานที่ด้วย)
+const getRestroomType = (location) => {
+  if (location?.restroom_types?.restroom_types_name) {
+    return location.restroom_types.restroom_types_name;
+  }
+  // Fallback กรณีดึง relation ไม่มา ให้เดาจากชื่อ
+  const name = location?.locations_name || '';
+  if (name.includes('คนไข้') || name.includes('ผู้ป่วย') || name.toLowerCase().includes('ward')) return 'ห้องน้ำคนไข้';
+  if (name.includes('เจ้าหน้าที่') || name.toLowerCase().includes('staff')) return 'ห้องน้ำเจ้าหน้าที่';
+  return 'ทั่วไป';
 };
 
 // --- HTML Generators ---
@@ -93,6 +97,7 @@ const showDetail = (item) => {
   )}`;
   const score = calculateRealAverage(item);
   const topicListHTML = generateTopicListHTML(item.answers);
+  const roomType = getRestroomType(item.locations); // 🔥 ดึงประเภท
 
   const isDark = document.documentElement.classList.contains("dark");
   const bgClass = isDark ? "#1e293b" : "#ffffff";
@@ -107,12 +112,9 @@ const showDetail = (item) => {
         <div class="flex items-center gap-2 mb-4 text-xs" style="color: ${
           isDark ? "#94a3b8" : "#4b5563"
         }">
-           <span class="px-2 py-1 rounded" style="background-color: ${
-             isDark ? "#334155" : "#f3f4f6"
-           }">อาคาร ${item.locations?.locations_building || "-"}</span>
-           <span class="px-2 py-1 rounded" style="background-color: ${
-             isDark ? "#334155" : "#f3f4f6"
-           }">ชั้น ${item.locations?.locations_floor || "-"}</span>
+           <span class="px-2 py-1 rounded" style="background-color: ${isDark ? "#334155" : "#f3f4f6"}">อาคาร ${item.locations?.locations_building || "-"}</span>
+           <span class="px-2 py-1 rounded" style="background-color: ${isDark ? "#334155" : "#f3f4f6"}">ชั้น ${item.locations?.locations_floor || "-"}</span>
+           <span class="px-2 py-1 rounded" style="background-color: ${isDark ? "#3730a3" : "#e0e7ff"}; color: ${isDark ? "#a5b4fc" : "#4338ca"}">${roomType}</span>
            <span class="ml-auto" style="color: ${
              isDark ? "#64748b" : "#9ca3af"
            }">${formattedDate}</span>
@@ -209,6 +211,7 @@ const showDetail = (item) => {
             <th class="px-3 py-3 bg-gray-50 dark:bg-slate-900 whitespace-nowrap">จุดตรวจ</th>
             <th class="px-3 py-3 bg-gray-50 dark:bg-slate-900 text-center whitespace-nowrap w-[80px]">อาคาร</th>
             <th class="px-3 py-3 bg-gray-50 dark:bg-slate-900 text-center whitespace-nowrap w-[80px]">ชั้น</th>
+            <th class="px-3 py-3 bg-gray-50 dark:bg-slate-900 text-center whitespace-nowrap w-[100px]">ประเภท</th>
             <th class="px-3 py-3 text-center bg-gray-50 dark:bg-slate-900 whitespace-nowrap w-[100px]">คะแนน</th>
             <th class="px-3 py-3 bg-gray-50 dark:bg-slate-900 text-right whitespace-nowrap w-[80px]">เพิ่มเติม</th>
           </tr>
@@ -216,7 +219,7 @@ const showDetail = (item) => {
 
         <tbody class="divide-y divide-gray-50 dark:divide-slate-700 text-base">
           <tr v-if="!feedbacks || feedbacks.length === 0">
-            <td colspan="7" class="px-6 py-24 text-center text-gray-400 dark:text-slate-500">
+            <td colspan="8" class="px-6 py-24 text-center text-gray-400 dark:text-slate-500">
               <div class="flex flex-col items-center gap-3">
                 <Inbox class="w-12 h-12 text-gray-300 dark:text-slate-600" />
                 <span class="text-lg">ไม่พบข้อมูลในหน้านี้</span>
@@ -237,9 +240,7 @@ const showDetail = (item) => {
             </td>
 
             <td class="px-2 py-2 text-center whitespace-nowrap">
-              <div
-                class="inline-flex items-center gap-2 px-3 py-1.5 text-gray-700 dark:text-slate-300 dark:border-slate-600"
-              >
+              <div class="inline-flex items-center gap-2 px-3 py-1.5 text-gray-700 dark:text-slate-300 dark:border-slate-600">
                 <Clock class="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
                 <span class="font-mono font-medium">{{ formatTime(item.created_at) }}</span>
               </div>
@@ -263,6 +264,12 @@ const showDetail = (item) => {
             <td class="px-2 py-2 text-center whitespace-nowrap">
               <div class="inline-flex items-center justify-center min-w-[36px] h-[28px] text-gray-700 dark:text-slate-300 text-sm font-bold">
                 {{ item.locations?.locations_floor || "-" }}
+              </div>
+            </td>
+
+            <td class="px-2 py-2 text-center whitespace-nowrap">
+              <div class="inline-flex items-center px-2 py-1 rounded text-xs font-medium  dark:bg-slate-700 text-gray-700 dark:text-slate-300">
+                {{ getRestroomType(item.locations) }}
               </div>
             </td>
 
@@ -305,21 +312,9 @@ const showDetail = (item) => {
 
 <style>
 /* Style คงเดิม */
-.custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
-}
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background-color: #cbd5e1;
-  border-radius: 20px;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background-color: #94a3b8;
-}
-
-:global(.dark) .custom-scrollbar::-webkit-scrollbar-thumb {
-  background-color: #475569;
-}
+.custom-scrollbar::-webkit-scrollbar { width: 6px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 20px; }
+.custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #94a3b8; }
+:global(.dark) .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #475569; }
 </style>

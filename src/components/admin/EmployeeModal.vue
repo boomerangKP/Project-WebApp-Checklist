@@ -9,7 +9,6 @@ import {
   CheckCircle,
   RotateCcw,
   Trash2,
-  Bell,
   Plus,
   Eye,
   EyeOff
@@ -56,7 +55,6 @@ const form = ref({
   status: "active",
   phone: "",
   email: "",
-  notification_email: "",
   employees_photo: null,
   password: "",
 });
@@ -154,7 +152,6 @@ const resetForm = () => {
     status: "active",
     phone: "",
     email: "",
-    notification_email: "",
     employees_photo: null,
     password: "",
   };
@@ -296,9 +293,8 @@ watch(
         status: newData.employees_status || "active",
         phone: newData.employees_phone ? newData.employees_phone.replace(/-/g, "") : "",
         email: newData.employees_email || newData.email,
-        notification_email: newData.notification_email || "",
         employees_photo: newData.employees_photo || null,
-        password: "", // ✅ เมื่อแก้ไข ไม่ต้องดึง password มาแสดง
+        password: "", 
       };
 
       if (
@@ -323,7 +319,6 @@ watch(
   (isOpen) => {
     if (isOpen && !props.isEditing) {
       resetForm();
-      // ✅ ไม่มีการเรียก generateNextCode() อีกต่อไป เพื่อให้กรอกเอง
     }
   }
 );
@@ -345,12 +340,10 @@ const handleSubmit = async () => {
   if (form.value.phone.length !== 10)
     return swalError("ข้อมูลไม่ถูกต้อง", "เบอร์โทรศัพท์ต้องมี 10 หลักถ้วน");
 
-  // ✅ Logic: ตรวจสอบรหัสผ่านเฉพาะกรณีสร้างใหม่ (ถ้าแก้ไข จะว่างได้)
   if (!props.isEditing) {
     if (!form.value.password) return swalError("ข้อมูลไม่ครบ", "กรุณากำหนดรหัสผ่าน");
     if (form.value.password.length < 6) return swalError("ข้อมูลไม่ถูกต้อง", "รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร");
   } else {
-    // กรณีแก้ไข: ถ้ากรอกรหัสผ่านใหม่ ต้องเช็คความยาว
     if (form.value.password && form.value.password.length < 6) {
       return swalError("ข้อมูลไม่ถูกต้อง", "รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร");
     }
@@ -373,9 +366,8 @@ const handleSubmit = async () => {
     phone: formattedPhone,
     status: form.value.status,
     email: form.value.email.toLowerCase(),
-    notification_email: finalRole === "admin" ? form.value.notification_email : null,
     employees_photo: form.value.employees_photo,
-    password: form.value.password, // ✅ ส่ง password ไปด้วย
+    password: form.value.password, 
   });
 };
 </script>
@@ -797,26 +789,6 @@ const handleSubmit = async () => {
                     <EyeOff v-else class="w-4 h-4" />
                   </button>
                 </div>
-              </div>
-
-              <div
-                v-if="form.role === 'admin'"
-                class="space-y-1 animate-in fade-in slide-in-from-top-1"
-              >
-                <label
-                  class="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase flex items-center gap-1"
-                >
-                  <Bell class="w-3 h-3" /> อีเมลรับแจ้งเตือน (Notification)
-                </label>
-                <input
-                  v-model="form.notification_email"
-                  type="email"
-                  class="w-full border border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-900/20 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all dark:text-white"
-                  placeholder="notification@gmail.com"
-                />
-                <p class="text-[10px] text-gray-400 dark:text-slate-500">
-                  ระบุอีเมลสำหรับรับแจ้งเตือนจากระบบ
-                </p>
               </div>
 
               <div class="space-y-1">

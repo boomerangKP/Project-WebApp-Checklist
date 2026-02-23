@@ -1,5 +1,5 @@
 <script setup>
-import { MessageSquare, Star, TrendingUp, TrendingDown } from "lucide-vue-next";
+import { MessageSquare, Star, TrendingUp, TrendingDown, } from "lucide-vue-next";
 
 defineProps({ stats: Object });
 </script>
@@ -35,36 +35,42 @@ defineProps({ stats: Object });
       class="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 flex flex-col justify-between h-40 transition-colors duration-300"
     >
       <div class="flex justify-between items-start">
-        <div>
+        <div class="w-full">
           <p
             class="text-xs font-bold text-gray-400 dark:text-slate-500 uppercase tracking-wider"
           >
-            คะแนนเฉลี่ยรวม
+            ความพึงพอใจโดยรวม
           </p>
-          <div class="flex items-end gap-2 mt-2">
-            <h3 class="text-3xl font-bold text-indigo-600 dark:text-indigo-400">
-              {{ stats.averageRating }}
-            </h3>
-            <span class="text-sm text-gray-400 dark:text-slate-500 mb-1.5">/ 5.0</span>
+          <div class="flex items-end justify-between mt-2">
+            <div class="flex items-end gap-2">
+              <h3 class="text-3xl font-bold text-indigo-600 dark:text-indigo-400">
+                {{ stats.averageRating }}
+              </h3>
+              <span class="text-sm text-gray-400 dark:text-slate-500 mb-1.5">/ 5.0</span>
+            </div>
+            
+            <div class="flex flex-col items-end">
+              <span class="text-sm font-bold text-indigo-600 bg-indigo-50 dark:bg-indigo-900/30 px-2 py-1 rounded-lg">
+                พอใจ {{ stats.csatPercent || 0 }}%
+              </span>
+            </div>
           </div>
         </div>
-        <div
-          class="p-2.5 bg-yellow-50 dark:bg-yellow-900/20 rounded-xl text-yellow-500 dark:text-yellow-400"
-        >
-          <Star class="w-6 h-6 fill-yellow-500 dark:fill-yellow-400" />
-        </div>
       </div>
-      <div class="flex gap-1 mt-2">
-        <Star
-          v-for="i in 5"
-          :key="i"
-          class="w-4 h-4 transition-colors duration-300"
-          :class="
-            i <= Math.round(Number(stats.averageRating))
-              ? 'text-yellow-400 fill-yellow-400'
-              : 'text-gray-200 dark:text-slate-700'
-          "
-        />
+      
+      <div class="flex items-center justify-between mt-2">
+        <div class="flex gap-1">
+          <Star
+            v-for="i in 5"
+            :key="i"
+            class="w-4 h-4 transition-colors duration-300"
+            :class="
+              i <= Math.round(Number(stats.averageRating))
+                ? 'text-yellow-400 fill-yellow-400'
+                : 'text-gray-200 dark:text-slate-700'
+            "
+          />
+        </div>
       </div>
     </div>
 
@@ -87,9 +93,9 @@ defineProps({ stats: Object });
           <div
             class="flex items-center gap-1 bg-emerald-100 dark:bg-emerald-900/30 px-2 py-1 rounded-md"
           >
-            <span class="text-xs font-bold text-emerald-700 dark:text-emerald-400">{{
-              stats.topScore || "0.0"
-            }}</span>
+            <span class="text-xs font-bold text-emerald-700 dark:text-emerald-400">
+              {{ stats.topScore || "0.0" }}
+            </span>
             <Star
               class="w-3 h-3 text-emerald-600 dark:text-emerald-400 fill-emerald-600 dark:fill-emerald-400"
             />
@@ -133,9 +139,9 @@ defineProps({ stats: Object });
           <div
             class="flex items-center gap-1 bg-red-100 dark:bg-red-900/30 px-2 py-1 rounded-md"
           >
-            <span class="text-xs font-bold text-red-700 dark:text-red-400">{{
-              stats.lowScore || "0.0"
-            }}</span>
+            <span class="text-xs font-bold text-red-700 dark:text-red-400">
+              {{ stats.lowScore || "0.0" }}
+            </span>
             <Star
               class="w-3 h-3 text-red-600 dark:text-red-400 fill-red-600 dark:fill-red-400"
             />

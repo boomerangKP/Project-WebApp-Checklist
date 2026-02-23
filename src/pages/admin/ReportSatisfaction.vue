@@ -26,6 +26,7 @@ const { Swal } = useSwal();
 // เรียกใช้ Composable สำหรับ Export
 const { isExporting, runExport } = useExport();
 
+// 🔥 แก้ไขตรงนี้: ดึง selectedFloors และ selectedTypes มาจาก Composable
 const {
   loading,
   feedbacks,
@@ -41,6 +42,9 @@ const {
   currentPage,
   totalPages,
   changePage,
+  fetchData,
+  selectedFloors, // ✅ ดึงตัวแปรนี้มาใช้
+  selectedTypes   // ✅ ดึงตัวแปรนี้มาใช้
 } = useReportSatisfaction();
 
 // --- Helper: คำนวณช่วงวันที่จริง ---
@@ -117,8 +121,8 @@ const selectFilter = (value) => {
 
 // --- 🔥 NEW: Advanced Filter Logic (ตัวกรองพื้นที่) 🔥 ---
 const isAdvancedFilterOpen = ref(false);
-const selectedFloors = ref([]); // เก็บค่าชั้นที่เลือก เช่น ['4', '5', '6']
-const selectedTypes = ref([]);  // เก็บค่าประเภท เช่น ['patient', 'staff']
+// ❌ ลบ const selectedFloors = ref([]); ออกไป เพราะไปดึงจากข้างบนมาแล้ว
+// ❌ ลบ const selectedTypes = ref([]); ออกไป เพราะไปดึงจากข้างบนมาแล้ว
 
 const activeFilterCount = computed(() => selectedFloors.value.length + selectedTypes.value.length);
 const hasActiveFilters = computed(() => activeFilterCount.value > 0);
@@ -126,10 +130,8 @@ const hasActiveFilters = computed(() => activeFilterCount.value > 0);
 const applyFilters = () => {
   isAdvancedFilterOpen.value = false;
   currentPage.value = 1;
-  // เรียกฟังก์ชันดึงข้อมูลใหม่ (ประยุกต์ใช้ searchCustom หรือฟังก์ชันหลักของคุณ)
-  searchCustom(); 
-  
-  // หมายเหตุ: ใน useReportSatisfaction.js คุณอาจจะต้องรับค่า selectedFloors.value และ selectedTypes.value ไปต่อใน Query supabase ด้วยนะครับ
+  // เรียกฟังก์ชันดึงข้อมูลใหม่ (บังคับดึงค่า fetchData() เลยเพื่อให้ทำงานทุกกรณี)
+  fetchData();
 };
 
 const clearFilters = () => {
