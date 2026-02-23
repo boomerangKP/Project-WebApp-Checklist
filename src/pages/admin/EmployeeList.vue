@@ -163,7 +163,8 @@ const handleSave = async (formData) => {
         formData.email !== selectedEmployee.value.email || 
         formData.role !== selectedEmployee.value.role ||
         formData.firstname !== selectedEmployee.value.employees_firstname || 
-        formData.lastname !== selectedEmployee.value.employees_lastname;   
+        formData.lastname !== selectedEmployee.value.employees_lastname ||
+        formData.phone !== selectedEmployee.value.employees_phone; 
 
       if (isAuthUpdateNeeded) {
           if (!selectedEmployee.value.auth_user_id) {
@@ -176,7 +177,8 @@ const handleSave = async (formData) => {
                   password: formData.password || undefined,
                   role: formData.role,
                   firstName: formData.firstname,
-                  lastName: formData.lastname
+                  lastName: formData.lastname,
+                  phone: formData.phone
                 }
               });
 
