@@ -66,7 +66,6 @@ export const useUserStore = defineStore('user', {
             employees_status,
             role,
             email,
-            notification_email,
             employees_photo
           `)
           .eq('email', this.session.user.email)
