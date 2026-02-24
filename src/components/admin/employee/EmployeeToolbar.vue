@@ -14,7 +14,6 @@ const props = defineProps({
   searchQuery: String,
   roleFilter: String,
   statusFilter: String,
-  // ✅ เพิ่ม Prop สำหรับ Search Suggestion (ส่งมาจาก Parent)
   searchSuggestions: { type: Array, default: () => [] },
 });
 
@@ -39,10 +38,10 @@ const roleOptions = [
   { value: "supervisor", label: "หัวหน้าพนักงาน" },
 ];
 
+// ✅ ปรับสถานะให้สอดคล้องกับตาราง (เหลือแค่ ปกติ กับ ระงับ)
 const statusOptions = [
   { value: "all", label: "ทุกสถานะ" },
   { value: "active", label: "ปกติ" },
-  { value: "inactive", label: "ไม่เคลื่อนไหว" },
   { value: "suspended", label: "ระงับ" },
 ];
 
@@ -118,7 +117,7 @@ onUnmounted(() => window.removeEventListener("click", handleClickOutside));
         @focus="showSearchSuggestions = true"
         type="text"
         class="block w-full pl-9 pr-3 py-2 border border-gray-200 dark:border-slate-700 rounded-lg text-sm bg-gray-50 dark:bg-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-600 focus:border-emerald-500 outline-none transition-all"
-        placeholder="ค้นหาชื่อ, รหัส หรือ เบอร์โทร"
+        placeholder="ค้นหาชื่อ, รหัสพนักงาน หรือ อีเมล"
         autocomplete="off"
       />
 
@@ -265,6 +264,9 @@ onUnmounted(() => window.removeEventListener("click", handleClickOutside));
 }
 
 /* ✅ Dark Mode Scrollbar */
+:global(.dark) .custom-scrollbar::-webkit-scrollbar-track {
+  background: #1e293b; /* slate-800 */
+}
 :global(.dark) .custom-scrollbar::-webkit-scrollbar-thumb {
   background: #059669; /* emerald-600 */
 }

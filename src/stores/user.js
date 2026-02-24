@@ -62,7 +62,6 @@ export const useUserStore = defineStore('user', {
             employees_gender,
             employees_position,
             employees_department,
-            employees_phone,
             employees_status,
             role,
             email,

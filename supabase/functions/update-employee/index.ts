@@ -27,8 +27,8 @@ serve(async (req) => {
     }
 
     // --- เริ่มทำงาน ---
-    // ✅ 1. รับค่า phone เพิ่มเข้ามาด้วย
-    const { userId, email, password, role, firstName, lastName, phone } = await req.json()
+    // 🚨 1. รับค่า (เอา phone ออกแล้ว)
+    const { userId, email, password, role, firstName, lastName } = await req.json()
 
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -46,16 +46,7 @@ serve(async (req) => {
       updateData.password = password
     }
 
-    // ✅ จัดการเรื่องเบอร์โทร (คล้ายตอน Create)
-    if (phone) {
-      const cleanPhone = phone.replace(/[^0-9+]/g, '')
-      let authPhone = cleanPhone
-      if (cleanPhone.startsWith('0')) authPhone = '+66' + cleanPhone.slice(1)
-      else if (cleanPhone.startsWith('66')) authPhone = '+' + cleanPhone
-      
-      updateData.phone = authPhone
-      updateData.phone_confirm = true // ✅ บังคับยืนยันเบอร์ใหม่อัตโนมัติ
-    }
+    // 🚨 (ลบโค้ดจัดการเรื่องเบอร์โทรทิ้งไปทั้งหมด)
 
     // ✅ 2. รวมข้อมูล Metadata (Role + ชื่อ)
     const metadata: any = {}

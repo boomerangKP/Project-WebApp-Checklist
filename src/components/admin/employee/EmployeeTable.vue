@@ -4,7 +4,6 @@ import {
   Edit,
   Trash2,
   Mail,
-  Phone,
   Loader2,
   ChevronLeft,
   ChevronRight,
@@ -13,7 +12,6 @@ import {
   Copy,
   Check,
   User,
-  // ✅ เพิ่มไอคอน Role
   ShieldCheck,
   SprayCan,
 } from "lucide-vue-next";
@@ -48,7 +46,7 @@ const copyToClipboard = async (text, id) => {
   }
 };
 
-// ✅ Helper: ย่อรูปให้โหลดไว (Table ใช้รูปเล็กๆ แค่ 80px ก็ชัดแล้ว)
+// Helper: ย่อรูปให้โหลดไว
 const getOptimizedPhoto = (url) => {
   if (!url) return "";
   if (url.includes('base64')) return url;
@@ -78,7 +76,6 @@ const getRoleStyle = (r) => {
   if (!r)
     return "bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700";
   switch (r.toLowerCase()) {
-    // ✅ เพิ่ม Dark Mode Colors ให้ Badge
     case "admin":
       return "bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 border-purple-100 dark:border-purple-800";
     case "maid":
@@ -94,7 +91,7 @@ const getRoleStyle = (r) => {
   }
 };
 
-// Helper: Status (สถานะ)
+// Helper: Status (สถานะ) - มีแค่ 2 สถานะตามที่คุยกันไว้
 const getStatusConfig = (status) => {
   switch (status) {
     case "active":
@@ -102,12 +99,6 @@ const getStatusConfig = (status) => {
         label: "ปกติ",
         textClass: "text-emerald-700 dark:text-emerald-400",
         dotClass: "bg-emerald-500",
-      };
-    case "inactive":
-      return {
-        label: "ไม่เคลื่อนไหว",
-        textClass: "text-slate-500 dark:text-slate-400",
-        dotClass: "bg-slate-400",
       };
     case "suspended":
       return {
@@ -124,7 +115,7 @@ const getStatusConfig = (status) => {
   }
 };
 
-// ✅ Helper: Role Config (Icon/Emoji)
+// Helper: Role Config (Icon/Emoji)
 const getRoleConfig = (role) => {
   const r = role ? role.toLowerCase() : "user";
   switch (r) {
@@ -143,7 +134,6 @@ const getRoleConfig = (role) => {
           "bg-rose-100 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-800",
       };
     case "cleaner":
-      // ✅ Emoji 🧹 พื้นหลังสีเทา
       return {
         type: "emoji",
         icon: "🧹",
@@ -173,7 +163,6 @@ const getRoleConfig = (role) => {
             <th class="px-5 py-4 whitespace-nowrap w-40">รหัสพนักงาน</th>
             <th class="px-5 py-4 whitespace-nowrap">พนักงาน</th>
             <th class="px-5 py-4 whitespace-nowrap">ตำแหน่ง</th>
-            <th class="px-5 py-4 whitespace-nowrap">เบอร์โทร</th>
             <th class="px-5 py-4 whitespace-nowrap">อีเมล</th>
             <th class="px-5 py-4 whitespace-nowrap">สถานะ</th>
             <th class="px-5 py-4 text-right whitespace-nowrap w-24">จัดการ</th>
@@ -185,7 +174,7 @@ const getRoleConfig = (role) => {
         >
           <tr v-if="loading">
             <td
-              colspan="7"
+              colspan="6"
               class="px-6 py-20 text-center text-gray-400 dark:text-slate-500"
             >
               <div class="flex flex-col items-center justify-center gap-3">
@@ -199,7 +188,7 @@ const getRoleConfig = (role) => {
 
           <tr v-else-if="!employees || employees.length === 0">
             <td
-              colspan="7"
+              colspan="6"
               class="px-6 py-20 text-center text-gray-400 dark:text-slate-500 bg-gray-50/30 dark:bg-slate-800/30"
             >
               <div class="flex flex-col items-center justify-center gap-2">
@@ -239,7 +228,6 @@ const getRoleConfig = (role) => {
                     :src="getOptimizedPhoto(emp.employees_photo)"
                     class="h-full w-full object-cover"
                   />
-
                   <div
                     v-else
                     class="h-full w-full flex items-center justify-center border dark:border-slate-600"
@@ -275,17 +263,6 @@ const getRoleConfig = (role) => {
 
             <td class="px-6 py-4 whitespace-nowrap">
               <div class="flex items-center gap-2.5">
-                <Phone class="w-4 h-4 text-gray-400 dark:text-slate-500" />
-                <span
-                  class="text-sm text-gray-600 dark:text-slate-300 font-mono tracking-wide"
-                >
-                  {{ emp.employees_phone || "-" }}
-                </span>
-              </div>
-            </td>
-
-            <td class="px-6 py-4 whitespace-nowrap">
-              <div class="flex items-center gap-2.5">
                 <Mail class="w-4 h-4 text-gray-400 dark:text-slate-500" />
                 <span
                   class="text-sm text-gray-600 dark:text-slate-300 truncate max-w-[180px]"
@@ -314,14 +291,14 @@ const getRoleConfig = (role) => {
                 <button
                   @click="$emit('edit', emp)"
                   class="p-1.5 text-gray-400 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-md transition-colors border border-transparent hover:border-indigo-100 dark:hover:border-indigo-800"
-                  title="แก้ไข"
+                  title="แก้ไขข้อมูล"
                 >
                   <Edit class="w-4 h-4" />
                 </button>
                 <button
                   @click="$emit('delete', emp)"
                   class="p-1.5 text-gray-400 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-md transition-colors border border-transparent hover:border-red-100 dark:hover:border-red-800"
-                  title="ลบ"
+                  title="ระงับการใช้งาน"
                 >
                   <Trash2 class="w-4 h-4" />
                 </button>

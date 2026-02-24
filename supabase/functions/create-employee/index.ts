@@ -20,14 +20,13 @@ serve(async (req) => {
       throw new Error('Missing Authorization header')
     }
 
-    // 1. รับค่าจากหน้าบ้าน (🚨 ลบ notification_email ออกแล้ว)
+    // 1. รับค่าจากหน้าบ้าน (🚨 ลบ phone ออกแล้ว)
     const {
       email,
       password,
       role,
       firstName,
       lastName,
-      phone,
       position,
       code,
       department,
@@ -52,28 +51,13 @@ serve(async (req) => {
       )
     }
 
-    // ✅ 3. จัดการรูปแบบเบอร์โทรศัพท์ (Method 2: Backend Fix)
-    // ลบขีด, เว้นวรรค หรือตัวอักษรอื่นๆ ออกให้หมดก่อน
-    const cleanPhone = phone ? phone.replace(/[^0-9+]/g, '') : '';
-    let authPhone = cleanPhone;
+    // 🚨 (ลบโค้ดแปลงและจัดการเบอร์โทรศัพท์ทิ้งไปแล้ว)
 
-    // แปลงให้เป็น E.164 (เช่น 0812345678 -> +66812345678)
-    if (cleanPhone.startsWith('0')) {
-        authPhone = '+66' + cleanPhone.slice(1);
-    } else if (cleanPhone.startsWith('66')) {
-        authPhone = '+' + cleanPhone;
-    }
-    // ถ้าไม่มีเบอร์มาเลย ให้เป็น null (Auth จะไม่ error ถ้า config อนุญาต) หรือปล่อยว่าง
-
-    // 4. สร้าง User ใน Auth
+    // 3. สร้าง User ใน Auth (ส่งแค่อีเมล, รหัสผ่าน และข้อมูล Metadata)
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email: email,
       password: password,
       email_confirm: true,
-      // ✅ ส่งเบอร์ที่แปลงรูปแบบแล้ว (E.164)
-      phone: authPhone,
-      phone_confirm: true,
-
       user_metadata: {
         first_name: firstName,
         last_name: lastName,
@@ -85,23 +69,18 @@ serve(async (req) => {
 
     const userId = authData.user.id
 
-    // 5. บันทึกข้อมูลลงตาราง employees (🚨 ลบ notification_email ออกแล้ว)
+    // 4. บันทึกข้อมูลลงตาราง employees (🚨 ลบ employees_phone ออกแล้ว)
     const { error: dbError } = await supabaseAdmin
       .from('employees')
       .insert([
         {
           auth_user_id: userId, // ✅ ใส่ UUID
-
           employees_code: code,
           employees_firstname: firstName,
           employees_lastname: lastName,
           employees_position: position,
           employees_department: department,
           employees_gender: gender,
-
-          // ✅ ใน Database เก็บเบอร์แบบเดิมที่ User กรอกมา (เช่น 081-xxx) เพื่อความสวยงามในตาราง
-          employees_phone: phone,
-
           employees_status: status || 'active',
           email: email,
           role: role,

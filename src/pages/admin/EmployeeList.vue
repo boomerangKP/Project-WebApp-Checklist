@@ -48,9 +48,9 @@ const fetchEmployees = async () => {
   try {
     const { data, error } = await supabase
       .from("employees")
-      // 🚨 ลบ notification_email ออกจากรายการ select
+      // 🚨 ลบ employees_phone ออกไปแล้ว (แต่ถ้าฐานข้อมูลยังมีคอลัมน์อยู่ก็ดึงมาได้ ไม่เป็นไร)
       .select(
-        "employees_id, auth_user_id, employees_code, employees_firstname, employees_lastname, employees_position, employees_department, employees_gender, employees_phone, employees_status, email, role, employees_photo, created_at"
+        "employees_id, auth_user_id, employees_code, employees_firstname, employees_lastname, employees_position, employees_department, employees_gender, employees_status, email, role, employees_photo, created_at"
       )
       .is("deleted_at", null)
       .order("created_at", { ascending: false });
@@ -71,10 +71,10 @@ const allSearchSuggestions = computed(() => {
   const names = employees.value.map(
     (e) => `${e.employees_firstname} ${e.employees_lastname}`
   );
-  const phones = employees.value.map((e) => e.employees_phone).filter(Boolean);
+  // 🚨 เอา phones ออกจากการค้นหาแนะนำ
   const codes = employees.value.map((e) => e.employees_code).filter(Boolean);
   const emails = employees.value.map((e) => e.email).filter(Boolean);
-  return [...new Set([...names, ...phones, ...codes, ...emails])];
+  return [...new Set([...names, ...codes, ...emails])];
 });
 
 const filteredEmployees = computed(() => {
@@ -82,10 +82,11 @@ const filteredEmployees = computed(() => {
     const fullName = `${emp.employees_firstname} ${emp.employees_lastname}`.toLowerCase();
     const search = searchQuery.value.toLowerCase();
 
+    // 🚨 เอาการค้นหาด้วยเบอร์โทรออก
     const matchSearch =
       fullName.includes(search) ||
-      (emp.employees_phone && emp.employees_phone.includes(search)) ||
-      (emp.employees_code && emp.employees_code.toLowerCase().includes(search));
+      (emp.employees_code && emp.employees_code.toLowerCase().includes(search)) ||
+      (emp.email && emp.email.toLowerCase().includes(search));
 
     const matchRole = roleFilter.value === "all" || emp.role === roleFilter.value;
     const matchStatus =
@@ -123,7 +124,7 @@ const openEdit = (emp) => {
 const openDelete = async (emp) => {
   const confirm = await swalConfirm(
     "ยืนยันการลบพนักงาน?",
-    `ข้อมูลของ ${emp.employees_firstname} ${emp.employees_lastname} จะถูกซ่อนไว้ (Soft Delete) และสามารถกู้คืนได้โดย Admin`,
+    `ข้อมูลของ ${emp.employees_firstname} ${emp.employees_lastname} จะถูกระงับ (Soft Delete) และสามารถกู้คืนได้โดย Admin`,
     "ลบข้อมูล"
   );
 
@@ -136,8 +137,7 @@ const openDelete = async (emp) => {
 const handleSave = async (formData) => {
   submitting.value = true;
   try {
-    // เตรียมข้อมูลสำหรับอัปเดตตาราง employees (Database)
-    // 🚨 ลบ notification_email ออกจาก dbPayload
+    // 🚨 นำ employees_phone ออกจาก dbPayload
     const dbPayload = {
       employees_code: formData.code,
       employees_firstname: formData.firstname,
@@ -147,7 +147,6 @@ const handleSave = async (formData) => {
       employees_position: formData.position,
       employees_department: formData.department,
       employees_gender: formData.gender,
-      employees_phone: formData.phone,
       email: formData.email ? formData.email.toLowerCase() : "",
       updated_at: new Date(),
       employees_photo: formData.employees_photo
@@ -158,14 +157,13 @@ const handleSave = async (formData) => {
       // ✅ กรณีแก้ไข (Update)
       // -----------------------------------------------------------
       
-      // ตรวจสอบว่าจำเป็นต้องอัปเดต Auth หรือไม่
+      // 🚨 นำ phone ออกจากการเช็คเงื่อนไข
       const isAuthUpdateNeeded = 
         formData.password || 
         formData.email !== selectedEmployee.value.email || 
         formData.role !== selectedEmployee.value.role ||
         formData.firstname !== selectedEmployee.value.employees_firstname || 
-        formData.lastname !== selectedEmployee.value.employees_lastname ||
-        formData.phone !== selectedEmployee.value.employees_phone; 
+        formData.lastname !== selectedEmployee.value.employees_lastname;
 
       if (isAuthUpdateNeeded) {
           if (!selectedEmployee.value.auth_user_id) {
@@ -180,8 +178,8 @@ const handleSave = async (formData) => {
                   password: formData.password || undefined,
                   role: formData.role,
                   firstName: formData.firstname,
-                  lastName: formData.lastname,
-                  phone: formData.phone
+                  lastName: formData.lastname
+                  // 🚨 ไม่ต้องส่ง phone
                 },
                 headers: { Authorization: `Bearer ${session?.access_token}` }
               });
@@ -213,10 +211,8 @@ const handleSave = async (formData) => {
       // ✅ กรณีสร้างใหม่ (Create) - ใช้ Edge Function แบบ One-Stop
       // -----------------------------------------------------------
       
-      // 🔥 ดึง Token ของ Admin มาก่อนเพื่อใช้ยืนยันตัวตนกับ Edge Function
       const { data: { session } } = await supabase.auth.getSession();
 
-      // 🚨 ส่งข้อมูลทั้งหมดโดยไม่มี notification_email
       const { error } = await supabase.functions.invoke('create-employee', {
         body: {
           email: formData.email,
@@ -224,19 +220,18 @@ const handleSave = async (formData) => {
           role: formData.role,
           firstName: formData.firstname,
           lastName: formData.lastname,
-          phone: formData.phone,
           position: formData.position,
           code: formData.code,
           department: formData.department,
           gender: formData.gender,
           status: formData.status,
           employees_photo: formData.employees_photo
+          // 🚨 ไม่ต้องส่ง phone
         },
-        // ✅ บังคับส่ง Token ยืนยันตัวตน ป้องกัน Error 401
         headers: { Authorization: `Bearer ${session?.access_token}` }
       });
 
-      if (error) throw new Error(error.message); // โยนไปเข้า Catch ให้เด้ง Alert
+      if (error) throw new Error(error.message); 
       await swalSuccess("เพิ่มสำเร็จ!", "เพิ่มพนักงานใหม่และสร้างบัญชีเรียบร้อยแล้ว");
     }
 
@@ -247,15 +242,14 @@ const handleSave = async (formData) => {
     console.error("Save Error:", err);
     let errorMsg = err.message || "ไม่สามารถบันทึกข้อมูลได้";
 
-    // 🔥🔥🔥 ดักจับ Error ข้อมูลซ้ำ (400) จาก Edge Function แล้วแสดง Pop-up สวยๆ
+    // 🚨 แก้ไขแจ้งเตือน เอา "เบอร์โทรซ้ำ" ออกจาก Pop-up
     if (errorMsg.includes('non-2xx status code') || errorMsg.includes('Bad Request')) {
         Swal.fire({
           icon: "warning",
           title: "ข้อมูลซ้ำซ้อนในระบบ",
           html: `ระบบไม่สามารถบันทึกข้อมูลได้ เนื่องจากมีข้อมูลบางส่วนซ้ำกับผู้ใช้อื่น:<br><br>
-                 <div class="text-left inline-block bg-gray-50 p-8 rounded-lg text-sm dark:bg-slate-700">
+                 <div class="text-left inline-block bg-gray-50 p-6 rounded-lg text-sm dark:bg-slate-700">
                    <li><b>อีเมล (Email)</b> ซ้ำ</li>
-                   <li><b>เบอร์โทรศัพท์ (Phone)</b> ซ้ำ</li>
                    <li><b>รหัสพนักงาน (Code)</b> ซ้ำ</li>
                  </div><br><br>
                  กรุณาตรวจสอบข้อมูลและลองใหม่อีกครั้ง`,
@@ -263,7 +257,6 @@ const handleSave = async (formData) => {
           confirmButtonText: "กลับไปแก้ไข"
         });
     } else {
-        // แจ้งเตือน Error กรณีอื่นๆ (เช่น เน็ตหลุด)
         Swal.fire({
           icon: "error",
           title: "เกิดข้อผิดพลาด",
@@ -285,7 +278,7 @@ const handleDeleteConfirm = async (empToDelete) => {
     const { error } = await supabase
       .from("employees")
       .update({
-        employees_status: "inactive",
+        employees_status: "suspended", // ✅ เปลี่ยนจาก inactive เป็น suspended
         deleted_at: new Date(),
         auth_user_id: null
       })
@@ -307,7 +300,7 @@ const handleDeleteConfirm = async (empToDelete) => {
       (e) => e.employees_id !== empToDelete.employees_id
     );
 
-    await swalSuccess("ลบสำเร็จ!", "ข้อมูลพนักงานและบัญชีผู้ใช้ถูกลบเรียบร้อยแล้ว");
+    await swalSuccess("ลบสำเร็จ!", "ข้อมูลพนักงานและบัญชีผู้ใช้ถูกระงับเรียบร้อยแล้ว");
 
     if (paginatedEmployees.value.length === 0 && currentPage.value > 1) {
       currentPage.value--;
