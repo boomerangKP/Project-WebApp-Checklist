@@ -45,6 +45,7 @@ const roleToPositionMap = {
   supervisor: "หัวหน้างาน",
 };
 
+// 🚨 นำ phone ออกจาก form state เริ่มต้น
 const form = ref({
   code: "",
   firstname: "",
@@ -53,7 +54,6 @@ const form = ref({
   department: "",
   role: "maid",
   status: "active",
-  phone: "",
   email: "",
   employees_photo: null,
   password: "",
@@ -78,9 +78,9 @@ const roleOptions = ref([
   { value: "supervisor", label: "หัวหน้างาน" },
 ]);
 
+// ✅ ปรับสถานะให้เหลือแค่ ปกติ และ ระงับ
 const statusOptions = [
   { value: "active", label: "ปกติ" },
-  { value: "inactive", label: "ไม่เคลื่อนไหว" },
   { value: "suspended", label: "ระงับ" },
 ];
 
@@ -141,6 +141,7 @@ const getLabel = (options, value, placeholder) => {
   return found ? found.label : value || placeholder;
 };
 
+// 🚨 นำ phone ออกจากการ reset
 const resetForm = () => {
   form.value = {
     code: "",
@@ -150,7 +151,6 @@ const resetForm = () => {
     department: "",
     role: "maid",
     status: "active",
-    phone: "",
     email: "",
     employees_photo: null,
     password: "",
@@ -275,14 +275,11 @@ const handleEmailInput = (e) => {
     : "";
 };
 
-const handlePhoneInput = (e) => {
-  form.value.phone = e.target.value.replace(/\D/g, "").slice(0, 10);
-};
-
 watch(
   () => props.employeeData,
   async (newData) => {
     if (props.isEditing && newData) {
+      // 🚨 นำ phone ออกจากการอัปเดตค่าเมื่อเป็นโหมดแก้ไข
       form.value = {
         code: newData.employees_code,
         firstname: newData.employees_firstname,
@@ -291,7 +288,6 @@ watch(
         department: newData.employees_department || "",
         role: (newData.role || "maid").toLowerCase(),
         status: newData.employees_status || "active",
-        phone: newData.employees_phone ? newData.employees_phone.replace(/-/g, "") : "",
         email: newData.employees_email || newData.email,
         employees_photo: newData.employees_photo || null,
         password: "", 
@@ -335,10 +331,8 @@ const handleSubmit = async () => {
   if (!form.value.email.trim()) return swalError("ข้อมูลไม่ครบ", "กรุณากรอก อีเมล");
   if (emailError.value)
     return swalError("ข้อมูลไม่ถูกต้อง", "กรุณาแก้ไขรูปแบบอีเมลให้ถูกต้อง");
-  if (!form.value.phone.trim())
-    return swalError("ข้อมูลไม่ครบ", "กรุณากรอก เบอร์โทรศัพท์");
-  if (form.value.phone.length !== 10)
-    return swalError("ข้อมูลไม่ถูกต้อง", "เบอร์โทรศัพท์ต้องมี 10 หลักถ้วน");
+
+  // 🚨 นำ Validate ของเบอร์โทรศัพท์ออกไปแล้ว
 
   if (!props.isEditing) {
     if (!form.value.password) return swalError("ข้อมูลไม่ครบ", "กรุณากำหนดรหัสผ่าน");
@@ -357,13 +351,13 @@ const handleSubmit = async () => {
 
   const finalRole = form.value.role.toLowerCase();
   const finalPosition = roleToPositionMap[finalRole] || "พนักงานทั่วไป";
-  const formattedPhone = form.value.phone.replace(/(\d{3})(\d{3})(\d{4})/, "$1-$2-$3");
 
+  // 🚨 ส่ง phone: "" คืนค่าว่างไปเลย เพื่อไม่ให้หน้า EmployeeList มีปัญหาดึงค่า undefined
   emit("save", {
     ...form.value,
     role: finalRole,
     position: finalPosition,
-    phone: formattedPhone,
+    phone: "", 
     status: form.value.status,
     email: form.value.email.toLowerCase(),
     employees_photo: form.value.employees_photo,
@@ -791,22 +785,7 @@ const handleSubmit = async () => {
                 </div>
               </div>
 
-              <div class="space-y-1">
-                <label
-                  class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase"
-                  >เบอร์โทร (10 หลัก) <span class="text-red-500">*</span></label
-                >
-                <input
-                  :value="form.phone"
-                  @input="handlePhoneInput"
-                  type="tel"
-                  inputmode="numeric"
-                  maxlength="10"
-                  class="w-full border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                  placeholder="กรอกหมายเลขโทรศัพท์ 10 หลัก"
-                />
-              </div>
-            </form>
+              </form>
           </div>
 
           <div
