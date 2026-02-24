@@ -39,7 +39,8 @@ const showToast = (title, message, type = "success") => {
   toast.value = { isOpen: true, title, message, type };
 };
 
-const { swalConfirm, swalSuccess } = useSwal();
+// 🔥 เพิ่มดึงค่า Swal มารอไว้ทำ Pop-up เด้งเตือน Error
+const { swalConfirm, swalSuccess, Swal } = useSwal();
 
 // --- 1. Fetch Data ---
 const fetchEmployees = async () => {
@@ -170,6 +171,8 @@ const handleSave = async (formData) => {
           if (!selectedEmployee.value.auth_user_id) {
              console.warn("ไม่พบข้อมูลผู้ใช้ในระบบ Auth (อาจเป็นข้อมูลเก่า) ข้ามการอัปเดต Auth");
           } else {
+              const { data: { session } } = await supabase.auth.getSession();
+
               const { error: authError } = await supabase.functions.invoke('update-employee', {
                 body: {
                   userId: selectedEmployee.value.auth_user_id,
@@ -179,7 +182,8 @@ const handleSave = async (formData) => {
                   firstName: formData.firstname,
                   lastName: formData.lastname,
                   phone: formData.phone
-                }
+                },
+                headers: { Authorization: `Bearer ${session?.access_token}` }
               });
 
               if (authError) throw new Error("ไม่สามารถอัปเดตข้อมูลเข้าระบบ (Auth) ได้: " + authError.message);
@@ -209,6 +213,9 @@ const handleSave = async (formData) => {
       // ✅ กรณีสร้างใหม่ (Create) - ใช้ Edge Function แบบ One-Stop
       // -----------------------------------------------------------
       
+      // 🔥 ดึง Token ของ Admin มาก่อนเพื่อใช้ยืนยันตัวตนกับ Edge Function
+      const { data: { session } } = await supabase.auth.getSession();
+
       // 🚨 ส่งข้อมูลทั้งหมดโดยไม่มี notification_email
       const { error } = await supabase.functions.invoke('create-employee', {
         body: {
@@ -224,10 +231,12 @@ const handleSave = async (formData) => {
           gender: formData.gender,
           status: formData.status,
           employees_photo: formData.employees_photo
-        }
+        },
+        // ✅ บังคับส่ง Token ยืนยันตัวตน ป้องกัน Error 401
+        headers: { Authorization: `Bearer ${session?.access_token}` }
       });
 
-      if (error) throw error;
+      if (error) throw new Error(error.message); // โยนไปเข้า Catch ให้เด้ง Alert
       await swalSuccess("เพิ่มสำเร็จ!", "เพิ่มพนักงานใหม่และสร้างบัญชีเรียบร้อยแล้ว");
     }
 
@@ -236,7 +245,34 @@ const handleSave = async (formData) => {
 
   } catch (err) {
     console.error("Save Error:", err);
-    showToast("เกิดข้อผิดพลาด", err.message || "ไม่สามารถบันทึกข้อมูลได้", "error");
+    let errorMsg = err.message || "ไม่สามารถบันทึกข้อมูลได้";
+
+    // 🔥🔥🔥 ดักจับ Error ข้อมูลซ้ำ (400) จาก Edge Function แล้วแสดง Pop-up สวยๆ
+    if (errorMsg.includes('non-2xx status code') || errorMsg.includes('Bad Request')) {
+        Swal.fire({
+          icon: "warning",
+          title: "ข้อมูลซ้ำซ้อนในระบบ",
+          html: `ระบบไม่สามารถบันทึกข้อมูลได้ เนื่องจากมีข้อมูลบางส่วนซ้ำกับผู้ใช้อื่น:<br><br>
+                 <div class="text-left inline-block bg-gray-50 p-8 rounded-lg text-sm dark:bg-slate-700">
+                   <li><b>อีเมล (Email)</b> ซ้ำ</li>
+                   <li><b>เบอร์โทรศัพท์ (Phone)</b> ซ้ำ</li>
+                   <li><b>รหัสพนักงาน (Code)</b> ซ้ำ</li>
+                 </div><br><br>
+                 กรุณาตรวจสอบข้อมูลและลองใหม่อีกครั้ง`,
+          confirmButtonColor: "#f59e0b",
+          confirmButtonText: "กลับไปแก้ไข"
+        });
+    } else {
+        // แจ้งเตือน Error กรณีอื่นๆ (เช่น เน็ตหลุด)
+        Swal.fire({
+          icon: "error",
+          title: "เกิดข้อผิดพลาด",
+          text: errorMsg,
+          confirmButtonColor: "#ef4444",
+          confirmButtonText: "ปิดหน้าต่าง"
+        });
+    }
+
   } finally {
     submitting.value = false;
   }
