@@ -1,44 +1,31 @@
-# supabase-vue
+# 🏢 Building Hygiene Management System (ระบบบริหารจัดการสุขอนามัยอาคาร)
 
-This template should help get you started developing with Vue 3 in Vite.
+ระบบเว็บแอปพลิเคชันสำหรับการบริหารจัดการและประเมินผลการทำความสะอาดพื้นที่ภายในอาคาร รองรับการทำงานผ่าน QR Code สำหรับพนักงานทำความสะอาด และมี Dashboard สำหรับผู้ดูแลระบบ
 
-## Recommended IDE Setup
+---
 
-[VS Code](https://code.visualstudio.com/) + [Vue (Official)](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
+## 💻 Recommended IDE Setup (โปรแกรมที่แนะนำสำหรับนักพัฒนา)
 
-## Recommended Browser Setup
+- [VS Code](https://code.visualstudio.com/) 
+- ติดตั้ง Extension: [Vue (Official)](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (และให้ปิดการใช้งาน Vetur หากเคยติดตั้งไว้)
 
-- Chromium-based browsers (Chrome, Edge, Brave, etc.):
-  - [Vue.js devtools](https://chromewebstore.google.com/detail/vuejs-devtools/nhdogjmejiglipccpnnnanhbledajbpd) 
-  - [Turn on Custom Object Formatter in Chrome DevTools](http://bit.ly/object-formatters)
-- Firefox:
-  - [Vue.js devtools](https://addons.mozilla.org/en-US/firefox/addon/vue-js-devtools/)
-  - [Turn on Custom Object Formatter in Firefox DevTools](https://fxdx.dev/firefox-devtools-custom-object-formatters/)
+## 🌐 Recommended Browser Setup (เบราว์เซอร์สำหรับทดสอบ)
 
-## Customize configuration
+- **Chrome / Edge / Brave:** แนะนำให้ติดตั้ง [Vue.js devtools](https://chromewebstore.google.com/detail/vuejs-devtools/nhdogjmejiglipccpnnnanhbledajbpd)
+- **Firefox:** แนะนำให้ติดตั้ง [Vue.js devtools](https://addons.mozilla.org/en-US/firefox/addon/vue-js-devtools/)
 
-See [Vite Configuration Reference](https://vite.dev/config/).
+---
 
-## Project Setup
+## 🚀 Getting Started (ขั้นตอนการติดตั้งและรันโปรเจกต์)
 
+เมื่อทำการ Clone โปรเจกต์นี้ลงมาที่เครื่องแล้ว ให้ทำตามขั้นตอนต่อไปนี้ตามลำดับ เพื่อให้ระบบสามารถเชื่อมต่อฐานข้อมูลและรันได้อย่างสมบูรณ์
+
+### 📌 Prerequisites (สิ่งที่ต้องมีในเครื่องก่อนเริ่ม)
+1. **Node.js** (เวอร์ชัน 18 ขึ้นไป)
+2. **pnpm** (โปรเจกต์นี้ใช้ pnpm หากไม่มีให้รัน `npm install -g pnpm`)
+3. **Supabase CLI** (สำหรับการ Deploy Backend Functions) - [วิธีติดตั้ง](https://supabase.com/docs/guides/cli)
+
+### Step 1: Install Dependencies (ติดตั้งแพ็กเกจ)
+เปิด Terminal ในโฟลเดอร์โปรเจกต์แล้วรันคำสั่ง:
 ```sh
 pnpm install
-```
-
-### Compile and Hot-Reload for Development
-
-```sh
-pnpm dev
-```
-
-### Compile and Minify for Production
-
-```sh
-pnpm build
-```
-
-### Lint with [ESLint](https://eslint.org/)
-
-```sh
-pnpm lint
-```
