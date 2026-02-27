@@ -36,7 +36,7 @@ pnpm install
 1. สร้างไฟล์ชื่อ .env ไว้ที่โฟลเดอร์นอกสุด (ระดับเดียวกับ package.json)
 2. นำ URL และ API Key จากโปรเจกต์ Supabase ของคุณมาใส่ในไฟล์ .env ตามรูปแบบนี้:
 ```sh
-VITE_SUPABASE_URL=https://[YOUR_PROJECT_ID].supabase.co
+VITE_SUPABASE_URL=[YOUR_PROJECT_ID]
 VITE_SUPABASE_ANON_KEY=[YOUR_SUPABASE_ANON_KEY]
 ```
 ### Step 3: Setup Supabase Edge Functions (ตั้งค่าระบบประมวลผลหลังบ้าน)
