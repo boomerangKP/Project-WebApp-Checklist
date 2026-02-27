@@ -35,10 +35,10 @@ pnpm install
 
 1. สร้างไฟล์ชื่อ .env ไว้ที่โฟลเดอร์นอกสุด (ระดับเดียวกับ package.json)
 2. นำ URL และ API Key จากโปรเจกต์ Supabase ของคุณมาใส่ในไฟล์ .env ตามรูปแบบนี้:
-
+```sh
 VITE_SUPABASE_URL=https://[YOUR_PROJECT_ID].supabase.co
 VITE_SUPABASE_ANON_KEY=[YOUR_SUPABASE_ANON_KEY]
-
+```
 ### Step 3: Setup Supabase Edge Functions (ตั้งค่าระบบประมวลผลหลังบ้าน)
 
 โปรเจกต์นี้มีการใช้ Edge Functions (เช่น การเพิ่มพนักงาน, การออกรายงาน PDF/Excel) หากไม่ทำขั้นตอนนี้ แอดมินจะไม่สามารถกดเพิ่มพนักงานหรือโหลดรายงานได้
@@ -67,7 +67,19 @@ pnpm dev
 ### Available Scripts (คำสั่งอื่นๆ ที่ใช้งานได้)
 
 คำสั่ง,หน้าที่
-```sh pnpm dev```,รันเซิร์ฟเวอร์จำลองสำหรับนักพัฒนา
-```sh pnpm build```,คอมไพล์และลดขนาดไฟล์ (Minify) เพื่อนำไปขึ้นระบบจริง (Production)
-```sh pnpm preview```,จำลองการรันไฟล์ Production ในเครื่อง (เพื่อเทสหลังจากการ Build)
-```sh pnpm lint``,ตรวจสอบข้อผิดพลาดของรูปแบบโค้ดด้วย ESLint
+```sh 
+pnpm dev
+```
+รันเซิร์ฟเวอร์จำลองสำหรับนักพัฒนา
+```sh 
+pnpm build
+```
+คอมไพล์และลดขนาดไฟล์ (Minify) เพื่อนำไปขึ้นระบบจริง (Production)
+```sh 
+pnpm preview
+```
+จำลองการรันไฟล์ Production ในเครื่อง (เพื่อเทสหลังจากการ Build)
+```sh
+pnpm lint
+```
+ตรวจสอบข้อผิดพลาดของรูปแบบโค้ดด้วย ESLint
